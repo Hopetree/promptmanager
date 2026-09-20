@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–27 已全部完成**；已发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）自检全过**（见本文件「阶段 27」） |
+| 阶段 | **阶段 1–28 已全部完成**；已发布 **v1.0.0** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）与阶段 28（`AGENTS.md` / AC-83，含全英文返工）自检全过**（见本文件「阶段 27」「阶段 28」） |
 | 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -49,6 +49,7 @@
 | 25 | FR-76 顶栏品牌文字 → `PromptM`（其余四处保持全名） | [`#2026-09-20-阶段-25-实施与自检fr-76-d-31顶栏品牌文字-promptm`](dev-history/PROGRESS.md#2026-09-20-阶段-25-实施与自检fr-76-d-31顶栏品牌文字-promptm) |
 | 26 | 上线准备：文档整理 + 产物清理（P1）+ 质量检查/版本 1.0.0/flaky 修复（P2） | 本文件「上线准备 P1」「上线准备 P2」「P2 返工」 |
 | 27 | FR-77 表格批量操作（复选框/全选/批量收藏·移动·删除）+ FR-78 详情页「文件夹+标签」可改 + FR-79 去「备注」页签 + FR-80 去变量区块 + FR-81 加大 VarsDialog | 本文件「阶段 27」 |
+| 28 | 项目级 `AGENTS.md`（AI 代理操作指南：常用命令 / 结构地图 / 约定 / 红线 / 10 条本项目特有的坑 / 文档地图 / 协作约定；按 STANDARDS §5.1 **全文英文**） | 本文件「阶段 28」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -560,6 +561,216 @@ $ git diff --stat package.json package-lock.json   → 空（无新依赖）
 | ② | 前端 FR-77 表格批量 + FR-78/79/80 详情页改造 + 被取代断言的修订 + 体积预算记账 | **`1402f9e`** `feat(web): 表格批量操作（FR-77）+ 详情页元信息行与去备注页签/变量区块（FR-78/79/80）` |
 | ③ | FR-81 VarsDialog 尺寸 + `tools/ac-stage27.*` + `tests/stage27-ui.test.ts` + PROGRESS/README | **`2d65311`** `feat(web): 加大变量填值对话框宽高（FR-81）+ 阶段 27 AC 自检与文档` |
 | 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | `2e326e5`（回填三个单元 hash）；**最后一个 docs-only 收尾提交的 hash 见交付回复**（提交无法自引用自身 hash） |
+
+
+## 阶段 28（2026-09-21）：项目级 `AGENTS.md`（AI 代理操作指南）—— AC-83
+
+### ① 本阶段做了什么
+
+- **新建项目根目录 `AGENTS.md`**：**项目级 AI 代理操作指南**，受众是「在这个仓库里干活的 AI 代理 / 一个新开的会话」
+  （**不是**产品介绍、**不是**需求规格、**不是**通用开发规范 —— 那三样分别是 `README.md` / `BRIEF.md` / `STANDARDS.md`）。
+  共 12 节：项目是什么 / 最短上手路径（5 分钟）/ 常用命令 / 结构地图 / 代码约定 / 数据与迁移 / 测试 /
+  验证与自证（真鼠标事件、内网 IP、截图识图）/ 红线 / **本项目特有的坑 10 条** / 文档地图 / 与 AI 代理的协作约定。
+- **语言返工（用户 2026-09-21 定的规范）**：`/root/greenhouse/STANDARDS.md` **§5.1 文档语言规范**要求
+  **AI 代理指令文件（`AGENTS.md` / `CLAUDE.md` / `.cursorrules` 等）一律用英文**（受众是 AI，英文更利于识别与精确更新；
+  其余文档保持中文）⇒ 全文改为英文：**中文版 `5911cf4`（232 行）→ 英文版 `67e5f41`（289 行）**（BRIEF v36 / AC-83 ⑧）。
+- **只改语言、不改内容**：结构 §1–§12、10 条坑、`file:line` 证据、命令与实测输出全部保留 —— 用**脚本比对**证明（见 ④），不靠目测。
+  英文比中文长属正常（232 → 289 行）。
+- **未改任何业务代码**：`src/`、`web/src/`、`tests/`、`migrations/`、`package.json` 全程零改动。
+
+### ② 并行避让留痕（本阶段横跨阶段 27 的并行开发期）
+
+- **开工即红，但不是 HEAD 的问题**：第一次 `npm test` 报
+  `src/server/routes/prompts.ts(164,12): error TS2304: Cannot find name 'bulkPrompts'.`（rc=2）。
+  查证结论 = **另一会话（阶段 27）正在同一工作区改代码**：`src/services/prompts.ts` mtime `00:50:38`、
+  `src/server/routes/prompts.ts` mtime `00:51:17`（都落在本会话进行中，后者正好补上缺的 import）；
+  `/root/.dsh/sessions/--root-greenhouse-projects-promptmanager--/session-8f891155-…` 的 transcript 仍在增长，
+  其首条用户消息是**阶段 27 / BRIEF v34 / FR-77~FR-81**（`ps` 在 `bwrap --unshare-pid` 里看不到别的进程，故用会话记录判定）。
+  ⇒ **HEAD 本身是绿的**：`git archive HEAD` 隔离副本 `ℹ tests 285 / pass 285 / fail 0`。
+- **按 host_manger 要求避让**：本阶段**只新增 `AGENTS.md`、暂不写 `PROGRESS.md`**；`git add` **只用明确路径**
+  （`git add AGENTS.md`），**绝不用 `git add -A` / `git add .`**（否则会把阶段 27 的未提交改动卷进本阶段提交）。
+  提交后核对：`git show --stat 5911cf4` = `1 file changed, 232 insertions(+)`；`git show --stat 67e5f41` = `1 file changed`；
+  `git ls-tree -r 5911cf4 | grep -E 'api-prompts-bulk|stage27'` → **无命中**（未夹带）。
+- **自己的交付在隔离副本里验证**（既不与并行会话抢 `dist/` 与内存，也不被它的半成品污染基线）：
+  `git archive HEAD | tar -x -C /tmp/pmv*` + `ln -s <repo>/node_modules`，所有命令在该副本内跑。
+- **阶段 27 收尾并验收通过（`7296c60`）后**，host_manger 通知补写本节；补写时工作区已干净（`git status --porcelain` 为空），
+  实时工作区 `npm test` = **300/300 全绿**（见 ⑤）。
+
+### ③ AC-83 ①–⑧ 原样输出
+
+#### ① 文件在项目根目录且已入库
+
+```
+$ git ls-files AGENTS.md
+AGENTS.md
+$ wc -l AGENTS.md
+289 AGENTS.md
+$ git log --oneline --follow -- AGENTS.md
+67e5f41 docs(agents): AGENTS.md 全文改为英文（阶段 28 / AC-83 ⑧）
+5911cf4 docs(agents): 新增项目级 AI 代理操作指南 AGENTS.md（阶段 28 / AC-83）
+```
+
+> 行数口径：`wc -l` 与 `grep -c ""` 均为 **289**（文件以换行结尾，编辑器可能显示 290 行）；
+> host_manger 验收记录写 290，差异仅在此口径，不是内容差异。
+
+#### ② 常用命令（隔离副本 `git archive HEAD` 实测；除标注者外 rc 全 0）
+
+| 目的 | 命令 | rc | 实测输出（关键行） |
+| --- | --- | --- | --- |
+| 装依赖 | `npm ci --cache var/cache/npm` | 0 | `node_modules` 209 项；末尾 `npm warn allow-scripts … better-sqlite3@13.0.3 (install: node-gyp rebuild)` |
+| （对照）不带 cache | `npm ci` | **226** | `npm error code EROFS … /root/.npm/_cacache/tmp` ⇒ 文档必须写 `--cache` |
+| 构建（全量） | `npm run build` | 0 | `vendor-antd-Dv-mN7eq.js 467.32 kB`；`✓ built in 567ms` |
+| 只构建服务端 / 前端 | `npm run build:server` / `npm run build:web` | 0 / 0 | `✓ built in 466ms`；`dist/web/index.html` present |
+| 全量测试 | `npm test` | 0 | `ℹ tests 285 / pass 285 / fail 0`（duration 16571 ms） |
+| 单文件 | `npm run build && node --test tests/health.test.ts` | 0 | `ℹ tests 3 / pass 3 / fail 0` |
+| 单用例 | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | 0 | `ℹ tests 1 / pass 1 / fail 0` |
+| 类型检查 | `npm run typecheck:web` / `npm run typecheck:tests` | 0 / 0 | 无输出（0 个 TS 错误） |
+| **本地质量检查** | `bash tools/ci-check.sh` | 0 | `✅ 代码质量检查全部通过（6 项）`；`ℹ tests 285 … fail 0`；最大 `467320 B` |
+| 迁移（幂等） | `DATA_DIR=$AC npm run migrate` | 0 | `ok: schema at v3`；**第二次再跑同样 `ok: schema at v3`、rc=0** |
+| 设管理员口令 | `printf '%s\n' '…' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | 0 | `ok: user admin password updated` |
+| 启动 | `DATA_DIR=$AC PORT=8765 npm start` | 0 | `promptmanager listening on 0.0.0.0:8765 (HOST=0.0.0.0 PORT=8765, DATA_DIR=…)` |
+| 临时实例 | `DATA_DIR=$AC PORT=8766 node dist/server/index.js` | 0 | `/healthz` → `{"status":"ok","version":"1.0.0"}`；未认证 `/api/prompts` → `401`；`/` → `200` |
+| 2000 条夹具 | `DATA_DIR=$AC node tools/seed-prompts.mjs 2000` | 0 | `ok: seeded 2000 prompts (total=2000, fts_hits=2000) in … [192 ms]` |
+| 部署文件语法 | `systemd-analyze verify deploy/promptmanager.service` | 0 | 无输出 |
+| 代表阶段脚本 | `bash tools/ac-stage25.sh` | 0 | `✅ AC-76 全部通过` |
+| 界面自证 | `bash tools/ui-shots.sh` | 0 | `OK ui-shots done`；`张数=53` |
+
+**返工（改英文）后再抽查一次**（隔离副本；HEAD 代码树与 `d6285ba` 相同）：
+
+```
+### npm run build            rc=0   vendor-antd-Dv-mN7eq.js 467.32 kB / ✓ built in 443ms
+### npm test                 rc=0   ℹ tests 285 / ℹ pass 285 / ℹ fail 0
+### bash tools/ci-check.sh   rc=0   ③ npm test（rc=0）✅ ℹ tests 285 ℹ pass 285 ℹ fail 0
+### migrate ×2               rc=0/0 ok: schema at v3（两次相同）
+### set-password            rc=0   ok: user admin password updated
+### systemd-analyze verify  rc=0   （无输出）
+```
+
+#### ③ 结构路径逐个 `test -e`
+
+```
+  checked 80 paths, missing 0 (expect 0)
+```
+
+（`bin/` `src/` `web/` `migrations/` `tests/` `tools/` `deploy/` `docs/` 及关键文件、根目录文件、`.github/workflows/ci.yml`、运行期目录全在。
+`data/` 因"首次运行才创建"改为在 §6 说明，不再列为结构路径 —— 这是可上手性自检补掉的缺口之一，见 ⑦。）
+
+#### ④ 过期表述 grep 命中 0
+
+```
+pattern=列表视图            hits=0     pattern=1.25 MB          hits=0
+pattern=1,265KB|1265KB     hits=0     pattern=\b149\b          hits=0
+pattern=\b248\b            hits=0     pattern=PromptManager    hits=0
+pattern=阶段 ?1[–-]9       hits=0
+# 英文版另按英文等价模式复验（大小写敏感）：list view=0 · 1.25 MB=0 · 1265KB=0 · 149=0 · 248=0 · PromptManager=0 · stage 1-9=0
+```
+
+#### ⑤ 坑 ≥5 条且每条指向证据
+
+`grep -cE '^[0-9]+\. \*\*' AGENTS.md` → **10** 条：AF_NETLINK 启动即崩 / `MemoryDenyWriteExecute` /
+`npm ci` EROFS / `node --test` 子进程要 `detached` / 内网 HTTP 无 `navigator.clipboard` / jsdom 常驻 ~200MB /
+`folder_id` 含全部后代 / CLI 与测试依赖 `dist/**` / npm 11 allow-scripts 跳过 `node-gyp rebuild` / `replace` 清库顺序。
+证据指向比对（旧版 vs 新版，脚本抽 `` `path.ext:line` `` 集合求差）：
+
+```
+old file:line refs = 9  new = 9
+missing in new: NONE
+added in new  : NONE
+```
+
+#### ⑥ 指向而非复制（3 处示例）
+
+| 落盘位置 | 处理 | 为什么指向而不是抄 |
+| --- | --- | --- |
+| §1 末尾 + §11 | 「监听地址 / 端口 / 认证方式 / 环境变量表 → 见 `README.md` 的 "how to run" 节」 | 环境变量表 9 行，README 已有唯一副本；抄过来就是两份真相，改一处漏一处 |
+| §6 | 「`schema_version` 与项目版本解耦 —— 规则 / tag 约定 / 发版流程读 `docs/versioning.md`，**别在这里重述**」 | 那是 77 行的成体系文档；这里只需给"什么时候该去读"的路标 |
+| §3 末行 + §8 | 「阶段脚本清单见 `README.md` 的验证节；阶段 9 无独立脚本」 | 阶段脚本会持续增加 —— 本阶段期间 `tools/ac-stage27.sh` 就新出现了；枚举必然过期 |
+
+（同类：§5 选型指向 `STANDARDS.md` §4.2「禁止手搓清单」；坑 1 的修法指向 `deploy/README.md` §6 的 drop-in 段。全文指向性引用 **15 处**。）
+
+#### ⑦ 可上手性自检（"无上下文新会话能否 5 分钟跑起来"）
+
+按 §2 从零走一遍，**发现并就地补掉 3 个缺口**：
+
+1. **`npm ci` 在本沙箱直接失败**（`EROFS`，`/root/.npm` 只读）—— README 的 `npm ci` 在这里跑不通
+   ⇒ 文档改为可跑形式 `npm ci --cache var/cache/npm`，并单列为坑 3。
+2. **单文件跑测试必须先 build**（测试 `import '../dist/**'`；只跑 `build:server` 时 `tests/health.test.ts` 出现 1 个假失败
+   `未知路径回落到前端入口`，因为缺 `dist/web`）⇒ 命令写成 `npm run build && node --test …`，并列为坑 8。
+3. **`data/` 当前并不存在**（首次运行才创建），原先列在 §4 结构表里 —— 与"每个路径都 `test -e` 过"矛盾 ⇒ 移到 §6 说明。
+
+**结论：能。** 冷启动路径 = `npm ci --cache var/cache/npm` → `npm run build` → `npm test` → 临时 `DATA_DIR` + 备用端口起实例
+→ `curl /healthz`；期望输出、端口纪律（8767 被占，用 8765–8770 内空闲口）、红线、坑都在同一份文件里。
+
+#### ⑧ 必须全英文：CJK 字符数 0
+
+```
+# 判据命令（BRIEF AC-83 ⑧ 原样）：
+$ LC_ALL=C grep -cP '[\x{4e00}-\x{9fff}\x{3000}-\x{303f}\x{ff00}-\x{ffef}]' AGENTS.md
+grep: character value in \x{} or \o{} is too large
+rc=2                       ← ⚠️ 该命令在本机不可执行（原因见下）
+
+# 等价判据 1（同区间，去掉 LC_ALL=C；GNU grep 3.6 + PCRE2 UTF 模式）：
+$ grep -cP '[\x{4e00}-\x{9fff}\x{3000}-\x{303f}\x{ff00}-\x{ffef}]' AGENTS.md
+0        rc=1（= 0 命中）
+
+# 等价判据 2（python 精确码点区间）：
+CJK hits = 0
+
+# 反例对照（证明判据真能抓 CJK）：对中文版 5911cf4 跑等价判据 2
+old AGENTS.md CJK hits = 3871
+
+# 入库 blob 复验（HEAD:AGENTS.md）
+committed blob: CJK hits = 0 ; lines = 289
+```
+
+**残留非 ASCII**：仅 `✖`（U+2716）**2 处**（引用 `node:test` 真实输出 `✖ <file> 'test failed'`），**不在三个 CJK 区间内**。
+
+**⚠️ 判据命令缺陷（本阶段实测发现，建议 BRIEF 修订）**：`LC_ALL=C` 会把 PCRE2 压进**字节模式**，
+此时 `\x{}` 上限是 `0xFF`，`\x{4e00}` 直接报错 ⇒ **AC-83 ⑧ 的原样命令永远拿不到 0，只能拿到 rc=2**；
+更危险的是"顺手修"的 `LC_ALL=C grep -cP '\p{Han}'` 会**假绿**（对纯中文旧版实测也返回 0 —— 字节模式下 `\p{Han}` 匹配不到任何 UTF-8 序列）。
+建议改为 **`grep -cP '\p{Han}'`（不带 `LC_ALL=C`）**，或去掉 `LC_ALL=C` 而保留原码点区间。
+
+### ④ 内容不变证明（脚本比对，不靠目测）
+
+| 不变项 | 比对方式 | 结果 |
+| --- | --- | --- |
+| 命令 | 抽旧/新版反引号内命令集合求差 | **40 vs 40**；差异仅为 §2 注释翻译与中文口令占位符 `<强口令>` → `<strong-password>`，**命令本体零改动** |
+| `file:line` 证据 | 抽 `` `path.ext:line` `` 集合求差 | **9 vs 9**，`missing=NONE`，`added=NONE` |
+| 结构 | `grep '^## '` | **§1–§12 全在** |
+| 坑 | `grep -cE '^[0-9]+\. \*\*'` | **10 条**，每条仍带证据 |
+| 实测输出关键串 | `grep -cF` | `ok: schema at v3`×2 · `ok: user admin password updated` · `{"status":"ok","version":"1.0.0"}`×2 · `ok: seeded 2000 prompts (total=2000, fts_hits=2000)` · `467320 B`×2 · `OK ui-shots done` · `tests 285`×3 · `fail 0`×6 · `209 entries` |
+| 行数 | `wc -l` | 中文版 **232** → 英文版 **289**（语言变长，内容未删） |
+
+### ⑤ 回归（补写本节时，工作区已干净）
+
+```
+$ git status --porcelain        → （空）
+$ npm test                      → rc=0   ℹ tests 300 / ℹ pass 300 / ℹ fail 0（duration 16578 ms）
+```
+
+（285 → 300 是**阶段 27** 新增 15 个用例，与本阶段无关；本阶段零代码改动 ⇒ 不产生用例数变化。）
+
+### ⑥ commit（逐单元；收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | 新建 `AGENTS.md`（**中文版**，232 行）—— 项目级 AI 代理操作指南 | **`5911cf4`** `docs(agents): 新增项目级 AI 代理操作指南 AGENTS.md（阶段 28 / AC-83）` |
+| ② | **全文改为英文**（AC-83 ⑧ / STANDARDS §5.1），289 行 | **`67e5f41`** `docs(agents): AGENTS.md 全文改为英文（阶段 28 / AC-83 ⑧）` |
+| 收尾 | 本节（PROGRESS 阶段 28 小节 + 状态表/阶段索引更新）—— **docs-only，无代码改动** | 见交付回复（提交无法自引用自身 hash） |
+
+> 本阶段两次提交都**只含 1 个文件**（`git show --stat`：`5911cf4` = 232 insertions；`67e5f41` = 268 insertions / 211 deletions），
+> 全程未夹带阶段 27 的任何改动；`AGENTS.md` 的完整提交历史 `git log --follow -- AGENTS.md` 恰好只有这两个提交。
+
+### ⑦ 落盘对账
+
+| 结论 | 证据 | 落盘位置 / commit |
+| --- | --- | --- |
+| 交付物 = 英文版 `AGENTS.md`（289 行） | `git show HEAD:AGENTS.md`：CJK 0、结构 §1–§12、坑 10 条 | `AGENTS.md`；commit `67e5f41` |
+| 语言判据 = 0 CJK | 等价判据 1（grep）= 0、等价判据 2（python）= 0、反例对照 = 3871 | 本节 ⑧ |
+| 内容不变 | 命令 40/40、`file:line` 9/9、结构 §1–§12、坑 10、关键输出串全在 | 本节 ④ |
+| 常用命令可跑 | 隔离副本 rc 全 0（含返工后抽查 6 条） | 本节 ② |
+| 并行避让 | 只提交 1 文件 / 未动 `PROGRESS.md` / 隔离副本验证 / 未用 `git add -A` | 本节 ② |
+| AC-83 ⑧ 判据命令缺陷 | `LC_ALL=C` + `\x{}` → rc=2；`LC_ALL=C` + `\p{Han}` → 假绿（旧版也 0） | 本节 ⑧（建议 BRIEF 修订） |
 
 
 ## 归档与当前状态的关系
