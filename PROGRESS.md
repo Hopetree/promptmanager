@@ -552,13 +552,14 @@ $ git diff --stat package.json package-lock.json   → 空（无新依赖）
 **AC-1…AC-77 未回归**：拖拽与分栏（AC-70/71/72/73/74/75）、备注（AC-68/69）、详情页头部与修改密码（AC-66/67）全部由上述阶段脚本复跑通过；
 唯一两处被**本阶段规格主动取代**的旧断言（AC-74 ① 的 8 列基线、AC-68 ② 的备注页签）已在上表逐条留痕。
 
-#### ⑨ commit（收尾 commit hash 单独标注）
+#### ⑨ commit（逐单元；收尾 commit hash 单独标注）
 
 | 单元 | 内容 | commit |
 | --- | --- | --- |
-| ① | 后端批量接口 `POST /api/prompts/bulk` + 单测 | 见下方「阶段 27 收尾」 |
-| ② | 前端 FR-77 表格批量 + FR-78/79/80 详情页改造 + 被取代断言的修订 | 见下方「阶段 27 收尾」 |
-| ③ | FR-81 VarsDialog 尺寸 + `tools/ac-stage27.*` + PROGRESS | 见下方「阶段 27 收尾」 |
+| ① | 后端批量接口 `POST /api/prompts/bulk` + 单测 | **`919ca8e`** `feat(prompts): 新增批量接口 POST /api/prompts/bulk（FR-77 ⑥ 方案①，整批一个事务）` |
+| ② | 前端 FR-77 表格批量 + FR-78/79/80 详情页改造 + 被取代断言的修订 + 体积预算记账 | **`1402f9e`** `feat(web): 表格批量操作（FR-77）+ 详情页元信息行与去备注页签/变量区块（FR-78/79/80）` |
+| ③ | FR-81 VarsDialog 尺寸 + `tools/ac-stage27.*` + `tests/stage27-ui.test.ts` + PROGRESS/README | **`2d65311`** `feat(web): 加大变量填值对话框宽高（FR-81）+ 阶段 27 AC 自检与文档` |
+| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | **`__CLOSING_COMMIT__`**（见下） |
 
 
 ## 归档与当前状态的关系
