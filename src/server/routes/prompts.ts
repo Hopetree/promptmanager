@@ -1,12 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import { NotFoundError } from '../../errors.js';
 import {
+  bulkPrompts,
   createPrompt,
   reorderPrompts,
   deletePrompt,
   getPrompt,
   listPrompts,
   updatePrompt,
+  type BulkPromptsInput,
   type CreatePromptInput,
   type UpdatePromptInput,
 } from '../../services/prompts.js';
@@ -45,6 +47,18 @@ const promptOrderSchema = {
   required: ['ids'],
   properties: {
     ids: { type: 'array', minItems: 1, maxItems: 5000, items: { type: 'integer', minimum: 1 } },
+  },
+} as const;
+
+/** FR-77：`POST /api/prompts/bulk` 的入参（表格多选后的批量动作）。 */
+const promptBulkSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['action', 'ids'],
+  properties: {
+    action: { type: 'string', enum: ['favorite', 'move', 'delete'] },
+    ids: { type: 'array', minItems: 1, maxItems: 5000, items: { type: 'integer', minimum: 1 } },
+    folder_id: { type: ['integer', 'null'], minimum: 1 },
   },
 } as const;
 
@@ -140,6 +154,16 @@ export function registerPromptRoutes(app: FastifyInstance): void {
   app.post('/api/prompts', { schema: { body: createPromptSchema } }, async (request, reply) => {
     const prompt = await createPrompt(app.qe, request.body as CreatePromptInput);
     return reply.code(201).send(prompt);
+  });
+
+  /**
+   * FR-77 ⑥（方案①）：**批量接口** —— 表格多选后的 批量收藏 / 批量移动 / 批量删除。
+   * body `{ "action": "favorite"|"move"|"delete", "ids": number[], "folder_id"?: number|null }`；
+   * 整批**一个事务**；返回 `{ action, affected }`；非法/不存在 id / 目标文件夹不存在 → 400 `invalid_body`。
+   * 只**新增**接口，不改动既有单条接口的契约。
+   */
+  app.post('/api/prompts/bulk', { schema: { body: promptBulkSchema } }, async (request) => {
+    return bulkPrompts(app.qe, request.body as BulkPromptsInput);
   });
 
   app.get('/api/prompts/:id', async (request) => {

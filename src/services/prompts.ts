@@ -290,6 +290,113 @@ export async function deletePrompt(qe: QueryEngine, id: number): Promise<void> {
   if (Number(result.numDeletedRows ?? 0) === 0) throw new NotFoundError();
 }
 
+/** FR-77：批量动作（BRIEF §4 FR-77 ⑥ 的 ① 方案 = 新增批量接口）。 */
+export type BulkAction = 'favorite' | 'move' | 'delete';
+
+export interface BulkPromptsInput {
+  action: BulkAction;
+  /** 选中的条目 id（非空、不重复、必须都存在） */
+  ids: number[];
+  /** 仅 `move` 需要：目标文件夹 id，`null` = 移回「未归类」 */
+  folder_id?: number | null;
+}
+
+export interface BulkPromptsResult {
+  action: BulkAction;
+  /** 受影响条数 */
+  affected: number;
+}
+
+/**
+ * 校验 `ids`（FR-70/FR-77 共用口径）：非空 / 不重复 / 每个 id 都必须存在
+ * （单用户下"不存在"即覆盖"越权"）→ 400 `invalid_body`。
+ */
+async function loadPromptsForIds(qe: QueryEngine, ids: number[]): Promise<PromptRow[]> {
+  if (ids.length === 0) {
+    throw new InvalidBodyError([{ path: 'ids', message: 'ids 不得为空' }]);
+  }
+  const unique = new Set(ids);
+  if (unique.size !== ids.length) {
+    const seen = new Set<number>();
+    const duplicated = ids.filter((id) => (seen.has(id) ? true : (seen.add(id), false)));
+    throw new InvalidBodyError([{ path: 'ids', message: `ids 不得重复：${[...new Set(duplicated)].join(', ')}` }]);
+  }
+  const rows = await qe.selectFrom('prompts').selectAll().where('id', 'in', ids).execute();
+  const known = new Set(rows.map((row) => row.id));
+  const missing = ids.filter((id) => !known.has(id));
+  if (missing.length > 0) {
+    throw new InvalidBodyError([{ path: 'ids', message: `以下 prompt id 不存在：${missing.join(', ')}` }]);
+  }
+  return rows;
+}
+
+/**
+ * FR-77 ⑥：**批量操作**（表格模式多选后的 批量收藏 / 批量移动 / 批量删除）——整批**一个事务**。
+ *
+ * 语义（PROGRESS 记录理由）：
+ * - `favorite`：把选中条目**设为已收藏**（已是收藏的保持；不做"切换"）；
+ * - `move`：把选中条目的 `folder_id` 设为 `folder_id`（`null` = 未归类）；目标文件夹必须存在；
+ * - `delete`：删除选中条目（版本历史/标签关联由外键级联清理，与单条删除一致）。
+ * - `favorite` / `move` 复用**单条 PUT 的语义**（写目标列 + `version_no` 递增 + 留一条版本快照 + 更新 `updated_at`），
+ *   保证"同一条 prompt 无论走单条还是批量，字段与版本号变化相同"；未选中的条目**一个字段都不动**。
+ */
+export async function bulkPrompts(qe: QueryEngine, input: BulkPromptsInput): Promise<BulkPromptsResult> {
+  const { action, ids } = input;
+  const rows = await loadPromptsForIds(qe, ids);
+
+  if (action === 'delete') {
+    await qe.transaction().execute(async (trx) => {
+      await trx.deleteFrom('prompts').where('id', 'in', ids).execute();
+    });
+    return { action, affected: ids.length };
+  }
+
+  if (action === 'move') {
+    if (input.folder_id === undefined) {
+      throw new InvalidBodyError([{ path: 'folder_id', message: 'move 必须提供 folder_id（null = 未归类）' }]);
+    }
+    if (input.folder_id !== null) {
+      const folder = await qe
+        .selectFrom('folders')
+        .select('id')
+        .where('id', '=', input.folder_id)
+        .executeTakeFirst();
+      if (folder === undefined) {
+        throw new InvalidBodyError([{ path: 'folder_id', message: `文件夹 ${String(input.folder_id)} 不存在` }]);
+      }
+    }
+  }
+
+  const now = nowIso();
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  await qe.transaction().execute(async (trx) => {
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (row === undefined) continue;
+      const next = {
+        ...(action === 'favorite' ? { favorite: 1 } : { folder_id: input.folder_id ?? null }),
+        version_no: row.version_no + 1,
+        updated_at: now,
+      };
+      await trx.updateTable('prompts').set(next).where('id', '=', id).execute();
+      await trx
+        .insertInto('prompt_versions')
+        .values({
+          prompt_id: id,
+          version_no: next.version_no,
+          title: row.title,
+          user_prompt: row.user_prompt,
+          system_prompt: row.system_prompt,
+          notes: row.notes,
+          created_at: now,
+        })
+        .execute();
+    }
+  });
+
+  return { action, affected: ids.length };
+}
+
 /**
  * FR-70 / D-28 + **FR-75 / D-30（槽位保持）**：按给定顺序重排 prompt 的自定义位。
  * - 落库口径：**当前视图内的完整 id 序列**，位置即新顺序；幂等（同样的 ids 再调一次结果相同）；
