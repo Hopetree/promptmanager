@@ -267,3 +267,56 @@ mkdir -p /tmp/oldgit && tar xzf /root/greenhouse/backups/promptmanager-git-histo
 git --git-dir=/tmp/oldgit/.git log --oneline | head
 ```
 **文件内容本身未变**（逐文件比对零差异）—— 受影响的只是"按 hash 定位历史提交"这一条路径。
+
+---
+
+# 远程仓库绑定与首次推送（2026-09-20）— **完成**（含一次「可见性」事件）
+
+| 项 | 值 |
+| --- | --- |
+| 执行者 | host_manger（用户 2026-09-20 授权：给地址 + 「都使用 ops 的密钥」） |
+| 结果 | 两个 remote 已配置、**首次推送成功**；随后发现 GitHub 仓库为 **public** → 用户改 **private** → 已验证止血 |
+
+## 1. remote 配置与认证
+
+| 远程 | 地址 | 说明 |
+| --- | --- | --- |
+| `origin` | `git@git.home.local:hopetree/promptmanager.git` | **内网**（ssh config: `git.home.local` → `192.168.0.203:222`） |
+| `github` | `git@github.com:Hopetree/promptmanager.git` | **公网** |
+
+**认证**：改用 **`ops@host_manger` 的密钥**（用户指定）—— 部署到 228 `/root/.ssh/ops-git`（600 root），
+`git config core.sshCommand` 指向它（`IdentitiesOnly=yes` + `accept-new`）。
+背景：228 root 自带的那把 key（`root@dsh-gitea`）在 GitHub 上 **`Permission denied (publickey)`**；
+ops 这把**两个远程都通**（`ls-remote` 双 rc=0）。
+
+**推送结果**：`git push -u origin main` + `git push -u github main` 均 `* [new branch] main -> main`，
+两个远端 HEAD 均 = 本地 **`762f228`**。
+
+## 2. ⚠️ 可见性事件（我漏查的一项）
+
+```
+推送后检查（无认证 API）：GET /repos/Hopetree/promptmanager → 200 + {"private": false, "visibility": "public"}
+⇒ 352 个文件**一度对公众可见**；其中 7 个文件含内网 IP（192.168.0.x）、8 个文件含内网路径/主机名
+  （/opt/promptmanager、/root/greenhouse、git.home.local）—— 命中文件：BRIEF.md / README.md / deploy/README.md /
+  docs/dev-history/PROGRESS.md / docs/dev-history/VERIFY.md / tools/ac-stage19.sh 等
+```
+
+**缓解事实（两点，决定了它可控）**：
+1. **凭据 0 泄露** —— 推送前已扫：`_env/`、`data/`、口令、密钥 **全部 0 命中**（`deploy/*.env.example` 是空值模板）；
+   泄露的是**拓扑信息**（内网 IP / 路径 / 主机名），而 `192.168.0.x` 是私有地址、**公网无法直连**。
+2. **仓库当天新建、无 fork** ⇒ **改 private 基本可止血**。
+
+**处理与验证**：用户已将仓库改为 **private** ⇒ 我复验：
+```
+无认证 API：GET /repos/Hopetree/promptmanager → **404 Not Found**  ✅ 内容已对公众不可见
+SSH key 仍有权限：git ls-remote github → 762f228…（内容完好、后续可正常推送）✅
+```
+
+## 3. 我的疏漏与固化
+
+- **疏漏**：推送前我只查了「**内容里有没有敏感信息**」，**没查「目标仓库的可见性」** —— 后者是推送前的必查项。
+  （"内容干净" ≠ "发布安全"：受众/可见性是另一半。）
+- **固化**：`skills/greenhouse-kickoff/SKILL.md` §3.1 新增**条目 16「把内容推送到任何外部仓库/服务之前，先确认目标受众与可见性」**
+  —— 含**推送前必查三样**：① 目标仓库可见性（GitHub 无认证 API：404 = private、`private: false` = public）；
+  ② 内容里的内网信息（`git grep -lE '192\.168\.|/opt/|/root/|\.home\.local'`）；③ 内容里的凭据（`_env/`、`*.env`、口令字面量）。
+  并记入 `CHANGELOG.md`。
