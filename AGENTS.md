@@ -1,232 +1,289 @@
-# AGENTS.md —— 在这个仓库里干活的 AI 代理操作指南
+# AGENTS.md - Operating guide for AI agents working in this repository
 
-> **受众**：在本仓库工作的 AI 代理 / 新开会话。**不是**产品介绍、**不是**需求规格、**不是**通用开发规范 ——
-> 那三样分别是 `README.md`、`BRIEF.md`、`/root/greenhouse/STANDARDS.md`（**优先级最高**，冲突时以它为准）。
+> **Audience**: AI agents and fresh sessions working in this repo. This is *not* a product introduction,
+> *not* a requirements spec, and *not* a general engineering standard - those are `README.md`, `BRIEF.md`,
+> and `/root/greenhouse/STANDARDS.md` (**highest precedence**; it wins on any conflict).
 >
-> 本文件只写"**怎么在这个仓库里干活**"。每条命令都在 2026-09-21 于本机实跑（HEAD `d6285ba`），
-> 每个路径都逐个 `test -e` 查过；与既有文档重叠的内容**一律指向、不复制**（避免两份真相）。
+> This file covers **how to work in this repo** and nothing else. Every command below was actually executed
+> on 2026-09-21 against the code tree of commit `d6285ba`, and every path was checked with `test -e`.
+> Where a topic is already documented elsewhere, this file **points to it instead of duplicating it**,
+> so there is exactly one source of truth.
+>
+> This file is **English-only by policy** (`STANDARDS.md` section 5.1: AI instruction files are English so
+> agents can match and update them reliably). The rest of the repo's documentation is Chinese.
 
 ---
 
-## 1. 项目是什么
+## 1. What this project is
 
-- **定位**：轻量、自托管、**数据自持**的 Prompt 管理器。clean-room 只做 prompt 管理这一块
-  （上游 PromptHub 功能全但重、且是 AGPL-3.0）；不做 RAG/向量检索/AI 调用。
-- **技术栈**：Node 24 + TypeScript（ESM、strict）+ Fastify 5 + SQLite（`better-sqlite3` + `kysely`）
-  + React 19 + **antd 6** + Vite 8。
-- **形态**：**单进程 · 单端口 · 单文件数据库** —— 同一个进程既提供 HTTP API 也托管前端构建产物；
-  数据落在 `DATA_DIR/pm.db`（WAL），**备份 = 拷文件**。
-- **当前版本**：`1.0.0`（唯一真源是 `package.json`，`/healthz` 同源读取）。
-- **部署形态**：跑在 228 上是 **systemd**（`deploy/` 三件套）；仓库里另有 host_manger 交付的容器化文件
-  （`Dockerfile` / `docker-compose.yml` / `deploy/container.md`）。**交付 ≠ 已部署**。
-- 监听地址/端口/认证方式/环境变量表 → 见 `README.md`「怎么跑」（默认 `0.0.0.0:8767`，
-  除 `/healthz` 与 `/api/login` 外所有 `/api/*` 未认证一律 401）。
+- **What it is**: a lightweight, self-hosted, **data-you-own** prompt manager. It is a clean-room
+  implementation of prompt management only (the upstream PromptHub is feature-rich but heavy, and AGPL-3.0).
+  No RAG, no vector search, no AI calls.
+- **Stack**: Node 24 + TypeScript (ESM, strict) + Fastify 5 + SQLite (`better-sqlite3` + `kysely`)
+  + React 19 + **antd 6** + Vite 8.
+- **Shape**: **one process, one port, one database file**. The same process serves both the HTTP API and the
+  built frontend. Data lives in `DATA_DIR/pm.db` (WAL); **backup = copy the file**.
+- **Current version**: `1.0.0`, read from a single source of truth (`package.json`), which `/healthz` also reads.
+- **Deployment shape**: on host 228 it runs under **systemd** (the `deploy/` trio). The repo also contains
+  container files delivered by host_manger (`Dockerfile`, `docker-compose.yml`, `deploy/container.md`).
+  **Delivered is not deployed.**
+- Listen address, port, auth model, and the environment-variable table live in the "how to run" section of
+  `README.md`. Default is `0.0.0.0:8767`; every `/api/*` route except `/healthz` and `/api/login` returns
+  401 when unauthenticated.
 
-## 2. 最短上手路径（新会话 5 分钟）
+## 2. Five-minute quickstart (fresh session)
 
 ```bash
 cd /root/greenhouse/projects/promptmanager
-npm ci --cache var/cache/npm     # ⚠️ 沙箱里 /root/.npm 只读，必须把 cache 放进仓库（见 §3、§9-坑3）
-npm run build                    # tsc → dist/server，vite → dist/web
-npm test                         # 期望 ℹ tests 285 / pass 285 / fail 0（约 17s）
+npm ci --cache var/cache/npm     # WARNING: /root/.npm is read-only in this sandbox; keep the cache in-repo (see section 3 and pitfall 3)
+npm run build                    # tsc -> dist/server, vite -> dist/web
+npm test                         # expect: tests 285 / pass 285 / fail 0 (~17s)
 
-# 起一个临时实例（不动生产数据、不占 8767）
+# Start a throwaway instance (never touches production data, never takes port 8767)
 AC=$(mktemp -d)
 printf '%s\n' 'dev-pw-123456' | DATA_DIR=$AC node bin/pm.mjs user set-password --username admin
-DATA_DIR=$AC PORT=8766 node dist/server/index.js &   # 浏览器开 http://<本机内网IP>:8766
+DATA_DIR=$AC PORT=8766 node dist/server/index.js &   # then open http://<this-host-LAN-IP>:8766
 curl -s http://127.0.0.1:8766/healthz                # {"status":"ok","version":"1.0.0"}
 ```
 
-改完代码后**必须**跑 `npm test` + `bash tools/ci-check.sh` 再提交（见 §7）。
+After changing code you **must** run `npm test` and `bash tools/ci-check.sh` before committing (see section 7).
 
-## 3. 常用命令（全部实跑过）
+## 3. Common commands (all of these were run for real)
 
-| 目的 | 命令 | 实测输出 / 判据 |
+| Goal | Command | Verified output / pass criterion |
 | --- | --- | --- |
-| 装依赖 | `npm ci --cache var/cache/npm` | rc=0；`node_modules` 209 项。**不带 `--cache` 会 EROFS 失败**（见 §9-坑3）。末尾有 `npm warn allow-scripts … better-sqlite3@13.0.3 (install: node-gyp rebuild)`，**属正常**（见 §9-坑9） |
-| 构建（全量） | `npm run build` | rc=0 → `dist/server` + `dist/web`；最大 chunk `vendor-antd-*.js` = 467320 B（无 >500KB 告警） |
-| 只构建服务端 | `npm run build:server` | rc=0（CLI 与 `node --test` 依赖 `dist/**`，见 §9-坑8） |
-| 只构建前端 | `npm run build:web` | rc=0 |
-| 跑全量测试 | `npm test` | rc=0；`ℹ tests 285 / pass 285 / fail 0`（= build + typecheck:tests + `node --test "tests/**/*.test.ts"`） |
-| 跑单个测试文件 | `npm run build && node --test tests/health.test.ts` | rc=0；`ℹ tests 3 / pass 3 / fail 0`。**必须先 build**：测试 import 的是 `../dist/**`，且部分用例需要 `dist/web` |
-| 跑单个用例 | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0；`ℹ tests 1 / pass 1 / fail 0` |
-| 类型检查 | `npm run typecheck:web` / `npm run typecheck:tests` | 两者 rc=0、`0 个 TS 错误`（无输出即通过） |
-| **本地质量检查（= CI 同一套）** | `bash tools/ci-check.sh` | rc=0；`✅ 代码质量检查全部通过（6 项）`（依赖就绪 / 2×typecheck / npm test / build / 体积预算 ≤500KB） |
-| 迁移（幂等） | `DATA_DIR=$AC npm run migrate` | rc=0；输出 **`ok: schema at v3`**；重复跑同样输出、同样 rc=0 |
-| 设管理员口令 | `printf '%s\n' '<强口令>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0；输出 **`ok: user admin password updated`**（口令从 stdin 读，**绝不打印**） |
-| 启动（默认 8767） | `npm start` | rc=0；日志 `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=…)`（实测用 `PORT=8765` 跑通；**8767 当前被测试环境占用**） |
-| **启动临时实例** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | 日志 `listening on 0.0.0.0:8766`；`/healthz` → `{"status":"ok","version":"1.0.0"}`；未认证 `/api/prompts` → `401`；`/` → `200` |
-| 大夹具（2000 条） | `DATA_DIR=$AC node tools/seed-prompts.mjs 2000` | rc=0；`ok: seeded 2000 prompts (total=2000, fts_hits=2000) in … [192 ms]` |
-| 部署文件语法 | `systemd-analyze verify deploy/promptmanager.service` | rc=0、**无输出**（注意：它拦不住"能起来但崩"的坑，见 §9-坑1） |
-| 界面自证截图 | `bash tools/ui-shots.sh` | 自起自停临时实例 + headless chromium，产出 53 张到 `docs/shots/` |
-| 代表阶段 AC 脚本 | `bash tools/ac-stage25.sh` | rc=0；`✅ AC-76 全部通过`（阶段脚本清单见 `README.md`「怎么验证」；阶段 9 无独立脚本） |
+| Install deps | `npm ci --cache var/cache/npm` | rc=0; 209 entries in `node_modules`. **Without `--cache` it fails with EROFS** (pitfall 3). The trailing `npm warn allow-scripts ... better-sqlite3@13.0.3 (install: node-gyp rebuild)` is **expected** (pitfall 9). |
+| Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` = 467320 B (no `larger than 500 kB` warning). |
+| Server build only | `npm run build:server` | rc=0. The CLI and `node --test` both load from `dist/**` (pitfall 8). |
+| Web build only | `npm run build:web` | rc=0. |
+| Full test suite | `npm test` | rc=0; `tests 285` / `pass 285` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
+| One test file | `npm run build && node --test tests/health.test.ts` | rc=0; `tests 3` / `pass 3` / `fail 0`. **Build first**: tests import from `../dist/**`, and some cases need `dist/web`. |
+| One test case | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0; `tests 1` / `pass 1` / `fail 0`. |
+| Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). |
+| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (deps / 2x typecheck / npm test / build / 500 KB chunk budget). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 285 ... fail 0` and max chunk `467320 B`. |
+| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v3`**. A second run prints the same and also exits 0. |
+| Set the admin password | `printf '%s\n' '<strong-password>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0; prints **`ok: user admin password updated`** (password is read from stdin and never echoed). |
+| Start (default 8767) | `npm start` | rc=0; logs `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=...)`. Verified with `PORT=8765`; **8767 is currently occupied by the test environment**. |
+| **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"1.0.0"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
+| Big fixture (2000 rows) | `DATA_DIR=$AC node tools/seed-prompts.mjs 2000` | rc=0; `ok: seeded 2000 prompts (total=2000, fts_hits=2000) in ... [192 ms]`. |
+| Deployment file syntax | `systemd-analyze verify deploy/promptmanager.service` | rc=0 and **no output**. Note: it cannot catch the "starts, then crashes" trap (pitfall 1). |
+| UI evidence screenshots | `bash tools/ui-shots.sh` | rc=0; `OK ui-shots done`; 53 PNGs written to `docs/shots/`. |
+| One representative stage script | `bash tools/ac-stage25.sh` | rc=0; the script's final banner (Chinese in its source) means "AC-76 all checks passed". For the full script list see the verification section of `README.md`; there is no stage 9 script. |
 
-**端口纪律**：临时实例**不要**用 8767 —— 它已被 host_manger 的测试环境占用（`ss -ltn` 实测在听）。
-在台账范围 **8765–8770** 里挑空闲的（先 `ss -ltn`），全被占 → 写 `QUESTIONS.md` 停手，不许扩范围。
+**Port discipline**: never use 8767 for a throwaway instance - the test environment is already listening
+there (verified with `ss -ltn`). Pick a free port in the allocated range **8765-8770** (check `ss -ltn`
+first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen the range.
 
-## 4. 项目结构（目录地图）
+## 4. Project layout
 
-| 路径 | 职责 / 关键文件 |
+| Path | Responsibility / key files |
 | --- | --- |
-| `bin/` | 两个入口：`pm.mjs`（CLI，转发到 `dist/server/cli.js`）、`pm-mcp.mjs`（MCP stdio 入口） |
-| `src/config.ts` | 运行时配置（`HOST`/`PORT`/`DATA_DIR`/… 的默认值与校验）；`findProjectRoot()` 靠 `package.json` 的 name 定位项目根 |
-| `src/server/` | HTTP 层：`index.ts`（**进程入口**，listen + 优雅退出）、`app.ts`（组装 Fastify、挂路由与静态托管）、`cli.ts`（CLI 实现）、`auth.ts`（会话/Bearer 闸门）、`params.ts`、`routes/*.ts`（auth / prompts / folders / tags / export / render / tokens / usage / health） |
-| `src/services/` | 领域逻辑：`prompts.ts`、`folders.ts`、`tags.ts`、`versions.ts`、`variables.ts`、`markdown.ts`、`export.ts`、`import.ts`、`tokens.ts`、`usage.ts`、`auth.ts` |
-| `src/db/` | 数据层：`index.ts`（连接/QueryEngine）、`migrate.ts`（跑 `migrations/*.sql`）、`schema.ts`（kysely 表类型）、`prompt-queries.ts`、`prompt-versions.ts`、`search.ts`（FTS5 trigram + LIKE 兜底） |
-| `src/mcp/` | MCP 工具面（`server.ts`，三个只读工具） |
-| `src/client/pm-api.ts` | 使用侧 CLI 用的 HTTP 客户端（`pm get`/`render` 经它走 API） |
-| `web/` | 前端：`index.html`、`src/main.tsx`（挂载）、`src/App.tsx`、`src/components/*.tsx`（`Workspace` / `SplitView` / `PromptEditor` / `VersionPanel` / `VariablePanel` / `VarsDialog` / …）、`src/api.ts`、`src/clipboard.ts`、`src/theme.ts`、`src/types.ts`、`src/styles/*.css` |
-| `migrations/` | `001_init.sql`、`002_tokens-and-usage.sql`、`003_prompt-sort-order.sql` |
-| `tests/` | `node:test` 用例（52 个 `*.test.ts`）+ 公共夹具 `helpers.ts` |
-| `tools/` | `ci-check.sh`（本地=CI 的质量门）、`ui-shots.sh` + `ui-shot.mjs`（界面自证）、`ac-stage<N>.sh` + `ac-stage<N>-probe.mjs`（逐阶段 AC 自检）、`seed-prompts.mjs`、`search-zh-poc.mjs`、`mcp-client-smoke.py` |
-| `deploy/` | 交付物（**不由本仓库部署**）：`promptmanager.service`、`promptmanager.env.example`、`README.md`（安装/验证/回滚/排查）、`reverse-proxy.example.conf`、`mcp-register.example.json`、`container.md` |
-| `docs/` | `dependencies.md`（依赖+协议+CVE）、`versioning.md`、`search-zh.md`、`brief-changelog.md`、`shots/`（当前界面证据）、`dev-history/`（过程档案：完整 PROGRESS/VERIFY、历史 QUESTIONS、设计打样、分阶段截图） |
-| 根目录文件 | `BRIEF.md`（需求+AC，**只读**）、`README.md`、`PROGRESS.md`、`VERIFY.md`、`QUESTIONS.md`、`CHANGELOG.md`、`package.json`/`package-lock.json`、`tsconfig*.json`、`vite.config.ts`、`.gitignore`、`Dockerfile`/`docker-compose.yml`/`.dockerignore`、`.github/workflows/ci.yml` |
-| 运行期（**不入库**） | `tmp/`、`var/`（日志与缓存）、`dist/`（构建产物）、`node_modules/`、`_env/`（凭据，700，只读用）；默认数据目录 `data/` 在**首次运行后**出现（见 §6） |
+| `bin/` | Two entry points: `pm.mjs` (CLI, delegates to `dist/server/cli.js`) and `pm-mcp.mjs` (MCP stdio entry). |
+| `src/config.ts` | Runtime config (`HOST` / `PORT` / `DATA_DIR` / ... defaults and validation). `findProjectRoot()` locates the repo root by the `name` field in `package.json`. |
+| `src/server/` | HTTP layer: `index.ts` (**process entry**, listen + graceful shutdown), `app.ts` (assembles Fastify, mounts routes and static hosting), `cli.ts` (CLI implementation), `auth.ts` (session / Bearer gate), `params.ts`, `routes/*.ts` (auth, prompts, folders, tags, export, render, tokens, usage, health). |
+| `src/services/` | Domain logic: `prompts.ts`, `folders.ts`, `tags.ts`, `versions.ts`, `variables.ts`, `markdown.ts`, `export.ts`, `import.ts`, `tokens.ts`, `usage.ts`, `auth.ts`. |
+| `src/db/` | Data layer: `index.ts` (connection / QueryEngine), `migrate.ts` (applies `migrations/*.sql`), `schema.ts` (kysely table types), `prompt-queries.ts`, `prompt-versions.ts`, `search.ts` (FTS5 trigram with LIKE fallback). |
+| `src/mcp/` | MCP tool surface (`server.ts`, three read-only tools). |
+| `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
+| `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
+| `migrations/` | `001_init.sql`, `002_tokens-and-usage.sql`, `003_prompt-sort-order.sql`. |
+| `tests/` | `node:test` cases (52 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
+| `tools/` | `ci-check.sh` (the local = CI quality gate), `ui-shots.sh` + `ui-shot.mjs` (UI evidence), `ac-stage<N>.sh` + `ac-stage<N>-probe.mjs` (per-stage AC self-checks), `seed-prompts.mjs`, `search-zh-poc.mjs`, `mcp-client-smoke.py`. |
+| `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
+| `docs/` | `dependencies.md` (deps + licenses + CVEs), `versioning.md`, `search-zh.md`, `brief-changelog.md`, `shots/` (current UI evidence), `dev-history/` (process archive: full PROGRESS/VERIFY, past QUESTIONS, design studies, per-stage screenshots). |
+| Root files | `BRIEF.md` (requirements + ACs, **read-only**), `README.md`, `PROGRESS.md`, `VERIFY.md`, `QUESTIONS.md`, `CHANGELOG.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/ci.yml`. |
+| Runtime (never committed) | `tmp/`, `var/` (logs and caches), `dist/` (build output), `node_modules/`, `_env/` (credentials, mode 700, read-only use). The default data dir `data/` appears **after the first run** (see section 6). |
 
-## 5. 代码约定
+## 5. Code conventions
 
-- **语言/模块**：TypeScript strict + **ESM**。服务端 `src/**` 编译到 `dist/**`，**import 必须带 `.js` 后缀**
-  （`../config.js`，即使源文件是 `.ts`）；前端 `web/src/**` 由 Vite 打包，组件用 `.tsx`。
-- **命名**：文件/目录小写连字符（`prompt-queries.ts`、`ac-stage25.sh`）。**HTTP JSON 字段与数据库列一律
-  snake_case**（`user_prompt` / `folder_id` / `sort_order`）——这是 `BRIEF.md` §6.1 的契约，**不要改成 camelCase**。
-- **前端一律用 antd 组件库**（`antd@6.6.4` + `@ant-design/icons@6.3.4`，均 MIT）：按钮/表单/表格/分页/树/弹窗/
-  抽屉/标签页/通知/图标**全部用组件库**；**禁自建基础组件**、**禁第二套样式体系**（不引 Tailwind）、**禁 CDN**。
-  "把组件库源码复制进仓库再改"也算自建。交互元素带 `data-testid="pm-*"`（AC 探针按它定位）。
-- **拖拽一律用 `@dnd-kit`**（禁手写拖拽引擎）；图表/表格渲染/HTTP 框架/ORM/迁移/测试框架等基础设施同理 ——
-  选型与"禁止手搓清单"见 `STANDARDS.md` §4.2。
-- **依赖纪律**：新增依赖 → ① 查 CVE/OSV ② 看协议（MIT/Apache/BSD/ISC 直接用；MPL/LGPL 可用；
-  GPL/AGPL/无协议 → 先写 `QUESTIONS.md`）③ **pin 精确版本**（禁 `^`、`latest`）④ 登记到 `docs/dependencies.md`
-  （包名/版本/协议/用途）。包管理器固定 **npm**（`package-lock.json` 入库），**不用 pnpm**。
-- 请求校验用 Fastify 自带 JSON Schema（ajv），MCP 工具入参用 `zod`；不额外引校验库。
-- 注释写"**为什么**"（尤其绕过某个坑的原因），别复述代码。
+- **Language / modules**: TypeScript strict + **ESM**. Server code in `src/**` compiles to `dist/**`, so
+  **relative imports must carry the `.js` extension** (`../config.js`) even though the source is `.ts`.
+  Frontend code in `web/src/**` is bundled by Vite; components are `.tsx`.
+- **Naming**: files and directories are lowercase with hyphens (`prompt-queries.ts`, `ac-stage25.sh`).
+  **HTTP JSON fields and database columns are snake_case** (`user_prompt`, `folder_id`, `sort_order`) -
+  that is the contract in `BRIEF.md` section 6.1. **Do not rename them to camelCase.**
+- **Frontend always uses the antd component library** (`antd@6.6.4` + `@ant-design/icons@6.3.4`, both MIT):
+  buttons, forms, inputs, selects, tables, pagination, trees, modals, drawers, tabs, notifications, icons -
+  all from the library. **No hand-rolled base components**, **no second styling system** (no Tailwind),
+  **no CDN**. Copying library source into the repo and editing it counts as hand-rolling. Interactive
+  elements carry `data-testid="pm-*"` because the AC probes locate them by that attribute.
+- **Drag and drop always uses `@dnd-kit`** (never a hand-written drag engine). The same rule applies to all
+  infrastructure: HTTP framework, ORM, migrations, test framework, and so on. See the forbidden-hand-rolling
+  list in `STANDARDS.md` section 4.2.
+- **Dependency discipline**: before adding a dependency - (1) check CVE/OSV, (2) check the license
+  (MIT / Apache / BSD / ISC are fine; MPL / LGPL are acceptable; GPL / AGPL / no license means write
+  `QUESTIONS.md` first), (3) **pin the exact version** (no `^`, no `latest`), (4) register it in
+  `docs/dependencies.md` with name, version, license, and purpose. The package manager is fixed to **npm**
+  (`package-lock.json` is committed); **do not use pnpm**.
+- Request validation uses Fastify's built-in JSON Schema (ajv); MCP tool inputs use `zod`. Do not add
+  another validation library.
+- Comments explain **why** (especially why a workaround exists), not what the code already says.
 
-## 6. 数据与迁移
+## 6. Data and migrations
 
-- **数据目录**：`DATA_DIR`（默认 `<repo>/data`，首次运行创建）。内含 `pm.db`（SQLite，WAL）+ `media/`。
-  生产路径是 `/var/lib/promptmanager`（unit 的 `StateDirectory`）。
-- **迁移**：`migrations/NNN_*.sql`，由 `src/db/migrate.ts` 按序执行，`schema_migrations` 记录已应用版本 →
-  当前 3 个文件 ⇒ 输出 `ok: schema at v3`。**服务启动时也会自动跑一次**，所以迁移必须**幂等**。
-- **加迁移的规矩**：新建 `004_xxx.sql`，**不要改已应用的 `001~003`**；纯 SQL、重复执行不报错；
-  改完 `DATA_DIR=$(mktemp -d) npm run migrate` 验证（期望 `ok: schema at vN`）。
-- `schema_version`（**导出文件格式**，当前 1）与项目版本 `MAJOR.MINOR.PATCH` **解耦** ——
-  规则、tag 约定、发版流程见 `docs/versioning.md`（**别在这里重述**）。
-- 备份/恢复/回滚：拷 `pm.db`（WAL 连 `-wal`/`-shm`），或 `node bin/pm.mjs export --out backup.json`；
-  详见 `deploy/README.md` §4。**本项目不默认做备份。**
+- **Data directory**: `DATA_DIR` (defaults to `<repo>/data`, created on first run). It holds `pm.db`
+  (SQLite, WAL) and `media/`. In production it is `/var/lib/promptmanager` (the unit's `StateDirectory`).
+- **Migrations**: `migrations/NNN_*.sql`, applied in order by `src/db/migrate.ts`, with applied versions
+  recorded in `schema_migrations`. There are 3 files today, hence the output `ok: schema at v3`.
+  **The server also runs migrations on startup**, so every migration must be **idempotent**.
+- **Adding a migration**: create `004_xxx.sql`; **never edit the already-applied `001`-`003`**. Keep it pure
+  SQL and safe to run twice. Verify with `DATA_DIR=$(mktemp -d) npm run migrate` (expect `ok: schema at vN`).
+- `schema_version` (the **export file format**, currently 1) is **decoupled** from the project version
+  `MAJOR.MINOR.PATCH`. For the rules, tag conventions, and the release procedure, read
+  `docs/versioning.md` - **do not restate them here**.
+- Backup / restore / rollback: copy `pm.db` (plus `-wal` and `-shm` in WAL mode), or run
+  `node bin/pm.mjs export --out backup.json`. Details in `deploy/README.md` section 4.
+  **This project does not do backups by default.**
 
-## 7. 测试
+## 7. Tests
 
-- **位置与规模**：`tests/**/*.test.ts`（52 个文件 / **285** 个用例）。跑法见 §3。
-  用例数**只增不减**；判据是 `fail 0`，数字变大是新增用例、变小或 `fail>0` 才是回归。
-- **写法**：Node 内置 `node:test` + `node:assert/strict`（**无第三方测试框架**）。
-  公共夹具在 `tests/helpers.ts`（`makeFixture` / `login` / `cookieOf` / `readDb` / `runCliProcess` / `assertCliOk`）。
-  每个用例**自造临时 `DATA_DIR`**（`mkdtemp`），**绝不碰 `data/` 与 8767**。
-- **CLI 子进程**一律用 `runCliProcess()`，不要自己 `spawn` —— 原因见 §9-坑4。
-- 前端有一部分是**源码级断言**（`tests/stage*.test.ts` 读 `web/src/**` 文本/结构）与**DOM 级断言**（jsdom 渲染组件），
-  不依赖真实浏览器；真浏览器验证走 §8 的 AC 脚本。
-- **看到 `✖ <文件> 'test failed'`（无断言详情）先别改业务代码**：这形态几乎都是**该文件进程被信号杀死**，
-  不是断言失败；`bash tools/ci-check.sh` 失败时会打印完整诊断（`signal` / `Error:` / 日志末尾）。
+- **Location and size**: `tests/**/*.test.ts` (52 files, **285** cases). How to run them: section 3.
+  The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
+  a smaller number or `fail > 0` means a regression.
+- **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
+  fixtures live in `tests/helpers.ts` (`makeFixture`, `login`, `cookieOf`, `readDb`, `runCliProcess`,
+  `assertCliOk`). Every case creates its own temporary `DATA_DIR` (`mkdtemp`) and **never touches `data/`
+  or port 8767**.
+- **CLI subprocesses** always go through `runCliProcess()`; do not `spawn` them yourself - see pitfall 4.
+- Part of the frontend coverage is **source-level assertions** (`tests/stage*.test.ts` read text/structure
+  from `web/src/**`) and **DOM-level assertions** (jsdom renders components). Neither needs a real browser;
+  real-browser verification happens in the AC scripts described in section 8.
+- **If you see `✖ <file> 'test failed'` with no assertion detail, do not start editing business code.**
+  That shape almost always means **the file's process was killed by a signal**, not that an assertion failed.
+  When `bash tools/ci-check.sh` fails it prints the full diagnostics (`signal`, `Error:`, last log lines).
 
-## 8. 验证与自证（本项目特有，别照搬通用做法）
+## 8. Verification and evidence (project-specific; do not copy generic habits)
 
-- **AC → 可执行命令**：每条 AC 都必须能翻译成命令 + 期望输出，收尾时**原样贴输出**进 `PROGRESS.md`。
-  逐阶段的现成脚本是 `bash tools/ac-stage<N>.sh`（自起自停临时实例、临时 `DATA_DIR`、不改生产文件）。
-- **交互类 AC 必须用真鼠标事件**：CDP `Input.dispatchMouseEvent` 的
-  `mouseMoved` → `mousePressed` → `mouseReleased`；**禁止 JS `.click()`**（它绕过 pointer 事件，
-  测不出拖拽/多选/拖拽手柄的真问题）。
-- **界面类 AC 必须自己截图并识图**：`bash tools/ui-shots.sh`（自起自停 + 零安装 headless chromium，
-  产出 53 张到 `docs/shots/`，并 dump 渲染后 DOM 供 `ant-*` 类名统计）；结论写进 PROGRESS 的逐张识图段。
-- **依赖"安全上下文"的能力必须用内网 IP 验收**：`http://192.168.0.228:<port>`。
-  `127.0.0.1` 是安全上下文，会**掩盖**内网 HTTP 的真实 bug（见 §9-坑5）。
-- **只读/无副作用**要有可执行证据（`ss -ltn`、`git status --porcelain`、DOM 计数、`grep -c`）。
-- 收尾三件套全绿并贴原始输出：`npm test`、`bash tools/ci-check.sh`、本阶段 `tools/ac-stage<N>.sh`。
+- **Turn every AC into an executable command.** Each AC must translate into a command plus an expected
+  output, and at wrap-up you must paste the **raw output** into `PROGRESS.md`. Ready-made per-stage scripts
+  are `bash tools/ac-stage<N>.sh` (they start and stop their own throwaway instance with a temporary
+  `DATA_DIR` and never touch production files).
+- **Interaction ACs must use real mouse events**: CDP `Input.dispatchMouseEvent` with
+  `mouseMoved` -> `mousePressed` -> `mouseReleased`. **Never use JS `.click()`** - it bypasses pointer
+  events and will not expose real bugs in drag-and-drop, multi-select, or drag handles.
+- **UI ACs must take and read their own screenshots**: `bash tools/ui-shots.sh` starts and stops its own
+  instance and drives a zero-install headless chromium, writing 53 PNGs to `docs/shots/` plus a
+  post-render DOM dump for the `ant-*` class-name count. Record your per-image reading in the PROGRESS
+  section for that stage.
+- **Capabilities that depend on a secure context must be verified over the LAN IP**:
+  `http://192.168.0.228:<port>`. `127.0.0.1` counts as a secure context and will **mask** real bugs that
+  only appear over plain HTTP on the LAN (see pitfall 5).
+- **Read-only / no-side-effect claims need executable evidence** (`ss -ltn`, `git status --porcelain`,
+  DOM counts, `grep -c`).
+- **Wrap-up trio, all green with raw output pasted**: `npm test`, `bash tools/ci-check.sh`, and this
+  stage's `tools/ac-stage<N>.sh`.
 
-## 9. 红线（违反即返工）
+## 9. Hard rules
 
-- 只在本项目目录内写文件；**不改 `BRIEF.md` / `STANDARDS.md`**（含"顺手优化措辞"）。
-- **不碰** `/opt/promptmanager`、systemd unit、8767 测试环境、防火墙/NAT/内核参数 —— 那些归 host_manger；
-  部署/反代/备份**只在用户明确要求时由 host_manger 执行**。
-- **凭据不入库**：`_env/`（700、gitignored）只读用，不复制；口令只从 stdin 进库，**绝不打印/写日志/写 `.env`**；
-  `deploy/*.env.example` 的口令类值留空。
-- 不引 CDN、不装全局包（`npm i -g` / 系统 `pip install`）、不对外发布（推公网仓库、发帖）。
-- 不用 `rm -rf` 清理不确定路径；`data/ tmp/ var/ dist/ node_modules/ _env/` 都不入库。
-- **`git add` 只用明确路径**（如 `git add AGENTS.md`）——**禁止 `git add -A` / `git add .`**：
-  工作区可能有**别的会话**的未提交改动，`-A` 会把它们卷进你的提交。
-- 不为"跑通"放宽安全：关鉴权、关校验、跳过测试、`--insecure` 都算违规。
+- Write only inside this project directory. **Never edit `BRIEF.md` or `STANDARDS.md`** (not even to
+  "tidy up the wording").
+- **Do not touch** `/opt/promptmanager`, systemd units, the 8767 test environment, or firewall / NAT /
+  kernel settings - those belong to host_manger. Deployment, reverse proxying, and backups are executed by
+  host_manger **only when the user explicitly asks for them**.
+- **Credentials never enter the repo**: `_env/` (mode 700, gitignored) is read-only for you, never copied.
+  Passwords go into the database from stdin and are **never echoed, logged, or written to `.env`**.
+  Password-like values in `deploy/*.env.example` stay empty.
+- No CDN resources, no global package installs (`npm i -g`, system-wide `pip install`), and no external
+  publishing (pushing to public repos, posting anywhere).
+- Never `rm -rf` a path you are unsure about. `data/`, `tmp/`, `var/`, `dist/`, `node_modules/`, and
+  `_env/` are all excluded from git.
+- **`git add` with explicit paths only** (for example `git add AGENTS.md`) - **never `git add -A` or
+  `git add .`**: another session's uncommitted changes may be sitting in the working tree, and `-A` would
+  sweep them into your commit.
+- Never weaken security to "make it pass": disabling auth, disabling validation, skipping tests, or using
+  `--insecure` are all violations.
 
-## 10. 本项目特有的坑（每条都有证据）
+## 10. Project-specific pitfalls (each one points at evidence)
 
-1. **Node 服务 unit 必须允许 `AF_NETLINK`，否则启动即崩。** `os.networkInterfaces()`（Fastify 启动打印
-   监听地址时会调）要开 AF_NETLINK socket，缺了报 `uv_interface_addresses … errno 97 (EAFNOSUPPORT)`
-   → `status=1/FAILURE` + Restart 循环。⚠️ **`systemd-analyze verify` 拦不住**（语法全绿照样崩）。
-   证据：`deploy/promptmanager.service:52`、`deploy/README.md` §6、`docs/dev-history/PROGRESS.md` §阶段 9.1。
-2. **Node 服务不得开 `MemoryDenyWriteExecute`**（与 V8 JIT 的可写可执行页冲突 → `status=5/TRAP`）。
-   本仓库 unit 里该指令**计数为 0**（`grep -c MemoryDenyWriteExecute deploy/promptmanager.service` → `0`）。
-   证据：`deploy/README.md` §1「unit 关键约定」、`STANDARDS.md` §7.5 故障表。
-3. **沙箱里 `npm ci` 会 EROFS**：`npm error code EROFS … /root/.npm/_cacache/tmp` —— `/root/.npm` 只读。
-   解法：把 cache 放进仓库 → **`npm ci --cache var/cache/npm`**（实测 rc=0；`var/` 已 gitignore）。
-   任何会写 npm 缓存的命令同理。
-4. **`node --test` 并发下 CLI 子进程必须 `detached: true`，否则 flaky。** 子进程与测试运行器同进程组，
-   被环境整体清理（`kill -PGID` / `bwrap --die-with-parent`）连带杀死 → 断言看到 `code=null`，
-   加诊断后抓到是 `signal=SIGSEGV`；`node:test` 对这种情形**只报文件级 `✖ <file> 'test failed'`（无详情）**。
-   修法是公共 helper（`tests/helpers.ts` 的 `runCliProcess()`：`detached` + 吞 EPIPE + 30s 安全阀），
-   **不是加重试**。证据：`tests/helpers.ts:69-113`、`PROGRESS.md` §P2-C 与「P2 返工」、`VERIFY.md` P2 返工验收。
-5. **内网 HTTP 下 `navigator.clipboard` 根本不存在。** `http://192.168.x.x:<port>` 是非安全上下文
-   （`window.isSecureContext === false`），复制必须兜底到 `document.execCommand('copy')`；
-   用 `127.0.0.1` 验收会掩盖这个 bug。证据：`web/src/clipboard.ts:6-32`、
-   `tests/clipboard-fallback.test.ts`、`docs/dev-history/PROGRESS.md` AC-65（`ac65_clipboard_type=undefined`）。
-6. **Markdown 渲染的 `jsdom` 是模块级单例，常驻 ~200MB RSS。** `src/services/markdown.ts:12` 在模块加载时
-   `new JSDOM('')`；起完整服务后 VmRSS ≈ 204MB。并发跑测试时多个文件同时加载 jsdom 会形成内存压力，
-   表现为**文件级 `test failed`**（不是断言错）。证据：`src/services/markdown.ts:12`、`README.md`「已知限制」、
-   `PROGRESS.md` §P2「第二个 flaky」。
-7. **`folder_id` 筛选含全部后代，不是精确匹配。** `GET /api/prompts?folder_id=X` 返回 X 及其所有子孙
-   文件夹里的 prompt（与侧栏计数同口径）；这是**有意为之**，不是 bug。
-   证据：`src/db/prompt-queries.ts:16,44`（`descendantFolderIds`）、`tests/api-folder-inclusive.test.ts`、
-   `README.md`「已知限制」文件夹条。
-8. **`bin/pm.mjs` 与 `node --test` 依赖 `dist/**`**：没先 `npm run build`（或 `build:server`）就调用 CLI 会
-   `error: 未找到构建产物 dist/server/cli.js` 并退出 1；**改了 `src/` 不 build 就是在测旧代码**
-   （测试 import 的是 `../dist/**`）。证据：`bin/pm.mjs:9-17`、`tests/health.test.ts:6-7`。
-9. **`npm ci` 会跳过 better-sqlite3 的 install 脚本**（npm 11 allow-scripts 策略，打印
-   `npm warn allow-scripts … better-sqlite3@13.0.3 (install: node-gyp rebuild)`）—— **不影响使用**：
-   该包 `prebuilds/` 自带各平台二进制，**部署机无需 gcc/node-gyp**。实测：冷装后
-   `require('better-sqlite3')` 建表/读写 + `fts5(x, tokenize='trigram')` 全部 OK。
-   证据：`docs/dependencies.md:123-125`、`docs/dev-history/PROGRESS.md` AC-1。
-10. **导入 `replace` 不能一把清库**：`folders.parent_id` 是自引用外键 `ON DELETE RESTRICT`
-    （`migrations/001_init.sql:37`），必须**叶子优先反复删**。
-    证据：`docs/dev-history/PROGRESS.md` 阶段 5「replace 的清空顺序」。
+1. **A Node service unit must allow `AF_NETLINK`, or it crashes on startup.** `os.networkInterfaces()`
+   (which Fastify calls to log the listen address) needs an AF_NETLINK socket; without it you get
+   `uv_interface_addresses ... errno 97 (EAFNOSUPPORT)` -> `status=1/FAILURE` and a restart loop.
+   **`systemd-analyze verify` cannot catch this** - it is all green while the service still dies.
+   Evidence: `deploy/promptmanager.service:52`, `deploy/README.md` section 6,
+   `docs/dev-history/PROGRESS.md` (stage 9.1 section).
+2. **A Node service must not enable `MemoryDenyWriteExecute`** (it conflicts with V8 JIT's writable and
+   executable pages -> `status=5/TRAP`). This repo's unit does not contain that directive at all:
+   `grep -c MemoryDenyWriteExecute deploy/promptmanager.service` -> `0`.
+   Evidence: `deploy/README.md` section 1 ("unit key conventions"), `STANDARDS.md` section 7.5 failure table.
+3. **`npm ci` fails with EROFS in this sandbox**: `npm error code EROFS ... /root/.npm/_cacache/tmp`
+   because `/root/.npm` is read-only. Fix: keep the cache inside the repo ->
+   **`npm ci --cache var/cache/npm`** (verified rc=0; `var/` is gitignored). The same applies to any npm
+   command that writes the cache.
+4. **Under `node --test`, CLI subprocesses must be spawned with `detached: true` or the suite goes flaky.**
+   A child that shares the test runner's process group gets killed when the environment cleans up the whole
+   group (`kill -PGID`, `bwrap --die-with-parent`), so the assertion sees `code=null`; with better
+   diagnostics it turned out to be `signal=SIGSEGV`. For this failure shape `node:test` only reports a
+   file-level `✖ <file> 'test failed'` with no detail. The fix is the shared helper
+   (`runCliProcess()` in `tests/helpers.ts`: `detached`, swallow EPIPE, 30s safety valve) - **not a retry**.
+   Evidence: `tests/helpers.ts:69-113`, `PROGRESS.md` (P2-C and P2 rework sections),
+   `VERIFY.md` (P2 rework acceptance).
+5. **`navigator.clipboard` simply does not exist over plain HTTP on the LAN.** At
+   `http://192.168.x.x:<port>` the page is not a secure context (`window.isSecureContext === false`), so
+   copying must fall back to `document.execCommand('copy')`. Verifying over `127.0.0.1` hides this bug.
+   Evidence: `web/src/clipboard.ts:6-32`, `tests/clipboard-fallback.test.ts`,
+   `docs/dev-history/PROGRESS.md` (AC-65 section, `ac65_clipboard_type=undefined`).
+6. **The `jsdom` instance used for Markdown rendering is a module-level singleton and holds ~200 MB RSS.**
+   `src/services/markdown.ts:12` runs `new JSDOM('')` at module load; a fully started server reaches
+   VmRSS ~204 MB. When several test files load jsdom concurrently they create memory pressure, which shows
+   up as a **file-level `test failed`** (not an assertion error). Evidence: `src/services/markdown.ts:12`,
+   `README.md` ("Known limitations"), `PROGRESS.md` (P2, "second flaky").
+7. **The `folder_id` filter includes all descendants; it is not an exact match.**
+   `GET /api/prompts?folder_id=X` returns prompts in X and every folder beneath it (the same scope the
+   sidebar counts use). This is intentional, not a bug. Evidence: `src/db/prompt-queries.ts:16,44`
+   (`descendantFolderIds`), `tests/api-folder-inclusive.test.ts`, `README.md` ("Known limitations", folders).
+8. **`bin/pm.mjs` and `node --test` both load from `dist/**`.** Calling the CLI before
+   `npm run build` (or `build:server`) fails with `error: ... dist/server/cli.js ...` and exit code 1.
+   And because tests import from `../dist/**`, **editing `src/` without rebuilding means you are testing
+   stale code**. Evidence: `bin/pm.mjs:9-17`, `tests/health.test.ts:6-7`.
+9. **`npm ci` skips better-sqlite3's install script** (npm 11 allow-scripts policy; it prints
+   `npm warn allow-scripts ... better-sqlite3@13.0.3 (install: node-gyp rebuild)`). **This is harmless**:
+   the package ships per-platform binaries in `prebuilds/`, so **the deployment host needs no gcc or
+   node-gyp**. Verified after a cold install: `require('better-sqlite3')` table create/read/write and
+   `fts5(x, tokenize='trigram')` both work. Evidence: `docs/dependencies.md:123-125`,
+   `docs/dev-history/PROGRESS.md` (AC-1 section).
+10. **Import `replace` cannot wipe tables in one shot**: `folders.parent_id` is a self-referencing foreign
+    key declared `ON DELETE RESTRICT` (`migrations/001_init.sql:37`), so folders must be deleted
+    leaf-first, repeatedly. Evidence: `docs/dev-history/PROGRESS.md` (stage 5, "replace clearing order").
 
-## 11. 文档地图（哪份管什么、什么时候读）
+## 11. Documentation map (which doc owns what, and when to read it)
 
-| 文档 | 管什么 | 什么时候读 |
+| Document | What it owns | When to read it |
 | --- | --- | --- |
-| `/root/greenhouse/STANDARDS.md` | 开发规范（**优先级最高**）、红线、端口/依赖/文档/提交/验收规范 | 开工前；与 `BRIEF.md` 冲突时 |
-| `BRIEF.md` | **唯一需求来源**：FR、技术约束、接口契约、**逐条 AC**、阶段表（只读） | 开工前读本阶段相关节：§4 FR、§5 约束、§6 契约、§8 AC、§11 阶段表 |
-| `README.md` | 是什么 / 怎么跑 / 怎么验证 / 已知限制；环境变量表、界面说明、验证脚本清单 | 要跑起来、要知道"怎么验"、要查已知限制时 |
-| `PROGRESS.md` | **当前状态 + 阶段索引**（根目录版，精简） | 想知道"现在到哪了 / 下一步做什么" |
-| `docs/dev-history/PROGRESS.md` | **完整过程记录**：每条 AC 的命令与原样输出、逐张识图、决策与踩坑 | 要复核某条 AC、要挖历史坑、要写"为什么当初这么做" |
-| `VERIFY.md` / `docs/dev-history/VERIFY.md` | 验收结论汇总 / 完整验收记录（含返工清单，host_manger 写） | 想知道"上一阶段过没过、有没有返工项" |
-| `docs/versioning.md` | semver 判据、tag 约定、发版四步、`schema_version` 与项目版本解耦 | 要改版本号 / 发版 / 动导出格式时 |
-| `docs/dependencies.md` | 依赖清单 + 协议 + 选型理由 + OSV/CVE 审计证据 | 要加依赖、要审计依赖、要查"为什么选它" |
-| `docs/search-zh.md` | 中文检索方案实测报告（FTS5 trigram + LIKE 兜底、2000 条规模基线） | 要动检索逻辑时 |
-| `docs/brief-changelog.md` | BRIEF v1–v32 的变更历史（已从 `BRIEF.md` 外移） | 想知道某条需求是什么时候、为什么加的 |
-| `CHANGELOG.md` | 人可读的版本变更（Keep a Changelog 风格） | 发版时、想知道某版本有什么 |
-| `deploy/README.md` | systemd 安装/验证/回滚 + **排查**（AF_NETLINK 等） | 碰部署文件或排查线上启动失败时 |
-| `deploy/container.md` | 容器化形态（host_manger 交付） | 需要容器形态时 |
-| `docs/shots/` · `docs/dev-history/shots/` | 当前状态界面证据（53 张） · 分阶段历史截图 | 做界面 AC 对照时 |
-| `QUESTIONS.md` | 停手提问模板（历史问答见 `docs/dev-history/QUESTIONS-history.md`） | 规格未覆盖且影响交付时（见 §12） |
+| `/root/greenhouse/STANDARDS.md` | Engineering standard (**highest precedence**), hard rules, port / dependency / documentation / commit / acceptance rules | Before starting; and whenever it conflicts with `BRIEF.md` |
+| `BRIEF.md` | **The only source of requirements**: FRs, technical constraints, interface contracts, **every AC**, the stage table (read-only) | Before starting, read the sections for your stage: 4 (FRs), 5 (constraints), 6 (contracts), 8 (ACs), 11 (stage table) |
+| `README.md` | What it is / how to run / how to verify / known limitations; environment-variable table, UI description, verification script list | When you need to run it, need to know how to verify something, or need the known limitations |
+| `PROGRESS.md` | **Current status + stage index** (the trimmed root-level version) | When you want to know where the project stands or what comes next |
+| `docs/dev-history/PROGRESS.md` | **Full process record**: every AC's commands and raw output, per-image screenshot readings, decisions, and pitfalls | When re-checking an AC, mining historical pitfalls, or explaining why something was built that way |
+| `VERIFY.md` / `docs/dev-history/VERIFY.md` | Acceptance conclusions / full acceptance record including rework lists (written by host_manger) | When you need to know whether the last stage passed and what was sent back |
+| `docs/versioning.md` | Semver criteria, tag conventions, the four release steps, and how `schema_version` decouples from the project version | When bumping the version, cutting a release, or changing the export format |
+| `docs/dependencies.md` | Dependency list + licenses + selection rationale + OSV/CVE audit evidence | When adding a dependency, auditing dependencies, or asking "why this package" |
+| `docs/search-zh.md` | Measured report on Chinese full-text search (FTS5 trigram with LIKE fallback, 2000-row baseline) | When changing search logic |
+| `docs/brief-changelog.md` | Change history of BRIEF v1-v32 (moved out of `BRIEF.md`) | When you need to know when and why a requirement appeared |
+| `CHANGELOG.md` | Human-readable version history (Keep a Changelog style) | When releasing, or when you need to know what a version contains |
+| `deploy/README.md` | systemd install / verify / roll back, plus troubleshooting (AF_NETLINK and friends) | When touching deployment files or diagnosing a startup failure |
+| `deploy/container.md` | Container shape (delivered by host_manger) | When you need the container form |
+| `docs/shots/` and `docs/dev-history/shots/` | Current UI evidence (53 PNGs) and per-stage historical screenshots | When comparing against a UI AC |
+| `QUESTIONS.md` | Template for stopping and asking (past Q&A in `docs/dev-history/QUESTIONS-history.md`) | When the spec does not cover something that blocks delivery (see section 12) |
 
-## 12. 与 AI 代理的协作约定
+## 12. Working agreement for AI agents
 
-- **提交粒度**：一个**可验收单元**一次 commit，message 形如 `<type>(<scope>): <描述>`
-  （type ∈ `feat|fix|refactor|test|docs|chore`）；不提交半成品；在 `main` 上线性提交，
-  **不 force push、不改写已有历史**。
-- **落盘对账式回复**：每条结论都要标注**落盘位置**（文件路径 + 章节/行号，或 commit hash）；
-  **只在聊天里说的不算交付**。说"做了什么"必须给命令 + 输出 + commit。
-- **规格未覆盖且影响交付 → 写 `QUESTIONS.md`（2–3 个候选 + 建议）并停手**，不要自己拍板；
-  同一条 AC 连续 3 次不过、发现需求自相矛盾、需要越界操作、需要 `_env/` 里没有的凭据 —— 同样停手。
-  停手时保持工作区可编译，把已完成的部分先提交。
-- **新会话 / 上下文压缩后**：重读 `BRIEF.md` 的 §4（本阶段 FR）、§5（技术约束）、§8（本阶段 AC）、
-  §11（阶段表），再读 `PROGRESS.md` 的当前状态表与阶段索引；**不要凭记忆改代码**。
-- **多会话并行时**：确认自己要写的文件不与他人重叠；`git add` 用明确路径（§9）；
-  跑 `npm test` / `npm run build` 前先看有没有别的会话在跑，避免互相干扰跑出假结果。
-- **阶段边界**：只宣称本阶段该交付的东西；顺手做的跨阶段实现写进 `PROGRESS.md` 备查，**不据此宣称后续阶段完成**。
+- **Commit granularity**: one commit per **acceptable unit**, message shaped `<type>(<scope>): <summary>`
+  (type is one of `feat`, `fix`, `refactor`, `test`, `docs`, `chore`). Do not commit half-finished work.
+  Commit linearly on `main`; **never force push and never rewrite existing history**.
+- **Ledger-style replies**: every conclusion must name **where it landed on disk** (file path plus
+  section/line, or a commit hash). **Saying it in chat does not count as delivering it.** Any claim of
+  "I did X" needs the command, its output, and the commit.
+- **If the spec does not cover something that blocks delivery, write `QUESTIONS.md` (2-3 options plus a
+  recommendation) and stop** - do not decide it yourself. Stop for the same reason when a single AC has
+  failed three times in a row, when requirements contradict each other, when you would need to cross a
+  boundary, or when you need a credential that is not in `_env/`. When stopping, keep the tree compilable
+  and commit whatever is already complete.
+- **Fresh session or after context compaction**: re-read `BRIEF.md` sections 4 (your stage's FRs),
+  5 (constraints), 8 (your stage's ACs), and 11 (stage table), then the status table and stage index in
+  `PROGRESS.md`. **Do not edit code from memory.**
+- **When several sessions run in parallel**: make sure the files you write do not overlap with anyone
+  else's; use explicit `git add` paths (section 9); and check whether another session is running before
+  you run `npm test` or `npm run build`, so you do not disturb each other and produce false results.
+- **Stage boundaries**: only claim what your stage is supposed to deliver. If you implement something from
+  a later stage along the way, record it in `PROGRESS.md` for reference and **do not claim that later stage
+  is done**.
