@@ -1,9 +1,19 @@
-import { CopyOutlined, EditOutlined, DeleteOutlined, SearchOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import {
+  CopyOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  FolderOpenOutlined,
+  SearchOutlined,
+  StarFilled,
+  StarOutlined,
+} from '@ant-design/icons';
+import {
+  App as AntdApp,
   Button,
   Card,
   Flex,
   Input,
+  Modal,
   Pagination,
   Popconfirm,
   Segmented,
@@ -13,14 +23,16 @@ import {
   Table,
   Tag,
   Tooltip,
+  TreeSelect,
   Typography,
   theme,
 } from 'antd';
 import type { TableProps } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { extractVariablesLocal, formatListDateTime, orderPrompts, promptExcerpt } from '../pure';
-import type { Folder, Prompt, PromptListFilters, PromptListResponse } from '../types';
+import { buildFolderTree, extractVariablesLocal, formatListDateTime, orderPrompts, promptExcerpt } from '../pure';
+import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag as PromptTag } from '../types';
 import FavoriteStar from './FavoriteStar';
+import type { PromptMetaPatch } from './PromptDetail';
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -89,6 +101,8 @@ interface UseViewProps {
   pinFavorites: boolean;
   onPinFavoritesChange: (value: boolean) => void;
   folders: Folder[];
+  /** FR-78：详情面添加标签时可选的已有标签 */
+  tags: PromptTag[];
   isMobile: boolean;
   busyId: number | null;
   activeIndex: number;
@@ -103,6 +117,10 @@ interface UseViewProps {
   onDelete: (prompt: Prompt) => void;
   /** FR-57：一键收藏 / 取消收藏（分栏列表项 / 卡片 / 表格行共用） */
   onToggleFavorite: (prompt: Prompt) => void;
+  /** FR-78：详情面内联改文件夹 / 标签 → 由外层落库 */
+  onMetaChange: (prompt: Prompt, patch: PromptMetaPatch) => void;
+  /** FR-77：表格多选后的批量动作（**一次调用只发 1 个请求**，由外层调 POST /api/prompts/bulk） */
+  onBulk: (action: 'favorite' | 'move' | 'delete', ids: number[], folderId?: number | null) => Promise<boolean>;
   /** FR-70：拖拽排序落库（卡片网格与分栏中栏共用；ids = 当前视图完整新顺序） */
   onReorder: (ids: number[]) => void;
   /** 分栏视图右栏：当前选中的条目 */
@@ -134,6 +152,7 @@ export default function UseView({
   pinFavorites,
   onPinFavoritesChange,
   folders,
+  tags,
   isMobile,
   busyId,
   activeIndex,
@@ -144,6 +163,8 @@ export default function UseView({
   onEditDetail,
   onDelete,
   onToggleFavorite,
+  onMetaChange,
+  onBulk,
   onReorder,
   selected,
   onSelect,
@@ -151,8 +172,18 @@ export default function UseView({
   onUnauthorized,
 }: UseViewProps) {
   const { token } = theme.useToken();
+  const { modal } = AntdApp.useApp();
   const [query, setQuery] = useState(filters.q);
   const searchRef = useRef<React.ComponentRef<typeof Input> | null>(null);
+
+  /* FR-77：表格多选状态（**只属于表格档**；切换视图 / 换页 / 改筛选即清空，避免"选中了看不见的条目"）。 */
+  const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [moveOpen, setMoveOpen] = useState(false);
+  const [moveFolder, setMoveFolder] = useState<number | null>(null);
+  useEffect(() => {
+    setSelectedKeys([]);
+  }, [viewMode, filters.page, filters.q, filters.folderId, filters.tag, filters.favorite]);
 
   // 搜索即所得（300ms 防抖）；`/` 与 Ctrl/Cmd+K 由 Workspace 的快捷键把焦点打到 pm-search-input 上
   useEffect(() => {
@@ -378,6 +409,74 @@ export default function UseView({
     />
   );
 
+  /* FR-77：批量动作 —— 一次操作**只发 1 个请求**（外层调 `POST /api/prompts/bulk`，整批一个事务）；
+     成功后清空选中，失败保留选中以便重试。 */
+  const runBulk = async (action: 'favorite' | 'move' | 'delete', folderId?: number | null): Promise<void> => {
+    if (selectedKeys.length === 0) return;
+    setBulkBusy(true);
+    const ok = await onBulk(action, selectedKeys, folderId);
+    setBulkBusy(false);
+    if (ok) setSelectedKeys([]);
+  };
+
+  /** FR-77 ⑤：批量删除**必须二次确认**，写明将删除 N 条且不可恢复。 */
+  const confirmBulkDelete = (): void => {
+    const count = selectedKeys.length;
+    modal.confirm({
+      title: '批量删除 prompt？',
+      content: `将删除 ${String(count)} 条 prompt，不可恢复。`,
+      okText: '删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: () => runBulk('delete'),
+    });
+  };
+
+  /** FR-77 ①：首列复选框 + 表头全选（antd Table rowSelection 原生提供）。 */
+  const rowSelection: TableProps<Prompt>['rowSelection'] = {
+    selectedRowKeys: selectedKeys,
+    onChange: (keys) => setSelectedKeys(keys.map((key) => Number(key))),
+    columnWidth: 44,
+  };
+
+  /** FR-77 ②：有选中项时在**表格上方**显示工具条；无选中不占位。 */
+  const bulkToolbar = selectedKeys.length > 0 && (
+    <Flex data-testid="pm-bulk-toolbar" className="pm-bulk-toolbar" align="center" gap={8} wrap>
+      <Typography.Text data-testid="pm-bulk-count" style={{ fontSize: 12.5 }}>
+        已选择 <span className="pm-mono">{selectedKeys.length}</span> 项
+      </Typography.Text>
+      <Space size={6} style={{ marginLeft: 'auto' }} wrap>
+        <Button
+          size="small"
+          icon={<StarOutlined />}
+          loading={bulkBusy}
+          data-testid="pm-bulk-favorite"
+          onClick={() => void runBulk('favorite')}
+        >
+          批量收藏
+        </Button>
+        <Button
+          size="small"
+          icon={<FolderOpenOutlined />}
+          loading={bulkBusy}
+          data-testid="pm-bulk-move"
+          onClick={() => {
+            setMoveFolder(null);
+            setMoveOpen(true);
+          }}
+        >
+          批量移动
+        </Button>
+        <Button size="small" danger icon={<DeleteOutlined />} data-testid="pm-bulk-delete" onClick={confirmBulkDelete}>
+          批量删除
+        </Button>
+        <Button size="small" type="text" data-testid="pm-bulk-cancel" onClick={() => setSelectedKeys([])}>
+          取消
+        </Button>
+      </Space>
+    </Flex>
+  );
+
   const body = ((): React.ReactNode => {
     if (viewMode === 'split') {
       return (
@@ -387,6 +486,7 @@ export default function UseView({
           error={error}
           onRetry={onRetry}
           folders={folders}
+          tags={tags}
           isMobile={isMobile}
           emptyWithBrandIcon={trulyEmpty}
           selected={selected}
@@ -400,6 +500,7 @@ export default function UseView({
           onReload={onReload}
           onUnauthorized={onUnauthorized}
           onToggleFavorite={onToggleFavorite}
+          onMetaChange={onMetaChange}
         />
       );
     }
@@ -428,6 +529,8 @@ export default function UseView({
     }
     return (
       <div data-testid="pm-view-table">
+        {/* FR-77 ②：批量工具条在表格**上方**（无选中时不占位） */}
+        {bulkToolbar}
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -442,11 +545,16 @@ export default function UseView({
               columns={tableColumns}
               dataSource={ordered}
               pagination={false}
+              rowSelection={rowSelection}
               scroll={{ x: 'max-content' }}
               locale={{ emptyText: empty }}
               components={{ body: { row: SortableTableRow } }}
               onRow={(prompt, index) => ({
-                onClick: () => onActiveIndexChange(index ?? 0),
+                onClick: (event) => {
+                  // 复选框列上的点击只切换选中，不改变"当前条目"高亮
+                  if ((event.target as HTMLElement).closest('.ant-table-selection-column') !== null) return;
+                  onActiveIndexChange(index ?? 0);
+                },
                 onDoubleClick: () => onOpenDetail(prompt),
                 className: activeIndex === index ? 'pm-row-selected' : '',
               })}
@@ -534,6 +642,36 @@ export default function UseView({
           />
         </Flex>
       )}
+
+      {/* FR-77 ⑤：批量移动 —— 选目标文件夹（含「未归类」），确定后**一次** POST /api/prompts/bulk */}
+      <Modal
+        open={moveOpen}
+        title="批量移动到文件夹"
+        okText="确定"
+        cancelText="取消"
+        onCancel={() => setMoveOpen(false)}
+        onOk={() => {
+          setMoveOpen(false);
+          void runBulk('move', moveFolder);
+        }}
+      >
+        <Flex vertical gap={10} data-testid="pm-bulk-move-modal">
+          <Typography.Text style={{ fontSize: 12.5, color: token.colorTextSecondary }}>
+            将选中的 {selectedKeys.length} 条 prompt 移到：
+          </Typography.Text>
+          <TreeSelect
+            data-testid="pm-bulk-move-folder"
+            aria-label="目标文件夹"
+            value={moveFolder ?? 0}
+            onChange={(value) => setMoveFolder(Number(value) === 0 ? null : Number(value))}
+            treeData={[{ value: 0, title: '未归类', key: 0, children: [] }, ...buildFolderTree(folders)]}
+            treeDefaultExpandAll
+            showSearch
+            treeNodeFilterProp="title"
+            style={{ width: '100%' }}
+          />
+        </Flex>
+      </Modal>
     </Flex>
   );
 }

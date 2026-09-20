@@ -125,7 +125,7 @@ else
     eq "① 详情面内 Select 数 = 0" "0" "$(v ac66_detail_select_count)"
     eq "① 正文区无 eye 说明标签" "0" "$(v ac66_body_eye_count)"
     pass "② 详情面其余控件：$(v ac66_fields_present)"
-    eq "② 页签/分段/纯文本/全屏 都在" "true" "$(echo "$(v ac66_fields_present)" | jq -r '.tabs and (.segments >= 2) and .plain and .fullscreen')"
+    eq "② 页签/分段/纯文本/全屏 都在（且 FR-79 起无「备注」页签）" "true" "$(echo "$(v ac66_fields_present)" | jq -r '.tabs and (.notesTab == 0) and (.segments >= 2) and .plain and .fullscreen')"
     pass "③ 间距（修复后）：$(v ac66_gap)"
     BEFORE_GAP=52   # 修复前实测（tmp/measure-ac66-before.sh：fieldsBottom 203 → contentTop 255）
     AFTER_GAP=$(echo "$(v ac66_gap)" | jq -r .gap 2>/dev/null)

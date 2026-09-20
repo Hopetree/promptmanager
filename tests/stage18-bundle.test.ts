@@ -31,6 +31,15 @@ const STAGE18_ACCOUNTED_DELTA = 2_560;
  * 未压缩的最大 chunk 仍为 467,320 B（≤500KB，AC-61 ① 不变）。
  */
 const STAGE22_ACCOUNTED_DELTA = 15_954;
+/**
+ * 阶段 27（FR-77 ~ FR-81）的**已对账**增量：**实测** +963 B gzip。
+ * 依据（2026-09-21）：把本阶段改动前的 `web/src`（HEAD = 阶段 26 收尾）在同一 `node_modules` 下重新
+ * `npm run build:web`，总 gzip = **417,515 B**；本阶段完成后 = **418,478 B** ⇒ 差值 **963 B**。
+ * 构成：表格批量工具条 + `rowSelection` + 批量移动弹窗（FR-77）、详情页元信息行（文件夹下拉 + 标签胶囊，FR-78）、
+ * 减去移除的「备注」页签（FR-79）与变量区块（FR-80）、VarsDialog 尺寸（FR-81，仅数值改动）后的净值。
+ * 未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。
+ */
+const STAGE27_ACCOUNTED_DELTA = 963;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -74,9 +83,9 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 阶段 18 已对账增量）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
-  const budget = BASELINE_TOTAL_GZIP + STAGE18_ACCOUNTED_DELTA + STAGE22_ACCOUNTED_DELTA;
+  const budget = BASELINE_TOTAL_GZIP + STAGE18_ACCOUNTED_DELTA + STAGE22_ACCOUNTED_DELTA + STAGE27_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });
 

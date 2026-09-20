@@ -187,27 +187,33 @@ async function main() {
     );
     await cdp.shot('01-notes-light');
 
-    // ---------- AC-68 ②③：备注页签 = 纯文本 + 无 /api/render/markdown 请求 ----------
-    const beforeMarkdown = cdp.markdownRequests.length;
-    await cdp.realClick('[data-testid="pm-detail-body"]', 200); // 确保焦点不在别处
-    await cdp.evaluate(
-      `(() => { const tabs = [...document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented-item')]; const target = tabs.find((n) => n.innerText.includes('备注')); if (!target) return false; target.click(); return true; })()`,
+    // ---------- AC-68 ②③（v34 修订：FR-79 已移除「备注」页签，改由标题下的 pm-detail-notes 承担） ----------
+    // ① 备注页签不存在（FR-79）；② 备注仍按**纯文本**呈现（DOM 里没有任何 Markdown 渲染元素）；
+    // ③ 查看备注**不额外**触发 /api/render/markdown（正文预览那一次请求在此之后，不再新增）。
+    out.ac68_notes_tab_count = await cdp.evaluate(
+      `String([...document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented-item')].filter((n) => n.innerText.includes('备注')).length)`,
     );
-    await cdp.waitFor(`!!document.querySelector('[data-testid="pm-detail-body"] [data-testid="pm-detail-text"]')`, '备注纯文本区');
+    const beforeMarkdown = cdp.markdownRequests.length;
     await sleep(1200);
     out.ac68_notes_requests = String(cdp.markdownRequests.length - beforeMarkdown);
     out.ac68_body_text = await cdp.evaluate(
-      `String(document.querySelector('[data-testid="pm-detail-body"]').innerText)`,
+      `String(document.querySelector('[data-testid="pm-detail-notes"]')?.textContent ?? '')`,
     );
     out.ac68_rendered_tags = await cdp.evaluate(
-      `String(document.querySelectorAll('[data-testid="pm-detail-body"] h1, [data-testid="pm-detail-body"] h2, [data-testid="pm-detail-body"] h3, [data-testid="pm-detail-body"] strong, [data-testid="pm-detail-body"] ul, [data-testid="pm-detail-body"] ol, [data-testid="pm-detail-body"] a, [data-testid="pm-detail-body"] code').length)`,
+      `String(document.querySelectorAll('[data-testid="pm-detail-notes"] h1, [data-testid="pm-detail-notes"] h2, [data-testid="pm-detail-notes"] h3, [data-testid="pm-detail-notes"] strong, [data-testid="pm-detail-notes"] ul, [data-testid="pm-detail-notes"] ol, [data-testid="pm-detail-notes"] a, [data-testid="pm-detail-notes"] code').length)`,
     );
     out.ac68_body_has_markdown_chars = await cdp.evaluate(
-      `JSON.stringify({ heading: document.querySelector('[data-testid="pm-detail-body"]').innerText.includes('# 标题'), bold: document.querySelector('[data-testid="pm-detail-body"]').innerText.includes('**粗体**'), list: document.querySelector('[data-testid="pm-detail-body"]').innerText.includes('- 列表'), link: document.querySelector('[data-testid="pm-detail-body"]').innerText.includes('[链接](http://x)') })`,
+      `JSON.stringify({ heading: (document.querySelector('[data-testid="pm-detail-notes"]')?.textContent ?? '').includes('# 标题'), bold: (document.querySelector('[data-testid="pm-detail-notes"]')?.textContent ?? '').includes('**粗体**'), list: (document.querySelector('[data-testid="pm-detail-notes"]')?.textContent ?? '').includes('- 列表'), link: (document.querySelector('[data-testid="pm-detail-notes"]')?.textContent ?? '').includes('[链接](http://x)') })`,
     );
     await cdp.shot('02-notes-plain-text-light');
 
     // ---------- AC-68 ④：切回用户提示词 → Markdown 渲染恢复正常 ----------
+    // FR-79 起没有「备注」页签可切：先切到**系统提示词**（触发一次渲染），再切回用户提示词 → 断言确有新请求
+    await cdp.evaluate(
+      `(() => { const tabs = [...document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented-item')]; const target = tabs.find((n) => n.innerText.includes('系统提示词')); if (!target) return false; target.click(); return true; })()`,
+    );
+    await cdp.waitFor(`(document.querySelector('[data-testid="pm-detail-body"] [data-testid="markdown-preview"]')?.innerText ?? '').length > 0`, '系统提示词预览');
+    await sleep(700);
     const beforeBack = cdp.markdownRequests.length;
     await cdp.evaluate(
       `(() => { const tabs = [...document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented-item')]; const target = tabs.find((n) => n.innerText.includes('用户提示词')); if (!target) return false; target.click(); return true; })()`,

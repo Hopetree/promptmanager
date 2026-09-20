@@ -35,8 +35,9 @@ test('AC-66 ④（v28 修订）：详情页只传 1 个字段；编辑器页的�
   assert.equal(fieldsBlock.includes("key: 'notes'"), false, 'v28：备注必须从预览字段里去掉');
 });
 
-test('AC-66 ②：详情页其余控件不变（页签 / 预览·源码 / 显示纯文本 / 全屏展开）', () => {
-  for (const token of ['用户提示词', '系统提示词', '备注', 'sourceMode', 'pm-detail-plain', 'pm-detail-fullscreen']) {
+test('AC-66 ②（v34 修订）：详情页其余控件不变（页签 / 预览·源码 / 显示纯文本 / 全屏展开）', () => {
+  // FR-79 起详情页字段页签只剩「用户提示词 / 系统提示词」，「备注」页签已移除（备注改由 pm-detail-notes 承担）
+  for (const token of ['用户提示词', '系统提示词', 'pm-detail-notes', 'sourceMode', 'pm-detail-plain', 'pm-detail-fullscreen']) {
     assert.ok(detail.includes(token), `详情页缺少 ${token}`);
   }
 });

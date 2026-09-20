@@ -58,7 +58,7 @@ print(','.join(re.findall(r"key: '([a-z_]+)'", block)))
 PY
 )
 eq "编辑器 Markdown 预览字段" "user_prompt,system_prompt" "$EDITOR_FIELDS"
-eq "详情面备注纯文本分支" 1 "$(grep -c "sourceMode || plain || field === 'notes'" web/src/components/PromptDetail.tsx)"
+eq "详情面正文纯文本分支（v34：FR-79 起不再有 notes 页签）" 1 "$(grep -c 'sourceMode || plain ? (' web/src/components/PromptDetail.tsx)"
 eq "pm-detail-notes 锚点" 1 "$(grep -c 'data-testid="pm-detail-notes"' web/src/components/PromptDetail.tsx)"
 eq "备注行空值不渲染" 1 "$(grep -c 'prompt.notes.trim() !== ' web/src/components/PromptDetail.tsx)"
 eq "备注行 title 全文" 1 "$(grep -c 'title={prompt.notes}' web/src/components/PromptDetail.tsx)"
@@ -138,11 +138,12 @@ print(json.dumps({'title': sys.argv[1], 'user_prompt': sys.argv[2], 'system_prom
     pass "下拉选项：$(v ac68_editor_options)"
     eq "恰好 ['用户提示词','系统提示词']" '["用户提示词","系统提示词"]' "$(v ac68_editor_options)"
 
-    line "AC-68 ②③：详情面「备注」= 纯文本 + 无渲染请求"
+    line "AC-68 ②③（v34 修订：FR-79 已移除「备注」页签，改由 pm-detail-notes 承担）"
+    eq "备注页签计数（FR-79 起为 0）" "0" "$(v ac68_notes_tab_count)"
     pass "备注正文（原样）：$(v ac68_body_text | tr '\n' '⏎')"
     eq "原样含 # 标题 / **粗体** / - 列表 / [链接](http://x)" '{"heading":true,"bold":true,"list":true,"link":true}' "$(v ac68_body_has_markdown_chars)"
-    eq "正文区渲染元素（h1/h2/h3/strong/ul/ol/a/code）计数" "0" "$(v ac68_rendered_tags)"
-    eq "从切「备注」到显示完成发出的 /api/render/markdown 请求数" "0" "$(v ac68_notes_requests)"
+    eq "备注行渲染元素（h1/h2/h3/strong/ul/ol/a/code）计数" "0" "$(v ac68_rendered_tags)"
+    eq "查看备注额外发出的 /api/render/markdown 请求数" "0" "$(v ac68_notes_requests)"
 
     line "AC-68 ④：切回「用户提示词」→ Markdown 渲染恢复"
     ge "切回后发出的 /api/render/markdown 请求数" 1 "$(v ac68_back_requests)"

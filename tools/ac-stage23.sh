@@ -190,11 +190,13 @@ s=json.loads(sys.argv[1]); gs=[c['gap'] for c in s['cards']]; print('true' if al
 import json,sys
 s=json.loads(sys.argv[1]); print('true' if s['w'] >= 24 and s['h'] >= 24 else 'false')
 " "$(t ac74_handle)")"
-    # 基线 = 阶段 23 之前的构建（git HEAD 的 worktree 重新构建后实测）：rowHeight 43 / headerHeight 38 / cols 见下
+    # 基线 = 阶段 23 之前的构建（git HEAD 的 worktree 重新构建后实测）：rowHeight 43 / headerHeight 38 / cols 见下。
+    # 【v34 / FR-77 修订】表格**首列新增复选框列**（表头全选）⇒ 由 8 列变 9 列，列宽与表头数组随之更新
+    #（第一列 60px 是复选框列，表头文案为空）。行内拖拽手柄仍不新增列（手柄在「标题」单元格内）。
     eq "行高与改前一致（43px）" "43" "$(echo "$(t ac74_metrics_before)" | jq -r .rowHeight)"
     eq "表头高与改前一致（38px）" "38" "$(echo "$(t ac74_metrics_before)" | jq -r .headerHeight)"
-    eq "列宽与改前一致（8 列实测像素）" "[301,183,123,83,94,106,155,275]" "$(echo "$(t ac74_metrics_before)" | jq -c .cols)"
-    eq "表头文案与改前一致（未新增列）" '["标题","标签","文件夹","版本","变量数","取用次数","更新于","操作"]' "$(echo "$(t ac74_metrics_before)" | jq -c '[.heads[].text]')"
+    eq "列宽与 v34 前一致 + FR-77 复选框列（9 列实测像素）" "[60,287,175,118,79,90,101,148,262]" "$(echo "$(t ac74_metrics_before)" | jq -c .cols)"
+    eq "表头文案（FR-77 起首列为空 = 复选框列）" '["","标题","标签","文件夹","版本","变量数","取用次数","更新于","操作"]' "$(echo "$(t ac74_metrics_before)" | jq -c '[.heads[].text]')"
     pass "表格顺序（拖前）：$(t ac74_order_before)"
     pass "表格顺序（拖后）：$(t ac74_order_after)"
     eq "拖拽改变表格行顺序" "true" "$(python3 -c "

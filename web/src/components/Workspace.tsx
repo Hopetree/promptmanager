@@ -17,7 +17,7 @@ import {
 } from '../lazy';
 import AppHeader from './AppHeader';
 import LazyFallback from './LazyFallback';
-import PromptDetail from './PromptDetail';
+import PromptDetail, { type PromptMetaPatch } from './PromptDetail';
 import SidebarPanel from './SidebarPanel';
 import UseView, { type UseSort, type UseViewMode } from './UseView';
 import { usePromptCopy } from '../use-copy';
@@ -411,6 +411,86 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     [message, notify],
   );
 
+  /**
+   * FR-78：详情页内联改「文件夹 / 标签」—— 复用既有 `PUT /api/prompts/:id`（与编辑器**同源**），
+   * 成功后同步所有本地视图（列表 / 分栏右栏 / 详情弹层 / 编辑器）并刷新侧栏计数。
+   */
+  const patchPromptMeta = useCallback(
+    async (prompt: Prompt, patch: PromptMetaPatch): Promise<void> => {
+      try {
+        const updated = await api.updatePrompt(prompt.id, patch);
+        message.success(patch.folder_id !== undefined ? '已更新文件夹' : '已更新标签');
+        const merge = (prev: Prompt | null): Prompt | null =>
+          prev !== null && prev.id === updated.id
+            ? {
+                ...prev,
+                folder_id: updated.folder_id,
+                tags: updated.tags,
+                version_no: updated.version_no,
+                updated_at: updated.updated_at,
+              }
+            : prev;
+        setSelected(merge);
+        setDetail(merge);
+        setEditing(merge);
+        setData((prev) =>
+          prev === null
+            ? prev
+            : {
+                ...prev,
+                items: prev.items.map((item) =>
+                  item.id === updated.id
+                    ? {
+                        ...item,
+                        folder_id: updated.folder_id,
+                        tags: updated.tags,
+                        version_no: updated.version_no,
+                        updated_at: updated.updated_at,
+                      }
+                    : item,
+                ),
+              },
+        );
+        refresh();
+      } catch (error) {
+        notify(error);
+      }
+    },
+    [message, notify, refresh],
+  );
+
+  /**
+   * FR-77：表格批量动作（**一次操作只发 1 个请求** → `POST /api/prompts/bulk`，服务端整批一个事务）。
+   * 返回是否成功，供 UseView 决定是否清空选中（失败保留选中以便重试）。
+   */
+  const bulkAction = useCallback(
+    async (action: 'favorite' | 'move' | 'delete', ids: number[], folderId?: number | null): Promise<boolean> => {
+      try {
+        const result = await api.bulkPrompts(action, ids, folderId);
+        const label =
+          action === 'favorite'
+            ? `已收藏 ${String(result.affected)} 条`
+            : action === 'move'
+              ? `已移动 ${String(result.affected)} 条`
+              : `已删除 ${String(result.affected)} 条`;
+        message.success(label);
+        if (action === 'delete') {
+          // 被删条目若正被详情 / 编辑器持有，清掉，避免继续指向已不存在的记录
+          const drop = (prev: Prompt | null): Prompt | null => (prev !== null && ids.includes(prev.id) ? null : prev);
+          setSelected(drop);
+          setDetail(drop);
+          setEditing(drop);
+        }
+        refresh();
+        return true;
+      } catch (error) {
+        notify(error);
+        return false;
+      }
+    },
+    [message, notify, refresh],
+  );
+
   /** 分栏中栏的展示顺序（与 UseView 共用 orderPrompts，保证"第一条"一致）。 */
   const orderedItems = useMemo(
     () => orderPrompts(data?.items ?? [], useSort, pinFavorites),
@@ -677,6 +757,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             pinFavorites={pinFavorites}
             onPinFavoritesChange={setPinFavorites}
             folders={folders}
+            tags={tags}
             isMobile={isMobile}
             busyId={copier.busyId}
             activeIndex={activeIndex}
@@ -687,6 +768,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             onEditDetail={(prompt) => void openEditor(prompt.id, 'detail')}
             onDelete={(prompt) => void removePrompt(prompt)}
             onToggleFavorite={(prompt) => void toggleFavorite(prompt)}
+            onMetaChange={(prompt, patch) => void patchPromptMeta(prompt, patch)}
+            onBulk={bulkAction}
             onReorder={(ids) => void reorderPrompts(ids)}
             selected={selected}
             onSelect={(prompt) => void openDetail(prompt)}
@@ -785,6 +868,9 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           void openEditor(prompt.id, 'detail');
         }}
         onToggleFavorite={(prompt) => void toggleFavorite(prompt)}
+        folders={folders}
+        tags={tags}
+        onMetaChange={(prompt, patch) => void patchPromptMeta(prompt, patch)}
         onReload={(prompt) => {
           void (async () => {
             try {

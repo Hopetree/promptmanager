@@ -23,19 +23,26 @@ test('AC-68 ①：编辑器页 Markdown 预览的字段只剩 用户提示词 / 
   assert.ok(/name="notes"[\s\S]{0,200}<Input\.TextArea/.test(editor), '备注仍是普通 Input.TextArea');
 });
 
-test('AC-68 ②：详情面「备注」页签走纯文本分支（不挂 MarkdownPreview）', () => {
-  assert.ok(/field === 'notes'/.test(detail), '正文区渲染条件里必须有 field === "notes" 的纯文本分支');
-  // 纯文本分支 = <pre data-testid="pm-detail-text">（React 文本节点会自动转义，不做 Markdown 解析）
+test('AC-68 ②（v34 修订：由 FR-79 取代）：详情面不再有「备注」页签，备注改由标题下的 pm-detail-notes 纯文本承担', () => {
+  // FR-79：字段页签只剩 用户提示词 / 系统提示词 ⇒ 正文区不再有 `field === 'notes'` 分支
+  assert.equal(/field === 'notes'/.test(detail), false, 'FR-79：正文区不得再有 notes 字段分支（备注页签已移除）');
+  const optionsBlock = detail.slice(detail.indexOf('options={['), detail.indexOf(']}\n', detail.indexOf('options={[')));
+  assert.equal(optionsBlock.includes("label: '备注'"), false, 'FR-79：不得再有「备注」页签');
+  // 备注仍以**纯文本**呈现（标题下的 pm-detail-notes，FR-69）——不经 Markdown 渲染、不注入 HTML
+  assert.ok(detail.includes('data-testid="pm-detail-notes"'), '备注行仍在（标题下）');
+  const notesBlock = detail.slice(detail.indexOf('data-testid="pm-detail-notes"'), detail.indexOf('data-testid="pm-detail-meta"'));
+  assert.equal(notesBlock.includes('dangerouslySetInnerHTML'), false, '备注行不得注入 HTML');
+  assert.equal(notesBlock.includes('MarkdownPreview'), false, '备注行不得走 Markdown 渲染');
+  // 纯文本分支容器仍在（源码 / 显示纯文本模式用）
   assert.ok(detail.includes('data-testid="pm-detail-text"'), '纯文本容器仍在');
   assert.ok(/whiteSpace: 'pre-wrap'/.test(detail), '纯文本要按原样换行显示');
-  // MarkdownPreview 只在非备注字段走
+  // MarkdownPreview 仍服务于用户 / 系统提示词
   const markdownCall = detail.indexOf('<LazyMarkdownPreview');
   assert.ok(markdownCall > 0, '用户/系统提示词仍要 Markdown 预览');
-  // 三段式：`纯文本/备注 ? <pre> : <LazyMarkdownPreview>` —— 备注必须落在纯文本那一支
-  const ternaryAt = detail.search(/sourceMode \|\| plain \|\| field === 'notes' \? \(/);
-  assert.ok(ternaryAt > 0, '正文区必须是 sourceMode/plain/备注 三选一的纯文本分支');
+  const ternaryAt = detail.search(/sourceMode \|\| plain \? \(/);
+  assert.ok(ternaryAt > 0, '正文区必须是 sourceMode/plain 的纯文本分支');
   const between = detail.slice(ternaryAt, markdownCall);
-  assert.ok(between.includes(') : ('), 'MarkdownPreview 必须在该三元表达式的 else 分支里（备注走不到它）');
+  assert.ok(between.includes(') : ('), 'MarkdownPreview 必须在该三元表达式的 else 分支里');
 });
 
 test('AC-68 ③④：不外溢（列表摘要 / 变量 / 导出 / diff 都不受备注去向影响）', () => {

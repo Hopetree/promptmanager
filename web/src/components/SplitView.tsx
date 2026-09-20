@@ -1,8 +1,8 @@
 import { InboxOutlined } from '@ant-design/icons';
 import { Card, Flex, Typography, theme } from 'antd';
-import type { Folder, Prompt, PromptListResponse } from '../types';
+import type { Folder, Prompt, PromptListResponse, Tag } from '../types';
 import FavoriteStar from './FavoriteStar';
-import { PromptDetailPanel } from './PromptDetail';
+import { PromptDetailPanel, type PromptMetaPatch } from './PromptDetail';
 import SortableList from './SortableList';
 import { EmptyState, ErrorState, LoadingState } from './States';
 
@@ -12,6 +12,8 @@ interface SplitViewProps {
   error: string | null;
   onRetry: () => void;
   folders: Folder[];
+  /** FR-78：添加标签时可选的已有标签 */
+  tags: Tag[];
   isMobile: boolean;
   /** FR-59：列表"一条都没有"时显示品牌图形（72） */
   emptyWithBrandIcon: boolean;
@@ -27,6 +29,8 @@ interface SplitViewProps {
   onReload: (prompt: Prompt) => void;
   onUnauthorized: () => void;
   onToggleFavorite: (prompt: Prompt) => void;
+  /** FR-78：详情面内联改文件夹 / 标签 → 由外层落库 */
+  onMetaChange: (prompt: Prompt, patch: PromptMetaPatch) => void;
   /** FR-70：中栏条目拖拽结束 → 给出当前列表完整新顺序（服务端落库由 Workspace 负责） */
   onReorder: (ids: number[]) => void;
 }
@@ -48,6 +52,7 @@ export default function SplitView({
   error,
   onRetry,
   folders,
+  tags,
   isMobile,
   emptyWithBrandIcon,
   selected,
@@ -60,6 +65,7 @@ export default function SplitView({
   onReload,
   onUnauthorized,
   onToggleFavorite,
+  onMetaChange,
   onReorder,
 }: SplitViewProps) {
   const { token } = theme.useToken();
@@ -159,6 +165,9 @@ export default function SplitView({
               onReload={onReload}
               onUnauthorized={onUnauthorized}
               onToggleFavorite={onToggleFavorite}
+              folders={folders}
+              tags={tags}
+              onMetaChange={onMetaChange}
             />
           )}
         </Card>

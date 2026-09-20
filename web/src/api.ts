@@ -109,6 +109,17 @@ export const api = {
   /** FR-70：按拖拽结果落库（当前视图内的完整新顺序）；服务端校验非法 id → 400，幂等。 */
   reorderPrompts: (ids: number[]) => request<void>('PATCH', '/api/prompts/order', { ids }),
 
+  /**
+   * FR-77 ⑥：表格多选后的**批量动作**（一次调用只发 1 个请求；服务端整批一个事务）。
+   * `folder_id` 只在 `action === 'move'` 时传（`null` = 移回「未归类」）。
+   */
+  bulkPrompts: (action: 'favorite' | 'move' | 'delete', ids: number[], folderId?: number | null) =>
+    request<{ action: string; affected: number }>('POST', '/api/prompts/bulk', {
+      action,
+      ids,
+      ...(folderId === undefined ? {} : { folder_id: folderId }),
+    }),
+
   versions: (id: number) => request<{ items: VersionSummary[] }>('GET', `/api/prompts/${String(id)}/versions`),
 
   diff: (id: number, from: number, to: number) =>

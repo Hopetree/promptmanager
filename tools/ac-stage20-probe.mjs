@@ -197,7 +197,8 @@ async function main() {
         `String((document.querySelector('[data-testid="pm-detail-body"]')?.innerText ?? '').trim().slice(0, 40))`,
       );
       out.ac66_fields_present = await cdp.evaluate(
-        `JSON.stringify({ tabs: ['用户提示词','系统提示词','备注'].every((t) => document.querySelector('[data-testid="pm-detail-fields"]').innerText.includes(t)), segments: document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented').length, plain: !!document.querySelector('[data-testid="pm-detail-plain"]'), fullscreen: !!document.querySelector('[data-testid="pm-detail-fullscreen"]') })`,
+        // v34（FR-79）：详情面字段页签只剩 用户提示词 / 系统提示词，「备注」页签已移除
+        `JSON.stringify({ tabs: ['用户提示词','系统提示词'].every((t) => document.querySelector('[data-testid="pm-detail-fields"]').innerText.includes(t)), notesTab: [...document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented-item')].filter((n) => n.innerText.includes('备注')).length, segments: document.querySelectorAll('[data-testid="pm-detail-fields"] .ant-segmented').length, plain: !!document.querySelector('[data-testid="pm-detail-plain"]'), fullscreen: !!document.querySelector('[data-testid="pm-detail-fullscreen"]') })`,
       );
       out.ac66_gap = await cdp.evaluate(GAP);
       await cdp.shot('01-detail-no-header');
