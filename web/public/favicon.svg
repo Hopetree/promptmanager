@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="PromptManager">
+  <title>PromptManager</title>
+  <defs>
+    <linearGradient id="pmTile" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#6E79E4"/><stop offset="1" stop-color="#4E5AC6"/>
+    </linearGradient>
+    <linearGradient id="pmSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.26"/><stop offset="0.6" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="15" fill="url(#pmTile)"/>
+  <rect width="64" height="64" rx="15" fill="url(#pmSheen)"/>
+  <g fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 21 L28.5 31.5 L18 42"/>
+    <path d="M36.5 42 H46"/>
+  </g>
+</svg>

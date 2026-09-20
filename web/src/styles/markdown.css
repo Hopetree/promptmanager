@@ -1,0 +1,28 @@
+@import 'highlight.js/styles/github.css' screen and (prefers-color-scheme: light);
+@import 'highlight.js/styles/github-dark.css' screen and (prefers-color-scheme: dark);
+
+/*
+ * Markdown 预览容器的少量排版修正（净化与代码高亮都在服务端完成，这里不重写渲染逻辑）：
+ * 只处理"内容宽度/溢出"，颜色与字体全部来自 antd token 与 highlight.js 自带主题。
+ */
+.pm-markdown {
+  overflow-wrap: anywhere;
+}
+
+.pm-markdown pre,
+.pm-markdown table {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.pm-markdown img {
+  max-width: 100%;
+}
+
+.pm-markdown :first-child {
+  margin-top: 0;
+}
+
+.pm-markdown :last-child {
+  margin-bottom: 0;
+}

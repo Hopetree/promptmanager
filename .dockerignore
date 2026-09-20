@@ -1,0 +1,15 @@
+# 容器构建不需要的东西（保持镜像小 + 避免把开发期产物/凭据带进镜像）
+node_modules
+dist
+data
+var
+tmp
+_env
+.git
+.github
+docs
+tests
+tools
+*.md
+!deploy/container.md
+.gitignore

@@ -1,0 +1,33 @@
+# 环境服务凭据：永不入库（host_manger 写）
+_env/
+
+# 本地环境文件 / 凭据（模板用 *.env.example，可入库）
+.env
+.env.local
+.env.*.local
+
+# 运行数据与临时产物
+data/
+tmp/
+var/
+out/
+*.log
+*.pid
+npm-debug.log*
+
+# 依赖与构建产物 / 缓存
+node_modules/
+dist/
+build/
+cache/
+.cache/
+coverage/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 编辑器 / 系统
+.DS_Store
+.idea/
+.vscode/

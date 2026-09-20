@@ -1,0 +1,430 @@
+/*
+ * 阶段 10B 的「少量自定义 CSS」（对应 docs/design/a-dark-saas/tokens.md §6 的清单）。
+ * 放在这里的理由只有一个：**antd token 表达不了**。
+ * 颜色一律走 `--pm-*` 变量（由 App.tsx 从 antd token 注入），不写裸色值。
+ */
+
+/* ① 数据用等宽 + 等宽数字对齐（表格里的版本/日期/次数） */
+.pm-mono {
+  font-family: var(--pm-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ② 选中行左侧 2px 强调条（Linear 式的"当前行"标记） */
+.pm-row-selected > td:first-child {
+  box-shadow: inset 2px 0 0 var(--pm-primary);
+}
+
+/* ③ 顶栏 / 侧栏的 hairline 分层（antd Layout 只给整体底色） */
+.pm-shell-sidebar {
+  border-right: 1px solid var(--pm-hairline);
+  background: var(--pm-surface-1);
+}
+
+/* ④ 编辑器三栏：中栏滚动、右栏滚动互不干扰（antd 没有三栏容器） */
+.pm-editor-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 380px;
+  gap: 16px;
+  align-items: start;
+}
+.pm-editor-col {
+  min-width: 0;
+  max-height: calc(100vh - 152px);
+  overflow: auto;
+}
+
+/* ⑤ 列表页密集表格：一屏 ≥10 行（FR-40b）——antd 的 row 高度由 cellPaddingBlock 控制，
+      这里只兜住"表格容器自身滚动"的行为 */
+.pm-table-dense .ant-table-tbody > tr > td {
+  height: 38px;
+}
+
+/* ⑥ 暗色滚动条（系统亮色滚动条会破坏近黑观感） */
+.pm-editor-col::-webkit-scrollbar,
+.pm-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.pm-editor-col::-webkit-scrollbar-thumb,
+.pm-scroll::-webkit-scrollbar-thumb {
+  background: var(--pm-surface-3);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.pm-editor-col::-webkit-scrollbar-track,
+.pm-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ⑦ diff 的行着色（antd 没有 diff 组件） */
+.pm-diff {
+  margin: 0;
+  padding: 8px 0;
+  border: 1px solid var(--pm-hairline);
+  border-radius: 6px;
+  background: var(--pm-surface-2);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow: auto;
+}
+.pm-diff-line {
+  padding: 0 10px;
+  white-space: pre;
+}
+.pm-diff-add {
+  background: color-mix(in srgb, var(--pm-success) 14%, transparent);
+  color: var(--pm-success);
+}
+.pm-diff-del {
+  background: color-mix(in srgb, var(--pm-error) 14%, transparent);
+  color: var(--pm-error);
+}
+.pm-diff-meta {
+  color: var(--pm-ink-subtle);
+}
+
+/* ⑧ KPI 数字的字距（Inter 缺失时的回退字形也要紧凑） */
+.pm-kpi-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ⑨ 卡片档的卡片网格（FR-46 的三档视图之一）：自适应列数，手机单列 */
+.pm-use-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+@media (max-width: 640px) {
+  .pm-use-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ⑩ 移动端：列表 / 卡片 / 表格共用的复制按钮常显且触控尺寸 ≥44×44（FR-41d / AC-35） */
+.pm-copy-touch.ant-btn,
+.pm-copy-touch .ant-btn {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+/* ============================================================
+   阶段 14（FR-46）：分栏视图（三栏）与详情面内联 / 全屏
+   ============================================================ */
+
+/* 三栏：左栏由 Layout.Sider 提供（248），这里只排「中栏 + 右栏」 */
+.pm-split {
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* 中栏列表：固定/受限宽度（clamp 保证 ≥1200 时在 320–400，窄屏也不挤压右栏） */
+.pm-split-list {
+  overflow: auto;
+  max-height: calc(100vh - 210px);
+}
+
+/* 每条：左侧色条 + 明确选中态（不只靠 hover） */
+.pm-split-item {
+  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+  min-width: 0;
+}
+
+.pm-split-item:hover {
+  background: var(--pm-surface-2);
+}
+
+.pm-split-item-active {
+  background: var(--pm-selected);
+  border-left-color: var(--pm-primary);
+}
+
+/* 右栏详情：独立滚动，避免整页出现横向滚动条 */
+.pm-split-detail {
+  overflow: auto;
+  max-height: calc(100vh - 210px);
+  min-width: 0;
+}
+
+/* 全屏展开：详情面自身铺满视口（分栏右栏与模态里都能用） */
+.pm-detail-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  overflow: auto;
+  background: var(--pm-surface-1);
+}
+
+/* ============================================================
+   阶段 15（FR-49 / FR-50）：文件夹树行 + 标签胶囊云
+   ============================================================ */
+
+/* 文件夹行：悬浮高亮 + 选中态（浅底 + 左侧 3px 色条） */
+.pm-folder-row {
+  cursor: pointer;
+  padding: 3px 6px 3px 4px;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+  min-width: 0;
+}
+
+.pm-folder-row:hover {
+  background: var(--pm-surface-2);
+}
+
+.pm-folder-row-active {
+  background: var(--pm-selected);
+  border-left-color: var(--pm-primary);
+}
+
+/* 行内管理按钮：只在悬浮行时渲染；紧凑、不挤压名称 */
+.pm-folder-actions {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.pm-folder-actions .ant-btn {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 11px;
+}
+
+.pm-folder-caret.ant-btn {
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0;
+  font-size: 10px;
+}
+
+/* 条目数：浅灰小字（不需要彩色徽标） */
+.pm-folder-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 标签胶囊云：浅灰底圆角胶囊 + # 前缀 + 深灰字；流式换行，不出现横向滚动 */
+.pm-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  max-width: 100%;
+  padding: 0 10px;
+  border-radius: 13px;
+  border: 1px solid transparent;
+  background: var(--pm-surface-2);
+  color: var(--pm-ink-subtle);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+.pm-tag-chip:hover {
+  background: var(--pm-surface-3);
+  color: var(--pm-ink);
+}
+
+.pm-tag-chip-active {
+  background: var(--pm-selected);
+  border-color: var(--pm-primary);
+  color: var(--pm-primary);
+}
+
+/* ============================================================
+   阶段 16（FR-51 / FR-57 / FR-58）：可点 logo、收藏星标、主题双图标
+   ============================================================ */
+
+/* Logo 整块可点（FR-51：cursor:pointer + hover 反馈 + role=button） */
+.pm-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+.pm-brand:hover {
+  background: var(--pm-surface-2);
+}
+
+/* 跟随系统：太阳 + 月亮并排（FR-58） */
+.pm-theme-icon-both {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.pm-theme-icon-both .anticon {
+  font-size: 12px;
+}
+
+/* 收藏星标：真正的可点控件，热区 ≥24×24，常驻可见（FR-57） */
+.pm-fav-btn.ant-btn {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* 关于页：长命令/路径可换行，窄屏不横向滚动（FR-52） */
+.pm-about-status {
+  padding: 8px 10px;
+  border: 1px solid var(--pm-hairline);
+  border-radius: 8px;
+  background: var(--pm-surface-2);
+}
+
+.pm-about-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 阶段 17（FR-59）：品牌图形 —— 同一枚图标、只换尺寸；无阴影/发光/描边/旋转 */
+.pm-brand-mark,
+.pm-brand-art {
+  display: block;
+  flex: 0 0 auto;
+  box-shadow: none;
+  filter: none;
+  border: 0;
+  background: transparent;
+}
+
+/* ============================================================
+   阶段 22（FR-70 / FR-71）：拖拽手柄 + 分栏中栏条目（标题 + 备注固定两行）
+   ============================================================ */
+
+/* 拖拽手柄：热区 24×24、不撑行高（放在标题行内）、光标 grab/grabbing（AC-70 ①④） */
+.pm-drag-handle.ant-btn {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: var(--pm-ink-subtle);
+  touch-action: none;
+}
+
+.pm-drag-handle.ant-btn:active,
+.pm-drag-handle.ant-btn[aria-pressed='true'] {
+  cursor: grabbing;
+}
+
+/* 拖动中的条目：轻微降透明度 + 抬起层级，其它条目只做 150ms 的 transform 让位 */
+.pm-split-item[data-dragging='true'] {
+  cursor: grabbing;
+}
+
+/* FR-71：分栏中栏条目的备注区**固定两行**（空备注留空不塌陷，保证所有条目等高） */
+.pm-split-notes {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.6;
+  min-height: calc(2 * 1.6em);
+  margin-top: 2px;
+  color: var(--pm-ink-subtle);
+}
+
+/* ============================================================
+   阶段 21（FR-69）：详情面标题行下方的备注行（样式参考 PromptHub）
+   —— 纯文本、13px（标题 18px，差 5px）、次级灰（颜色由 antd token 注入行内 style）、
+      行高 1.6、最多 2 行后省略 + title 全文；空备注整行不渲染（由 JSX 控制）。
+   ============================================================ */
+.pm-detail-notes.ant-typography {
+  margin: 0;                 /* 与标题行紧凑：间距由父容器 gap={4} 控制（实测 ≤10px） */
+  font-size: 13px;
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;     /* 超长最多两行 */
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;    /* 长串 / 长链接自动换行 */
+  white-space: pre-wrap;     /* 备注按"文本输入输出"：保留作者换行，同时长行自动折行（FR-68 纯文本口径） */
+}
+
+/* ============================================================
+   阶段 18/19：编辑器浮层 + 全屏（FR-62 的"浏览器全屏 + 隐藏外壳"形态已由 FR-63 撤销）
+   —— 编辑态 = 覆盖列表壳的浮层（顶栏保持可见）；全屏 = **应用内全屏**：
+      只隐藏编辑器内部左栏，编辑栏 : 右栏 = 1 : 1，不调用浏览器 Fullscreen API。
+   ============================================================ */
+
+/* 编辑态：编辑器作为**覆盖列表壳的浮层**（顶栏保持可见） */
+.pm-editor-overlay {
+  position: fixed;
+  top: var(--pm-overlay-top, 64px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  overflow: auto;
+  padding: 16px;
+  background: var(--pm-surface-1);
+}
+
+/* FR-63 全屏态：两列等宽（编辑栏 : 右栏 = 1 : 1）；
+   左栏已被 display:none 移出网格流，所以这里只需把模板从三列改成两列。 */
+.pm-editor-fullscreen {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+/* 只隐藏编辑器内部左栏（Prompt 列表）：display:none ⇒ offsetParent === null（AC-63 ②） */
+.pm-editor-fullscreen [data-testid='editor-list'] {
+  display: none;
+}
+
+/* 窄屏 / 移动端：退化为单栏（编辑 / 预览 二选一），不出现横向溢出 */
+.pm-editor-fullscreen-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* 中栏：工具栏常驻（不随正文滚走），只有正文区自己滚（右栏仍走 .pm-editor-col 的独立滚动） */
+.pm-editor-fullscreen > .pm-editor-col.pm-editor-pane {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 152px);
+  overflow: hidden;
+}
+
+.pm-editor-fullscreen .pm-editor-toolbar {
+  flex: 0 0 auto;
+}
+
+.pm-editor-fullscreen .pm-editor-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* 正文编辑区高度 ≥ 视口 70%（行内样式也会给，这里兜住 testid 落在包裹层的情况） */
+.pm-editor-fullscreen [data-testid='editor-user-prompt'],
+.pm-editor-fullscreen [data-testid='editor-user-prompt'] textarea {
+  height: 72vh;
+  min-height: 72vh;
+}

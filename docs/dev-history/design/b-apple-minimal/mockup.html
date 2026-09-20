@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>promptmanager · 设计稿 B（apple-minimal）</title>
+<!--
+  设计稿 B｜apple-minimal（苹果极简白）
+  自包含：无外链、无 CDN、图标为内联 SVG、字体走系统栈（-apple-system / Inter / PingFang / Noto）。
+  视图：#list（默认）/ #editor / #import / #import-confirm —— 加 ?shot=1 隐藏"设计稿导航"药丸（截图用）。
+  亮暗：@media (prefers-color-scheme) 为准；本风格原本是"亮色专属"，暗色是按同一套原语**对称推导**出来的
+  （见 design-notes.md「亮暗的处置」），以满足 FR-40「亮暗跟随系统不得回归」。
+  这是打样稿，不是产品代码：不改 web/src/。
+-->
+<style>
+/* ============================================================ L1 · PRIMITIVES */
+:root{
+  --p-gray-0:#ffffff; --p-gray-50:#fbfbfd; --p-gray-100:#f5f5f7; --p-gray-200:#e8e8ed;
+  --p-gray-300:#d2d2d7; --p-gray-500:#86868b; --p-gray-600:#6e6e73; --p-gray-800:#424245;
+  --p-gray-900:#1d1d1f; --p-black:#000000;
+  --p-blue-600:#0066cc; --p-blue-500:#0071e3; --p-blue-400:#2997ff;
+  --p-green-600:#1d7d3f; --p-green-400:#30d158; --p-red-600:#c7251f; --p-red-500:#ff3b30; --p-orange-500:#b25000;
+  --p-space-1:4px; --p-space-2:8px; --p-space-3:12px; --p-space-4:16px; --p-space-5:24px;
+  --p-space-6:32px; --p-space-8:48px; --p-space-10:64px;
+  --p-radius-sm:8px; --p-radius-md:12px; --p-radius-lg:18px; --p-radius-pill:980px;
+  --p-font-ui:-apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, "Helvetica Neue", "PingFang SC",
+              "Noto Sans SC", "Microsoft YaHei", "Droid Sans Fallback", sans-serif;
+  --p-font-mono:ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  --p-dur:220ms; --p-ease:cubic-bezier(.28,.11,.32,1);
+}
+/* ============================================================ L2 · SEMANTIC */
+:root{
+  --canvas:var(--p-gray-0);
+  --canvas-alt:var(--p-gray-100);
+  --surface:var(--p-gray-0);
+  --surface-soft:var(--p-gray-50);
+  --hairline:var(--p-gray-200);
+  --ink:var(--p-gray-900);
+  --ink-muted:var(--p-gray-600);
+  --ink-subtle:var(--p-gray-600);   /* 刻意从 #86868b 提到 #6e6e73：白底 3.5:1 → 4.9:1，满足 WCAG AA（见 design-notes「可读性偏差」） */
+  --accent:var(--p-blue-600);
+  --accent-hover:var(--p-blue-500);
+  --success:var(--p-green-600);
+  --danger:var(--p-red-600);
+  --warn:var(--p-orange-500);
+  --shadow-soft:0 4px 24px rgb(0 0 0 / .08);
+  --shadow-pop:0 12px 40px rgb(0 0 0 / .14);
+  --focus:0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --canvas:var(--p-black);
+    --canvas-alt:#0d0d0f;
+    --surface:#161617;
+    --surface-soft:#101011;
+    --hairline:#2d2d2f;
+    --ink:#f5f5f7;
+    --ink-muted:#a1a1a6;
+    --ink-subtle:#a1a1a6;   /* 暗色下 #a1a1a6 on #000 ≈ 8:1 */
+    --accent:var(--p-blue-400);
+    --accent-hover:#5cb8ff;
+    --success:var(--p-green-400);
+    --danger:var(--p-red-500);
+    --warn:#ff9f0a;
+    --shadow-soft:0 4px 24px rgb(0 0 0 / .6);
+    --shadow-pop:0 16px 44px rgb(0 0 0 / .7);
+  }
+}
+/* ============================================================ L3 · COMPONENT */
+:root{
+  --topbar-h:48px; --rail-w:256px; --row-h:60px; --control-h:36px;
+  --btn-bg:var(--ink); --btn-fg:var(--canvas); --btn-radius:var(--p-radius-pill);
+  --btn2-fg:var(--accent); --btn2-hover-bg:color-mix(in srgb,var(--accent) 10%, transparent);
+  --input-bg:var(--surface); --input-border:var(--hairline);
+  --card-bg:var(--surface); --card-radius:var(--p-radius-lg); --card-shadow:var(--shadow-soft);
+  --headline-lg:40px; --headline-md:28px; --body:15px;
+}
+/* ============================================================ base */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--canvas);color:var(--ink);font:400 var(--body)/1.5 var(--p-font-ui);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,textarea{font:inherit}
+:focus-visible{outline:none;box-shadow:var(--focus);border-radius:var(--p-radius-sm)}
+.ic{width:16px;height:16px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--p-font-mono);font-variant-numeric:tabular-nums}
+.tag-mono{font-family:var(--p-font-mono);font-size:11.5px;color:var(--ink-subtle)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ============================================================ frame */
+.app{height:100vh;display:grid;grid-template-rows:var(--topbar-h) 1fr;overflow:hidden}
+.topbar{display:flex;align-items:center;gap:var(--p-space-5);padding:0 var(--p-space-5);
+  background:color-mix(in srgb, var(--canvas) 86%, transparent);backdrop-filter:blur(14px);border-bottom:1px solid var(--hairline);position:relative;z-index:5}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.brand .mark{width:24px;height:24px;border-radius:7px;background:linear-gradient(160deg,#3a3a3c,#1d1d1f);display:grid;place-items:center;color:#fff}
+.brand .mark svg{width:13px;height:13px;stroke-width:2}
+.topnav{display:flex;align-items:center;gap:var(--p-space-5);margin-left:var(--p-space-6)}
+.topnav button{font-size:13px;color:var(--ink-muted);transition:color var(--p-dur) var(--p-ease)}
+.topnav button:hover{color:var(--ink)}
+.topnav button.on{color:var(--ink);font-weight:500}
+.topspacer{flex:1}
+.userc{display:flex;align-items:center;gap:var(--p-space-3)}
+.theme-dot{display:flex;align-items:center;gap:6px;padding:5px 11px;border:1px solid var(--hairline);border-radius:var(--p-radius-pill);
+  font-size:12px;color:var(--ink-subtle);background:var(--surface)}
+.avatar{width:26px;height:26px;border-radius:50%;background:var(--canvas-alt);display:grid;place-items:center;font-size:11px;color:var(--ink-muted)}
+.body{display:grid;grid-template-columns:var(--rail-w) 1fr;min-height:0}
+.rail{padding:var(--p-space-5) var(--p-space-4);overflow:auto;background:var(--canvas)}
+.rail h2{font-size:12px;font-weight:600;color:var(--ink-subtle);margin:0 0 10px;letter-spacing:0}
+.rail .group{margin-bottom:var(--p-space-6)}
+.tree{list-style:none;margin:0;padding:0}
+.tree li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--p-radius-sm);color:var(--ink-muted);cursor:pointer;
+  font-size:14px;transition:background var(--p-dur) var(--p-ease),color var(--p-dur) var(--p-ease)}
+.tree li:hover{background:var(--canvas-alt);color:var(--ink)}
+.tree li.on{background:var(--canvas-alt);color:var(--ink);font-weight:500}
+.tree .child{padding-left:28px}
+.tree .count{margin-left:auto;font-size:12px;color:var(--ink-subtle)}
+.main{min-width:0;overflow:auto;background:var(--canvas-alt)}   /* 内容浮在浅灰底上，白卡片是主角 */
+.page{padding:var(--p-space-6) var(--p-space-8) var(--p-space-8);max-width:1180px}
+
+/* ---------- 大号细字重标题（本方向的性格所在） ---------- */
+.hero{display:flex;align-items:flex-end;gap:var(--p-space-4);margin-bottom:var(--p-space-6)}
+.hero h1{font-size:var(--headline-lg);font-weight:600;letter-spacing:-.021em;line-height:1.08;margin:0}
+.hero .sub{font-size:var(--body);color:var(--ink-muted);margin-top:6px}
+.hero .right{margin-left:auto;display:flex;align-items:center;gap:var(--p-space-3);padding-bottom:4px}
+
+/* ---------- 控件 ---------- */
+.btn{display:inline-flex;align-items:center;gap:8px;height:var(--control-h);padding:0 18px;border-radius:var(--btn-radius);
+  font-size:14px;font-weight:500;color:var(--btn2-fg);background:transparent;transition:background var(--p-dur) var(--p-ease),transform var(--p-dur) var(--p-ease)}
+.btn:hover{background:var(--btn2-hover-bg)}
+.btn.primary{background:var(--btn-bg);color:var(--btn-fg)}
+.btn.primary:hover{background:var(--ink);opacity:.9}
+.btn.danger{color:var(--danger);background:color-mix(in srgb,var(--danger) 10%, transparent)}
+.btn.icon{padding:0;width:var(--control-h);justify-content:center}
+.btn.sm{height:30px;padding:0 12px;font-size:13px}
+.field{display:flex;align-items:center;gap:8px;height:var(--control-h);padding:0 14px;background:var(--input-bg);
+  border:1px solid var(--input-border);border-radius:var(--p-radius-pill);color:var(--ink)}
+.field input{border:0;background:none;outline:0;flex:1;min-width:0;color:var(--ink)}
+.field input::placeholder{color:var(--ink-subtle)}
+.search{width:300px}
+.toolbar{display:flex;align-items:center;gap:var(--p-space-3);flex-wrap:wrap;margin-bottom:var(--p-space-5)}
+.chipbtn{display:inline-flex;align-items:center;gap:7px;height:var(--control-h);padding:0 15px;border-radius:var(--p-radius-pill);
+  border:1px solid var(--hairline);background:var(--surface);font-size:13.5px;color:var(--ink-muted);transition:border-color var(--p-dur) var(--p-ease),color var(--p-dur) var(--p-ease)}
+.chipbtn:hover{border-color:var(--ink-subtle);color:var(--ink)}
+.switch{display:inline-flex;align-items:center;gap:9px;height:var(--control-h);color:var(--ink-muted);font-size:13.5px}
+.switch .track{width:38px;height:22px;border-radius:var(--p-radius-pill);background:var(--canvas-alt);border:1px solid var(--hairline);position:relative}
+.switch .track i{position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--ink-subtle)}
+
+/* ---------- 统计条（用留白与大数字，不用边框） ---------- */
+.stats{display:flex;gap:var(--p-space-8);margin-bottom:var(--p-space-6)}
+.stat b{display:block;font-size:28px;font-weight:600;letter-spacing:-.02em}
+.stat span{font-size:13px;color:var(--ink-subtle)}
+
+/* ---------- 目录式列表：白卡片 + 60px 行高 + 只有行细线 ---------- */
+.panel{background:var(--card-bg);border-radius:var(--card-radius);box-shadow:var(--card-shadow);overflow:hidden}
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;font-size:12px;font-weight:500;color:var(--ink-subtle);padding:14px 20px;border-bottom:1px solid var(--hairline);white-space:nowrap}
+tbody td{padding:0 20px;height:var(--row-h);border-bottom:1px solid var(--hairline);color:var(--ink-muted);font-size:14px;vertical-align:middle}
+tbody tr{transition:background var(--p-dur) var(--p-ease)}
+tbody tr:hover{background:var(--surface-soft)}
+tbody tr:last-child td{border-bottom:0}
+.c-title{display:flex;align-items:center;gap:10px;color:var(--ink);font-size:17px;font-weight:500;letter-spacing:-.012em}
+.star{color:var(--accent);width:14px;height:14px;fill:currentColor;stroke:none}
+.star.off{color:var(--p-gray-300);fill:none;stroke:currentColor}
+@media (prefers-color-scheme: dark){ .star.off{color:#48484a} }
+.pill{display:inline-flex;align-items:center;height:24px;padding:0 11px;border-radius:var(--p-radius-pill);
+  background:var(--canvas-alt);color:var(--ink-muted);font-size:12.5px}
+.ver{font-family:var(--p-font-mono);font-size:12.5px;color:var(--ink-subtle)}
+.rowacts{display:flex;gap:var(--p-space-3);opacity:0;transition:opacity var(--p-dur) var(--p-ease)}
+tr:hover .rowacts{opacity:1}
+.rowacts button{font-size:13.5px;color:var(--accent);font-weight:500}
+.pager{display:flex;align-items:center;gap:var(--p-space-4);padding:16px 20px;border-top:1px solid var(--hairline);color:var(--ink-subtle);font-size:13px}
+.pager .pages{margin-left:auto;display:flex;gap:6px}
+.pager .pages button{min-width:30px;height:30px;border-radius:50%;color:var(--ink-muted)}
+.pager .pages button.on{background:var(--ink);color:var(--canvas)}
+.foot{margin-top:var(--p-space-5);color:var(--ink-subtle);font-size:12.5px;display:flex;gap:var(--p-space-5);flex-wrap:wrap}
+
+/* ---------- 编辑器：白纸 + 右侧检查器 ---------- */
+.ed-head{display:flex;align-items:center;gap:var(--p-space-4);margin-bottom:var(--p-space-5)}
+.ed-head h1{font-size:var(--headline-md);font-weight:600;letter-spacing:-.021em;margin:0}
+.ed-head .id{font-family:var(--p-font-mono);font-size:13px;color:var(--ink-subtle)}
+.ed-head .right{margin-left:auto;display:flex;gap:var(--p-space-3)}
+.tabs{display:flex;gap:var(--p-space-5);margin-bottom:var(--p-space-4);padding:0 4px}
+.tabs button{font-size:13.5px;color:var(--ink-subtle);padding:6px 0;border-bottom:2px solid transparent;transition:color var(--p-dur) var(--p-ease)}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+.editor{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:var(--p-space-5);align-items:start}
+.card{background:var(--card-bg);border-radius:var(--card-radius);box-shadow:var(--card-shadow);padding:var(--p-space-5);margin-bottom:var(--p-space-4)}
+.card h3{margin:0 0 14px;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.card h3 .tail{margin-left:auto;font-size:12px;font-weight:400;color:var(--ink-subtle)}
+label.fl{display:block;font-size:12.5px;color:var(--ink-subtle);margin:0 0 7px}
+.input,.area{width:100%;background:var(--surface-soft);border:1px solid transparent;border-radius:var(--p-radius-md);
+  color:var(--ink);padding:12px 14px;outline:0;transition:border-color var(--p-dur) var(--p-ease),background var(--p-dur) var(--p-ease)}
+.input:focus,.area:focus{background:var(--surface);border-color:var(--accent)}
+.area{resize:vertical}
+.area.monoin{font-family:var(--p-font-mono);font-size:12.5px;line-height:1.7}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--p-space-4)}
+.mini{font-size:13px;color:var(--ink-subtle)}
+.kv{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--hairline);font-size:13.5px}
+.kv:last-child{border-bottom:0}
+.diff{border-radius:var(--p-radius-md);overflow:hidden;font-family:var(--p-font-mono);font-size:12px;background:var(--surface-soft)}
+.diff .body{overflow-x:auto}
+.diff .h{display:flex;gap:10px;padding:8px 12px;border-bottom:1px solid var(--hairline);color:var(--ink-subtle)}
+.diff .l{padding:3px 12px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.diff .add{background:color-mix(in srgb,var(--success) 14%, transparent);color:var(--success)}
+.diff .del{background:color-mix(in srgb,var(--danger) 12%, transparent);color:var(--danger)}
+.diff .meta{color:var(--ink-subtle)}
+.md h4{margin:12px 0 6px;font-size:15px;font-weight:600}
+.md ul{margin:0 0 10px;padding-left:20px;color:var(--ink-muted)}
+.md pre{margin:0;padding:12px;border-radius:var(--p-radius-sm);background:var(--canvas-alt);overflow:auto}
+.md code{font-family:var(--p-font-mono);font-size:12px}
+.pill.ok{background:color-mix(in srgb,var(--success) 14%, transparent);color:var(--success)}
+.pill.warn{background:color-mix(in srgb,var(--warn) 16%, transparent);color:var(--warn)}
+
+/* ---------- 弹窗 ---------- */
+.mask{position:fixed;inset:0;background:rgb(0 0 0 / .32);backdrop-filter:blur(6px);display:grid;place-items:center;padding:24px;z-index:20}
+.mask[hidden]{display:none}
+.modal,.confirm{background:var(--surface);border-radius:var(--p-radius-lg);box-shadow:var(--shadow-pop);max-width:100%;overflow:auto}
+.modal{width:660px}.confirm{width:440px}
+.mh{padding:var(--p-space-5) var(--p-space-5) 0;font-size:17px;font-weight:600;letter-spacing:-.012em}
+.mb{padding:var(--p-space-4) var(--p-space-5);display:grid;gap:var(--p-space-4)}
+.mf{display:flex;justify-content:flex-end;gap:var(--p-space-3);padding:0 var(--p-space-5) var(--p-space-5)}
+.seg{display:inline-flex;background:var(--canvas-alt);border-radius:var(--p-radius-pill);padding:3px}
+.seg button{padding:7px 16px;border-radius:var(--p-radius-pill);font-size:13.5px;color:var(--ink-muted)}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--shadow-soft)}
+.notice{display:flex;gap:12px;padding:14px 16px;border-radius:var(--p-radius-md);background:var(--canvas-alt);color:var(--ink-muted);font-size:13.5px}
+.notice.warn{background:color-mix(in srgb,var(--warn) 12%, transparent);color:var(--ink)}
+.notice.danger{background:color-mix(in srgb,var(--danger) 10%, transparent);color:var(--ink)}
+.drop{border:1.5px dashed var(--hairline);border-radius:var(--p-radius-md);padding:28px;text-align:center;color:var(--ink-subtle)}
+.counts{display:grid;grid-template-columns:repeat(3,1fr);background:var(--canvas-alt);border-radius:var(--p-radius-md);overflow:hidden}
+.counts div{padding:14px 16px}
+.counts b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.btn.destructive{background:var(--danger);color:#fff}
+
+/* ---------- 设计稿导航（截图时隐藏） ---------- */
+.labbar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:4px;padding:5px;z-index:40;
+  background:color-mix(in srgb,var(--surface) 92%, transparent);border:1px solid var(--hairline);border-radius:var(--p-radius-pill);
+  box-shadow:var(--shadow-pop);backdrop-filter:blur(8px)}
+.labbar a{padding:6px 14px;border-radius:var(--p-radius-pill);font-size:12.5px;color:var(--ink-subtle)}
+.labbar a.on{background:var(--canvas-alt);color:var(--ink)}
+.shot .labbar{display:none}
+
+/* ---------- responsive ---------- */
+.m-meta{display:none}
+@media (max-width: 767px){
+  :root{--rail-w:0px;--headline-lg:30px;--headline-md:22px;--row-h:auto}
+  .body{grid-template-columns:1fr}
+  .rail{display:none}
+  .page{padding:var(--p-space-4) var(--p-space-4) var(--p-space-6);max-width:none}
+  .topnav,.theme-dot,.userc .name{display:none}
+  .userc .btn .lbl{display:none}
+  .hero{flex-direction:column;align-items:stretch;gap:var(--p-space-4)}
+  .hero .right{margin-left:0;justify-content:flex-end;flex-wrap:wrap}
+  .btn{white-space:nowrap}
+  .search{width:100%}
+  .toolbar{gap:var(--p-space-2)}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--p-space-4)}
+  thead{display:none}
+  .panel{box-shadow:none;background:transparent}
+  tbody tr{display:grid;grid-template-columns:1fr auto;gap:2px var(--p-space-2);padding:14px 0;border-bottom:1px solid var(--hairline);background:transparent}
+  tbody td{border:0;height:auto;padding:0;font-size:13px}
+  tbody td:nth-child(n+2):not(:last-child){display:none}
+  .m-meta{display:flex;gap:var(--p-space-3);flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12.5px;color:var(--ink-subtle)}
+  .c-title{font-size:16px}
+  .editor{grid-template-columns:1fr}
+  .rowacts{opacity:1}
+  .mobile-only{display:flex}
+}
+@media (min-width: 768px){ .mobile-only{display:none} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-prompt" viewBox="0 0 24 24"><path d="M6 5l6 7-6 7"/><path d="M13 19h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V5a2 2 0 0 1 2-2h7.2a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.6l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.8l5.9-.8z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M14 6l4 4"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 8v5l3 2"/></symbol>
+  <symbol id="i-var" viewBox="0 0 24 24"><path d="M8 4c-3 0-3 6-3 8s0 8 3 8M16 4c3 0 3 6 3 8s0 8-3 8"/><path d="M10 10l4 4M14 10l-4 4"/></symbol>
+  <symbol id="i-md" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15V9l3 3 3-3v6M17 9v6M15 13l2 2 2-2"/></symbol>
+  <symbol id="i-io" viewBox="0 0 24 24"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9 2 2-2 2 2 2-3 3-2-2-2 2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <button class="btn icon mobile-only" aria-label="筛选"><svg class="ic"><use href="#i-menu"/></svg></button>
+    <div class="brand"><span class="mark"><svg class="ic"><use href="#i-prompt"/></svg></span>promptmanager</div>
+    <nav class="topnav">
+      <button class="on">Prompt 库</button>
+      <button><svg class="ic" style="width:14px;height:14px;display:inline-block;vertical-align:-2px"><use href="#i-chart"/></svg> 使用统计</button>
+      <button><svg class="ic" style="width:14px;height:14px;display:inline-block;vertical-align:-2px"><use href="#i-key"/></svg> API 令牌</button>
+      <button onclick="go('import')">导入 / 导出</button>
+    </nav>
+    <div class="topspacer"></div>
+    <div class="userc">
+      <span class="theme-dot"><svg class="ic" style="width:14px;height:14px"><use href="#i-moon"/></svg>跟随系统</span>
+      <span class="avatar">ad</span><span class="name">admin</span>
+      <button class="btn sm"><svg class="ic" style="width:14px;height:14px"><use href="#i-out"/></svg><span class="lbl">登出</span></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="rail">
+      <div class="group">
+        <h2>文件夹</h2>
+        <ul class="tree">
+          <li class="on"><svg class="ic"><use href="#i-folder"/></svg>全部 prompt<span class="count mono">9</span></li>
+          <li><svg class="ic"><use href="#i-folder"/></svg>工作<span class="count mono">8</span></li>
+          <li class="child"><svg class="ic"><use href="#i-folder"/></svg>运维<span class="count mono">1</span></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h2>标签</h2>
+        <ul class="tree">
+          <li><svg class="ic"><use href="#i-tag"/></svg>交接<span class="count mono">2</span></li>
+          <li><svg class="ic"><use href="#i-tag"/></svg>发布<span class="count mono">7</span></li>
+          <li><svg class="ic"><use href="#i-tag"/></svg>排障<span class="count mono">1</span></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h2>工作区</h2>
+        <ul class="tree">
+          <li><svg class="ic"><use href="#i-doc"/></svg>SQLite 单文件<span class="count mono">pm.db</span></li>
+          <li><svg class="ic"><use href="#i-key"/></svg>令牌与客户端</li>
+        </ul>
+      </div>
+    </aside>
+
+    <main class="main">
+      <!-- ---------- 列表页 ---------- -->
+      <section class="page" id="view-list">
+        <div class="hero">
+          <div>
+            <h1>Prompt 库</h1>
+            <div class="sub">9 条 · 文件夹 2 · 标签 3 · <span class="mono">DATA_DIR/pm.db</span></div>
+          </div>
+          <div class="right">
+            <button class="chipbtn" onclick="go('import')"><svg class="ic"><use href="#i-io"/></svg>导入 / 导出</button>
+            <button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>新建 prompt</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><b>09</b><span>prompt 总数</span></div>
+          <div class="stat"><b>03</b><span>30 天取用（session 1 · token 2）</span></div>
+          <div class="stat"><b>v3</b><span>最近改动版本</span></div>
+          <div class="stat"><b>0.3<small style="font-size:14px">ms</small></b><span>中文检索 FTS5 trigram</span></div>
+        </div>
+
+        <div class="toolbar">
+          <label class="field search"><svg class="ic"><use href="#i-search"/></svg>
+            <input placeholder="搜索标题 / 用户提示词 / 系统提示词 / 备注">
+          </label>
+          <button class="chipbtn"><svg class="ic"><use href="#i-folder"/></svg>文件夹<svg class="ic" style="width:12px"><use href="#i-chev"/></svg></button>
+          <button class="chipbtn"><svg class="ic"><use href="#i-tag"/></svg>标签<svg class="ic" style="width:12px"><use href="#i-chev"/></svg></button>
+          <button class="chipbtn">最近更新<svg class="ic" style="width:12px"><use href="#i-chev"/></svg></button>
+          <span class="switch"><span class="track"><i></i></span>只看收藏</span>
+        </div>
+
+        <div class="panel">
+          <table>
+            <thead><tr><th style="width:34%">标题</th><th>标签</th><th>文件夹</th><th>版本</th><th>取用</th><th>更新于</th><th style="width:96px"></th></tr></thead>
+            <tbody>
+              <tr>
+                <td><div class="c-title"><svg class="ic star"><use href="#i-star"/></svg>会话交接模板</div></td>
+                <td><span class="pill">交接</span> <span class="pill">发布</span></td><td>运维</td><td><span class="ver">v3</span></td><td class="mono">1</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>常用片段 4：SQL 与迁移</div></td>
+                <td><span class="pill">发布</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>排障：FTS5 trigram 子串检索</div></td>
+                <td><span class="pill">排障</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">3</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>代码评审助手</div></td>
+                <td><span class="pill">发布</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>发布前自检清单</div></td>
+                <td><span class="pill">发布</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>周报生成器</div></td>
+                <td><span class="pill">交接</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>常用片段 3：SQL 与迁移</div></td>
+                <td><span class="pill">发布</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>常用片段 2：SQL 与迁移</div></td>
+                <td><span class="pill">发布</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+              <tr>
+                <td><div class="c-title"><svg class="ic star off"><use href="#i-star"/></svg>常用片段 1：SQL 与迁移</div></td>
+                <td><span class="pill">发布</span></td><td>工作</td><td><span class="ver">v1</span></td><td class="mono">0</td><td class="mono" style="color:var(--ink-subtle)">09/18 16:35</td>
+                <td><div class="rowacts"><button>编辑</button><button style="color:var(--danger)">删除</button></div></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pager"><span>共 9 条 · 每页 20</span><span class="mono">筛选命中 9</span>
+            <span class="pages"><button>‹</button><button class="on">1</button><button>›</button></span></div>
+        </div>
+        <div class="foot">
+          <span>数据在本机 SQLite 单文件 · <span class="mono">DATA_DIR/pm.db</span></span>
+          <span>备份 = 拷文件，或 <span class="mono">GET /api/export</span></span>
+        </div>
+      </section>
+
+      <!-- ---------- 编辑器 ---------- -->
+      <section class="page" id="view-editor" hidden>
+        <div class="ed-head">
+          <h1>会话交接模板</h1><span class="id">#014</span>
+          <svg class="ic star"><use href="#i-star"/></svg>
+          <div class="right">
+            <button class="btn"><svg class="ic"><use href="#i-trash"/></svg>删除</button>
+            <button class="btn primary">保存（生成 v4）</button>
+          </div>
+        </div>
+        <div class="tabs"><button class="on">编辑</button><button>版本历史</button><button>变量填值</button><button>Markdown 预览</button></div>
+        <div class="editor">
+          <div class="card" style="margin-bottom:0">
+            <label class="fl">标题</label>
+            <input class="input" value="会话交接模板">
+            <div style="height:18px"></div>
+            <label class="fl">用户提示词</label>
+            <textarea class="area monoin" rows="9">你是 {{项目}} 项目的交接助手。请把当前工作上下文整理成交接文档。
+
+## 要求
+- 交接人：{{姓名}}
+- 必须包含：**已完成**、**进行中**、**下一步**
+- 风险点用 `[!]` 标出，并给出回滚办法
+
+```bash
+# 交接前先确认服务健康
+curl -s http://127.0.0.1:8767/healthz
+```</textarea>
+            <div style="height:18px"></div>
+            <label class="fl">系统提示词</label>
+            <textarea class="area" rows="3">你是严谨的工程交接助手，只写事实，不编造进度。</textarea>
+            <div style="height:18px"></div>
+            <label class="fl">备注</label>
+            <textarea class="area" rows="2">每周五下班前用一次；交接文档发给接任者，并抄送 {{项目}} 负责人。</textarea>
+            <div style="height:20px"></div>
+            <div class="form-row">
+              <div><label class="fl">文件夹</label>
+                <div class="field" style="border-radius:var(--p-radius-md);justify-content:space-between;background:var(--surface-soft);border-color:transparent"><span>运维</span><svg class="ic" style="width:12px;color:var(--ink-subtle)"><use href="#i-chev"/></svg></div>
+              </div>
+              <div><label class="fl">标签</label>
+                <div class="field" style="border-radius:var(--p-radius-md);justify-content:space-between;background:var(--surface-soft);border-color:transparent"><span><span class="pill">交接</span> <span class="pill">发布</span></span><svg class="ic" style="width:12px;color:var(--ink-subtle)"><use href="#i-chev"/></svg></div>
+              </div>
+            </div>
+            <div style="height:16px"></div>
+            <div class="kv"><span>收藏（置顶到列表）</span><span class="switch"><span class="track" style="background:var(--success);border-color:transparent"><i style="left:17px;background:#fff"></i></span>已收藏</span></div>
+          </div>
+
+          <div>
+            <div class="card">
+              <h3><svg class="ic"><use href="#i-history"/></svg>版本历史<span class="tail mono">v1 → v4</span></h3>
+              <div class="diff">
+                <div class="body">
+                  <div class="h"><span class="mono">--- v1</span><span class="mono">+++ v3</span><span class="mono" style="margin-left:auto">+2 −2</span></div>
+                  <div class="l meta">@@ [notes] @@</div>
+                  <div class="l del">- 交接文档发给 {{姓名}} 的接任者。</div>
+                  <div class="l add">+ 交接文档发给接任者，并抄送 {{项目}} 负责人。</div>
+                  <div class="l add">+ 补充：交接后 24 小时内确认对方已跑通。</div>
+                </div>
+              </div>
+              <div style="height:10px"></div>
+              <div class="kv"><span class="mono">v3</span><span>会话交接模板</span><span class="mono" style="color:var(--ink-subtle)">09/18 16:35</span></div>
+              <div class="kv"><span class="mono">v2</span><span>会话交接模板</span><span class="mono" style="color:var(--ink-subtle)">09/18 16:35</span></div>
+              <div class="kv"><span class="mono">v1</span><span>会话交接模板</span><span class="mono" style="color:var(--ink-subtle)">09/18 16:35</span></div>
+              <div style="height:12px"></div>
+              <button class="btn sm"><svg class="ic" style="width:14px;height:14px"><use href="#i-history"/></svg>回滚到 v1（生成新版本）</button>
+            </div>
+
+            <div class="card">
+              <h3><svg class="ic"><use href="#i-var"/></svg>变量填值<span class="tail">2 个变量</span></h3>
+              <div class="form-row">
+                <div><label class="fl">项目</label><input class="input" value="greenhouse"></div>
+                <div><label class="fl">姓名</label><input class="input" value="张三"></div>
+              </div>
+              <div style="height:14px"></div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <button class="btn sm primary">渲染</button>
+                <span class="pill ok">missing 0</span>
+                <button class="btn sm" style="margin-left:auto"><svg class="ic" style="width:14px;height:14px"><use href="#i-copy"/></svg>复制成品</button>
+              </div>
+              <div style="height:12px"></div>
+              <div class="mini" style="border-left:2px solid var(--accent);padding-left:11px">你是 greenhouse 项目的交接助手 … 交接人：张三</div>
+            </div>
+
+            <div class="card">
+              <h3><svg class="ic"><use href="#i-md"/></svg>Markdown 预览<span class="tail mono">服务端渲染</span></h3>
+              <div class="md">
+                <h4>要求</h4>
+                <ul><li>交接人：张三</li><li>必须包含：<b>已完成</b>、<b>进行中</b>、<b>下一步</b></li></ul>
+                <pre><code>curl -s http://127.0.0.1:8767/healthz</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- 导入 / 导出 ---------- -->
+      <section class="page" id="view-import" hidden>
+        <div class="hero"><div><h1>导入 / 导出</h1><div class="sub">自有 JSON 格式 · schema_version 1 · 单事务原子</div></div></div>
+        <div class="editor" style="grid-template-columns:minmax(0,1fr) 340px">
+          <div class="card">
+            <h3>导出（备份）</h3>
+            <div class="kv"><span class="mini">含版本历史的整库 JSON</span><button class="btn sm primary">导出全部 JSON</button></div>
+            <div style="height:20px"></div>
+            <h3>导入</h3>
+            <div class="drop">
+              <div style="font-size:15px;color:var(--ink-muted)">点击或拖拽 JSON 文件到此处</div>
+              <div class="mini" style="margin-top:8px">文件只在浏览器本地解析，确认后才会上传</div>
+            </div>
+            <div style="height:14px"></div>
+            <div class="kv"><span class="mono">export-fixture.json</span><span class="mini">已解析</span></div>
+            <div style="height:12px"></div>
+            <div class="counts"><div><span class="mini">prompt</span><b>9</b></div><div><span class="mini">文件夹</span><b>2</b></div><div><span class="mini">标签</span><b>3</b></div></div>
+          </div>
+          <div>
+            <div class="card">
+              <h3>导入模式</h3>
+              <div class="seg"><button>merge（追加）</button><button class="on">replace（清空重建）</button></div>
+              <div style="height:16px"></div>
+              <div class="notice warn"><svg class="ic" style="margin-top:2px"><use href="#i-io"/></svg>
+                <div><b>replace 模式会先清空现有数据</b><br>将清空现有全部 prompt / 文件夹 / 标签 / 版本历史</div></div>
+              <div style="height:16px"></div>
+              <button class="btn danger" style="width:100%;justify-content:center">导入（清空重建，需二次确认）</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="mask" id="confirm-mask" hidden>
+  <div class="confirm">
+    <div class="mh">确认以 replace 模式导入？</div>
+    <div class="mb">
+      <div class="notice danger"><svg class="ic" style="margin-top:2px"><use href="#i-io"/></svg>
+        <div><b>将清空现有全部 prompt / 文件夹 / 标签 / 版本历史</b><br>随后按文件重建：prompt 9 条 / 文件夹 2 个 / 标签 3 个。</div></div>
+      <div class="mini">此操作不可撤销；建议先导出当前数据留底。</div>
+    </div>
+    <div class="mf"><button class="btn">取消</button><button class="btn destructive">清空并导入</button></div>
+  </div>
+</div>
+
+<nav class="labbar" aria-label="设计稿导航">
+  <a href="#list" data-v="list">列表页</a><a href="#editor" data-v="editor">编辑器</a>
+  <a href="#import" data-v="import">导入 / 导出</a><a href="#import-confirm" data-v="import-confirm">二次确认</a>
+</nav>
+
+<script>
+  if (location.search.indexOf('shot=1') >= 0) document.body.classList.add('shot');
+  var views = { list: 'view-list', editor: 'view-editor', import: 'view-import', 'import-confirm': 'view-import' };
+  function go(name){
+    Object.keys(views).forEach(function(k){ document.getElementById(views[k]).hidden = views[k] !== views[name]; });
+    document.getElementById('confirm-mask').hidden = name !== 'import-confirm';
+    document.querySelectorAll('.labbar a').forEach(function(a){ a.classList.toggle('on', a.dataset.v === name); });
+  }
+  function route(){ go((location.hash || '#list').slice(1)); }
+  window.addEventListener('hashchange', route); route();
+
+  // 移动端行内 meta（桌面列在手机上收起，合成一行；10B 对应 antd List.Item.Meta 的 description）
+  document.querySelectorAll('#view-list tbody tr').forEach(function (tr) {
+    var td = tr.children, meta = document.createElement('div');
+    meta.className = 'm-meta';
+    meta.innerHTML = '<span>' + td[2].innerText + '</span><span class="mono">' + td[3].innerText + '</span>'
+                   + '<span>取用 ' + td[4].innerText + '</span><span class="mono">' + td[5].innerText + '</span>';
+    td[0].appendChild(meta);
+  });
+</script>
+</body>
+</html>

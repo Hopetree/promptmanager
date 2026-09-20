@@ -1,0 +1,47 @@
+# promptmanager 容器化部署模板（生产 / 测试通用）
+#
+# 用法：
+#   docker compose up -d --build            # 构建并启动
+#   docker compose logs -f promptmanager    # 看日志
+#   docker compose ps                       # 看健康状态
+#   docker compose down                     # 停止（数据保留在卷里）
+#
+# 首次启动后设置管理员口令（口令不进环境变量、不进本文件）：
+#   docker compose exec promptmanager node bin/pm.mjs user set-password --username admin
+#
+# 生产注意：
+#   · 端口映射的宿主地址按部署机改（示例 0.0.0.0；内网单机建议写具体网卡 IP）
+#   · 数据卷路径按部署机改（示例 /data/promptmanager）
+#   · 前面若有反向代理：设 TRUST_PROXY=1 与 PUBLIC_ORIGIN=https://<域名>
+#   · 备份：拷卷里的 pm.db*（WAL 模式连同 -wal/-shm），或
+#     docker compose exec promptmanager node bin/pm.mjs export --out /data/backup.json
+
+services:
+  promptmanager:
+    build: .
+    image: promptmanager:1.0.0
+    container_name: promptmanager
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:8767:8767"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8767
+      DATA_DIR: /data
+      SESSION_TTL_HOURS: 720
+      LOGIN_MAX_FAILURES: 5
+      LOGIN_WINDOW_SECONDS: 60
+      CORS_ORIGINS: ""
+      TRUST_PROXY: ""
+      PUBLIC_ORIGIN: ""
+      TZ: Asia/Shanghai
+    volumes:
+      - /data/promptmanager:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8767/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    mem_limit: 512m
+    cpus: 1.0

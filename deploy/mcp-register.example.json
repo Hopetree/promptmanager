@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "promptmanager": {
+      "command": "<NODE_BIN>",
+      "args": ["<PROJECT_DIR>/bin/pm-mcp.mjs"],
+      "env": {
+        "PM_API_URL": "http://<PM_HOST>:8767",
+        "PM_API_TOKEN": "<PM_API_TOKEN>"
+      }
+    }
+  }
+}

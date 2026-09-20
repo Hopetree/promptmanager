@@ -1,0 +1,64 @@
+[Unit]
+Description=promptmanager — 轻量 Prompt 管理器（Node + Fastify + SQLite，单进程单端口）
+Documentation=file:/opt/promptmanager/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# 非 root 服务账号（部署时由 host_manger 创建：useradd --system --home /opt/promptmanager promptmanager）
+User=promptmanager
+Group=promptmanager
+
+WorkingDirectory=/opt/promptmanager
+EnvironmentFile=/etc/promptmanager/promptmanager.env
+
+# 只以 HTTP 提供前端与 API（FR-12：同一个进程、同一个端口）
+ExecStart=/usr/bin/node /opt/promptmanager/dist/server/index.js
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+# 标准输出进 journald（部署标准要求的日志形态；不写文件、不占磁盘配额）
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=promptmanager
+
+# DATA_DIR 默认 /var/lib/promptmanager，由 systemd 自动创建并 chown（无需手工 mkdir/chown）
+StateDirectory=promptmanager
+
+# ---- 加固 ----
+# ⚠️ 刻意不启用"内存不可写可执行"型加固（Memory* 系列）：与 V8 的 JIT 冲突会让服务反复崩溃，
+#    见 STANDARDS §7.5 故障表（Node 服务禁用该条）。其余加固照常启用。
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+# ⚠️ AF_NETLINK 必须留在允许列表里：Linux 上 os.networkInterfaces()（Fastify 启动打印监听地址时会调用）
+#    经 libuv 的 uv_interface_addresses 需要 netlink socket；缺了它会**启动即崩**：
+#    SystemError: uv_interface_addresses returned Unknown system error 97 (EAFNOSUPPORT)
+#    实证见 VERIFY.md「部署记录」（首次真实部署实录）；`systemd-analyze verify` 只验语法，拦不住这条。
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "declaration": false,
+    "allowImportingTsExtensions": true,
+    "rootDir": ".",
+    "outDir": "dist/.tests-typecheck"
+  },
+  "include": [
+    "tests/**/*.ts",
+    "web/src/pure.ts"
+  ]
+}

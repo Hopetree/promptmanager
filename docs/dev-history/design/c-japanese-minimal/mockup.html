@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>promptmanager · 设计稿 C（japanese-minimal）</title>
+<!--
+  设计稿 C｜japanese-minimal（和式极简）—— dsh 自选方向
+  自包含：无外链、无 CDN、图标内联 SVG、字体走系统衬线栈（明朝体优先）。
+  视图：#list（默认）/ #editor / #import / #import-confirm —— 加 ?shot=1 隐藏"设计稿导航"药丸。
+  亮暗：japanese-minimal 原本是"亮色专属"（米白纸感）；暗色按同一套原语**对称推导**为"墨色纸"，
+  以满足 FR-40「亮暗跟随系统不得回归」（见 design-notes.md「亮暗的处置」）。
+  这是打样稿，不是产品代码：不改 web/src/。
+-->
+<style>
+/* ============================================================ L1 · PRIMITIVES */
+:root{
+  --p-paper-0:#ffffff; --p-paper-50:#fbfbf8; --p-paper-100:#f4f4f0; --p-paper-200:#eceae3;
+  --p-line-300:#dcdcd6; --p-line-400:#c8c8c0; --p-sumi-500:#6f6f68; --p-sumi-600:#4a4a45;
+  --p-sumi-700:#2c2e30; --p-sumi-900:#16181a; --p-vermilion-600:#b7282e; --p-vermilion-400:#d4483f;
+  --p-moss-600:#4a6047; --p-indigo-700:#2f4a6b;
+  --p-space-1:4px; --p-space-2:8px; --p-space-3:12px; --p-space-4:16px; --p-space-5:24px;
+  --p-space-6:32px; --p-space-8:48px; --p-space-10:64px;
+  --p-radius-xs:2px; --p-radius-sm:3px; --p-radius-md:4px;
+  --p-font-serif:"Hiragino Mincho ProN","Yu Mincho","Noto Serif SC","Songti SC","Source Han Serif SC",
+                 "Noto Serif CJK SC",SimSun,"Droid Sans Fallback",Georgia,serif;
+  --p-font-sans:"Hiragino Kaku Gothic ProN","Yu Gothic","PingFang SC","Noto Sans SC","Microsoft YaHei",
+                "Droid Sans Fallback",system-ui,sans-serif;
+  --p-font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+/* ============================================================ L2 · SEMANTIC */
+:root{
+  --paper:var(--p-paper-50);
+  --paper-raised:var(--p-paper-0);
+  --paper-sunken:var(--p-paper-100);
+  --line:var(--p-line-300);
+  --line-strong:var(--p-line-400);
+  --ink:var(--p-sumi-900);
+  --ink-muted:var(--p-sumi-600);
+  --ink-subtle:var(--p-sumi-500);
+  --vermilion:var(--p-vermilion-600);      /* 唯一点缀色 */
+  --success:var(--p-moss-600);
+  --link:var(--p-indigo-700);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#101112;
+    --paper-raised:#161718;
+    --paper-sunken:#0b0c0d;
+    --line:#2a2b2c;
+    --line-strong:#3a3c3d;
+    --ink:#f2f1ea;
+    --ink-muted:#b9b6ab;
+    --ink-subtle:#8d8a80;
+    --vermilion:var(--p-vermilion-400);
+    --success:#8fae8a;
+    --link:#9db8d8;
+  }
+}
+/* ============================================================ L3 · COMPONENT */
+:root{
+  --topbar-h:56px; --rail-w:272px; --row-h:56px; --control-h:34px;
+  --btn-fg:var(--paper); --btn-bg:var(--ink); --btn-radius:var(--p-radius-sm);
+  --rule:1px solid var(--line);
+  --seal-size:26px;
+}
+/* ============================================================ base */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font:400 15px/1.8 var(--p-font-sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+input,textarea{font:inherit}
+:focus-visible{outline:1px solid var(--vermilion);outline-offset:2px}
+.ic{width:15px;height:15px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round}
+.mono{font-family:var(--p-font-mono);font-variant-numeric:tabular-nums;font-size:.86em}
+.serif{font-family:var(--p-font-serif)}
+.label{font-size:11px;letter-spacing:.22em;color:var(--ink-subtle);font-family:var(--p-font-sans)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+
+/* ============================================================ frame */
+.app{height:100vh;display:grid;grid-template-rows:var(--topbar-h) 1fr;overflow:hidden}
+.topbar{display:flex;align-items:center;gap:var(--p-space-5);padding:0 var(--p-space-5);border-bottom:var(--rule);background:var(--paper)}
+.seal{width:var(--seal-size);height:var(--seal-size);background:var(--vermilion);color:#fff;display:grid;place-items:center;
+  font-family:var(--p-font-serif);font-size:12px;letter-spacing:0;line-height:1;transform:rotate(-2deg);border-radius:1px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand .name{font-family:var(--p-font-serif);font-size:17px;letter-spacing:.08em}
+.topnav{display:flex;gap:var(--p-space-6);margin-left:var(--p-space-8)}
+.topnav button{font-size:13px;letter-spacing:.14em;color:var(--ink-muted);padding:4px 0;border-bottom:1px solid transparent}
+.topnav button:hover{color:var(--ink)}
+.topnav button.on{color:var(--ink);border-bottom-color:var(--ink)}   /* 朱红只留「印章 + 收藏点」两处（见 design-notes「朱红纪律」） */
+.topspacer{flex:1}
+.userc{display:flex;align-items:center;gap:var(--p-space-4);color:var(--ink-muted);font-size:13px}
+.avatar{width:26px;height:26px;border:var(--rule);border-radius:50%;display:grid;place-items:center;font-family:var(--p-font-serif);font-size:12px;color:var(--ink-muted)}
+.body{display:grid;grid-template-columns:var(--rail-w) 1fr;min-height:0}
+.rail{padding:var(--p-space-6) var(--p-space-5);overflow:auto;border-right:var(--rule)}
+.rail h2{margin:0 0 var(--p-space-4)}
+.rail .group{margin-bottom:var(--p-space-8)}
+.tree{list-style:none;margin:0;padding:0}
+.tree li{display:flex;align-items:center;gap:10px;padding:9px 6px;color:var(--ink-muted);cursor:pointer;font-size:14px;border-bottom:1px solid transparent}
+.tree li:hover{color:var(--ink)}
+.tree li.on{color:var(--ink);font-family:var(--p-font-serif)}
+.tree li.on .count{color:var(--ink)}
+.tree .child{padding-left:24px}
+.tree .count{margin-left:auto;font-size:12px;color:var(--ink-subtle)}
+/* 竖排落款：本方向的签名元素 */
+.rail .vmark{writing-mode:vertical-rl;font-family:var(--p-font-serif);font-size:13px;letter-spacing:.4em;color:var(--ink-subtle);
+  height:150px;margin:var(--p-space-6) 0 0 auto;border-right:var(--rule);padding-right:8px}
+.main{min-width:0;overflow:auto;background:var(--paper)}
+.page{padding:var(--p-space-8) var(--p-space-10) var(--p-space-10);max-width:1120px}
+
+/* ---------- 见出し：明朝体大标题 + 细线 ---------- */
+.hero{display:flex;align-items:flex-end;gap:var(--p-space-5);padding-bottom:var(--p-space-5);border-bottom:var(--rule);margin-bottom:var(--p-space-6)}
+.hero h1{font-family:var(--p-font-serif);font-size:32px;font-weight:400;letter-spacing:.06em;line-height:1.4;margin:0}
+.hero .sub{font-size:13px;color:var(--ink-subtle);margin-top:8px;letter-spacing:.04em}
+.hero .right{margin-left:auto;display:flex;align-items:center;gap:var(--p-space-4);padding-bottom:4px}
+
+/* ---------- 控件：无圆角卡片风、细描边 ---------- */
+.btn{display:inline-flex;align-items:center;gap:8px;height:var(--control-h);padding:0 16px;border:1px solid var(--line-strong);
+  border-radius:var(--p-radius-sm);font-size:13px;letter-spacing:.1em;color:var(--ink-muted);background:transparent}
+.btn:hover{color:var(--ink);border-color:var(--ink-subtle)}
+.btn.primary{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.danger{color:var(--vermilion);border-color:var(--vermilion)}
+.btn.sm{height:28px;padding:0 11px;font-size:12px}
+.btn.icon{padding:0;width:var(--control-h);justify-content:center}
+.field{display:flex;align-items:center;gap:9px;height:var(--control-h);padding:0 12px;border:1px solid var(--line-strong);
+  border-radius:var(--p-radius-sm);background:var(--paper-raised);color:var(--ink)}
+.field input{border:0;background:none;outline:0;flex:1;min-width:0;color:var(--ink);font-size:14px}
+.field input::placeholder{color:var(--ink-subtle)}
+.search{width:300px}
+.toolbar{display:flex;align-items:center;gap:var(--p-space-3);flex-wrap:wrap;margin-bottom:var(--p-space-6)}
+.chipbtn{display:inline-flex;align-items:center;gap:8px;height:var(--control-h);padding:0 13px;border:1px solid var(--line);
+  border-radius:var(--p-radius-sm);font-size:13px;color:var(--ink-muted);letter-spacing:.06em}
+.chipbtn:hover{color:var(--ink);border-color:var(--line-strong)}
+.switch{display:inline-flex;align-items:center;gap:9px;height:var(--control-h);color:var(--ink-muted);font-size:13px;letter-spacing:.06em}
+.switch .track{width:34px;height:18px;border:1px solid var(--line-strong);border-radius:2px;position:relative;background:var(--paper-raised)}
+.switch .track i{position:absolute;top:2px;left:2px;width:12px;height:12px;background:var(--ink-subtle)}
+
+/* ---------- 统计：像巻物上的落款小字，不用卡片 ---------- */
+.stats{display:flex;gap:var(--p-space-10);padding:var(--p-space-5) 0;border-bottom:var(--rule);margin-bottom:var(--p-space-6)}
+.stat b{display:block;font-family:var(--p-font-serif);font-size:26px;font-weight:400;letter-spacing:.04em}
+.stat span{font-size:12px;color:var(--ink-subtle);letter-spacing:.08em}
+
+/* ---------- 目録（列表）：细线分隔，无卡片、无阴影 ---------- */
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:0 12px 12px;border-bottom:var(--rule);white-space:nowrap}
+tbody td{padding:0 12px;height:var(--row-h);border-bottom:var(--rule);color:var(--ink-muted);font-size:13.5px;vertical-align:middle}
+tbody tr:hover{background:var(--paper-raised)}
+.c-title{display:flex;align-items:center;gap:10px;color:var(--ink);font-family:var(--p-font-serif);font-size:16.5px;letter-spacing:.04em}
+.fav{width:8px;height:8px;background:var(--vermilion);flex:0 0 auto}   /* 收藏 = 朱红小方点（不加第二色） */
+.fav.off{background:transparent;border:1px solid var(--line-strong)}
+.pill{display:inline-block;padding:1px 8px;border:1px solid var(--line);border-radius:var(--p-radius-xs);font-size:12px;color:var(--ink-muted);letter-spacing:.06em}
+.rowacts{display:flex;gap:var(--p-space-3);opacity:0}
+tr:hover .rowacts{opacity:1}
+.rowacts button{font-size:12.5px;letter-spacing:.08em;color:var(--link)}
+.rowacts button.del{color:var(--vermilion)}
+.pager{display:flex;align-items:center;gap:var(--p-space-4);padding:16px 12px 0;border-top:var(--rule);color:var(--ink-subtle);font-size:12.5px;letter-spacing:.06em}
+.pager .pages{margin-left:auto;display:flex;gap:8px}
+.pager .pages button{min-width:26px;height:26px;border:1px solid var(--line);border-radius:var(--p-radius-xs);color:var(--ink-muted)}
+.pager .pages button.on{border-color:var(--vermilion);color:var(--vermilion)}
+.foot{margin-top:var(--p-space-6);padding-top:var(--p-space-4);border-top:var(--rule);color:var(--ink-subtle);font-size:12px;letter-spacing:.06em;display:flex;gap:var(--p-space-6);flex-wrap:wrap}
+
+/* ---------- 编辑器：原稿用紙 ---------- */
+.ed-head{display:flex;align-items:flex-end;gap:var(--p-space-4);padding-bottom:var(--p-space-4);border-bottom:var(--rule);margin-bottom:var(--p-space-5)}
+.ed-head h1{font-family:var(--p-font-serif);font-size:24px;font-weight:400;letter-spacing:.08em;margin:0}
+.ed-head .id{color:var(--ink-subtle)}
+.ed-head .right{margin-left:auto;display:flex;gap:var(--p-space-3)}
+.ed-head .vmark{writing-mode:vertical-rl;font-family:var(--p-font-serif);font-size:12px;letter-spacing:.36em;color:var(--ink-subtle);height:56px;padding-right:6px;border-right:var(--rule)}
+.tabs{display:flex;gap:var(--p-space-6);margin-bottom:var(--p-space-5)}
+.tabs button{font-size:13px;letter-spacing:.14em;color:var(--ink-subtle);padding:4px 0;border-bottom:1px solid transparent}
+.tabs button.on{color:var(--ink);border-bottom-color:var(--ink)}
+.editor{display:grid;grid-template-columns:minmax(0,1fr) 348px;gap:var(--p-space-8);align-items:start}
+.card{border-top:var(--rule);padding:var(--p-space-5) 0;margin-bottom:var(--p-space-5)}
+.card:first-child{border-top:0;padding-top:0}
+.card h3{margin:0 0 var(--p-space-4);display:flex;align-items:center;gap:10px}
+.card h3 .tail{margin-left:auto;font-size:11px;letter-spacing:.16em;color:var(--ink-subtle)}
+label.fl{display:block;margin:0 0 8px}
+.input,.area{width:100%;background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--p-radius-xs);
+  color:var(--ink);padding:11px 13px;font-family:var(--p-font-serif);font-size:14.5px;line-height:1.9;letter-spacing:.03em;outline:0}
+.input:focus,.area:focus{border-color:var(--vermilion)}
+.area{resize:vertical}
+.area.monoin{font-family:var(--p-font-mono);font-size:12.5px;line-height:1.9;letter-spacing:0}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--p-space-4)}
+.mini{font-size:12.5px;color:var(--ink-subtle);letter-spacing:.04em}
+.kv{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:var(--rule);font-size:13px}
+.kv:last-child{border-bottom:0}
+.diff{border:var(--rule);border-radius:var(--p-radius-xs);overflow:hidden;font-family:var(--p-font-mono);font-size:12px;background:var(--paper-raised)}
+.diff .body{overflow-x:auto}
+.diff .h{display:flex;gap:12px;padding:8px 11px;border-bottom:var(--rule);color:var(--ink-subtle)}
+.diff .l{padding:3px 11px;white-space:pre;overflow:hidden;text-overflow:ellipsis}
+.diff .add{color:var(--success);background:color-mix(in srgb,var(--success) 8%, transparent)}
+.diff .del{color:var(--vermilion);background:color-mix(in srgb,var(--vermilion) 7%, transparent)}
+.diff .meta{color:var(--ink-subtle)}
+.md h4{font-family:var(--p-font-serif);font-weight:400;font-size:16px;letter-spacing:.06em;margin:0 0 8px}
+.md ul{margin:0 0 12px;padding-left:20px;color:var(--ink-muted)}
+.md pre{margin:0;padding:11px;border:var(--rule);border-radius:var(--p-radius-xs);background:var(--paper-sunken);overflow:auto}
+.md code{font-family:var(--p-font-mono);font-size:12px}
+.pill.ok{border-color:var(--success);color:var(--success)}
+
+/* ---------- 弹窗：像一张置于案上的纸 ---------- */
+.mask{position:fixed;inset:0;background:rgb(12 12 10 / .38);display:grid;place-items:center;padding:24px;z-index:20}
+.mask[hidden]{display:none}
+.modal,.confirm{background:var(--paper-raised);border:1px solid var(--line-strong);box-shadow:0 18px 48px rgb(0 0 0 / .18);max-width:100%;overflow:auto}
+.modal{width:660px}.confirm{width:452px}
+.mh{padding:var(--p-space-5) var(--p-space-5) 0;font-family:var(--p-font-serif);font-size:17px;letter-spacing:.08em}
+.mb{padding:var(--p-space-4) var(--p-space-5);display:grid;gap:var(--p-space-4)}
+.mf{display:flex;justify-content:flex-end;gap:var(--p-space-3);padding:0 var(--p-space-5) var(--p-space-5)}
+.seg{display:flex;border:1px solid var(--line-strong);border-radius:var(--p-radius-xs);overflow:hidden;width:max-content}
+.seg button{padding:7px 14px;font-size:12.5px;letter-spacing:.08em;color:var(--ink-muted)}
+.seg button.on{background:var(--paper-sunken);color:var(--ink)}
+.notice{display:flex;gap:12px;padding:14px 15px;border:1px solid var(--line);border-left:2px solid var(--ink-subtle);font-size:13px;color:var(--ink-muted)}
+.notice.warn{border-left-color:var(--vermilion)}
+.notice.danger{border-color:var(--vermilion);border-left-width:2px}
+.drop{border:1px dashed var(--line-strong);padding:26px;text-align:center;color:var(--ink-subtle);font-size:13.5px;letter-spacing:.06em}
+.counts{display:grid;grid-template-columns:repeat(3,1fr);border:var(--rule)}
+.counts div{padding:13px 15px;border-right:var(--rule)}
+.counts div:last-child{border-right:0}
+.counts b{display:block;font-family:var(--p-font-serif);font-size:20px;font-weight:400}
+
+/* ---------- 设计稿导航（截图时隐藏） ---------- */
+.labbar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);display:flex;gap:2px;padding:4px;z-index:40;
+  background:var(--paper-raised);border:var(--rule);box-shadow:0 8px 24px rgb(0 0 0 / .12)}
+.labbar a{padding:6px 13px;font-size:12px;letter-spacing:.1em;color:var(--ink-subtle)}
+.labbar a.on{background:var(--paper-sunken);color:var(--ink)}
+.shot .labbar{display:none}
+
+/* ---------- responsive ---------- */
+.m-meta{display:none}
+@media (max-width: 767px){
+  :root{--rail-w:0px;--topbar-h:52px}
+  .body{grid-template-columns:1fr}
+  .rail{display:none}
+  .page{padding:var(--p-space-5) var(--p-space-4) var(--p-space-8);max-width:none}
+  .topnav,.userc .name,.userc .label{display:none}   /* 手机顶栏只留 菜单 + 印章品牌 + 头像 + 图标退出 */
+  .userc .btn .lbl{display:none}
+  .hero{flex-direction:column;align-items:stretch;gap:var(--p-space-4)}
+  .hero h1{font-size:24px}
+  .hero .right{margin-left:0;flex-wrap:wrap;width:100%}
+  .hero .right .btn,.hero .right .chipbtn{flex:1;justify-content:center;min-width:0;padding:0 10px;letter-spacing:.04em}
+  .btn{white-space:nowrap}
+  .search{width:100%}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--p-space-5);padding-bottom:var(--p-space-5)}
+  thead{display:none}
+  tbody tr{display:grid;grid-template-columns:1fr auto;gap:2px var(--p-space-2);padding:14px 0;height:auto}
+  tbody td{border:0;height:auto;padding:0;font-size:13px}
+  tbody td:nth-child(n+2):not(:last-child){display:none}
+  .m-meta{display:flex;gap:var(--p-space-4);flex-wrap:wrap;align-items:center;margin-top:7px;font-size:12px;color:var(--ink-subtle);letter-spacing:.04em}
+  .c-title{font-size:15.5px}
+  .editor{grid-template-columns:1fr;gap:var(--p-space-6)}
+  .rowacts{opacity:1}
+  .mobile-only{display:flex}
+}
+@media (min-width: 768px){ .mobile-only{display:none} }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="i-tag" viewBox="0 0 24 24"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0l-7-7A2 2 0 0 1 3 12.2V5a2 2 0 0 1 2-2h7.2a2 2 0 0 1 1.4.6l7 7a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5"/><path d="M12 8v5l3 2"/></symbol>
+  <symbol id="i-var" viewBox="0 0 24 24"><path d="M8 4c-3 0-3 6-3 8s0 8 3 8M16 4c3 0 3 6 3 8s0 8-3 8"/><path d="M10 10l4 4M14 10l-4 4"/></symbol>
+  <symbol id="i-md" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15V9l3 3 3-3v6M17 9v6M15 13l2 2 2-2"/></symbol>
+  <symbol id="i-io" viewBox="0 0 24 24"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 20h16"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9 2 2-2 2 2 2-3 3-2-2-2 2"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <button class="btn icon mobile-only" aria-label="筛选"><svg class="ic"><use href="#i-menu"/></svg></button>
+    <div class="brand"><span class="seal">管</span><span class="name">promptmanager</span></div>
+    <nav class="topnav">
+      <button class="on">目録</button>
+      <button><svg class="ic" style="width:13px;height:13px;display:inline-block;vertical-align:-2px"><use href="#i-chart"/></svg> 使用</button>
+      <button><svg class="ic" style="width:13px;height:13px;display:inline-block;vertical-align:-2px"><use href="#i-key"/></svg> 令牌</button>
+      <button onclick="go('import')">授受 / 出入</button>
+    </nav>
+    <div class="topspacer"></div>
+    <div class="userc">
+      <span class="label">亮暗随系统</span>
+      <span class="avatar">管</span><span class="name">admin</span>
+      <button class="btn sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-out"/></svg><span class="lbl">退出</span></button>
+    </div>
+  </header>
+
+  <div class="body">
+    <aside class="rail">
+      <div class="group">
+        <h2 class="label">文 庫</h2>
+        <ul class="tree">
+          <li class="on"><svg class="ic"><use href="#i-folder"/></svg>すべて<span class="count mono">9</span></li>
+          <li><svg class="ic"><use href="#i-folder"/></svg>工作<span class="count mono">8</span></li>
+          <li class="child"><svg class="ic"><use href="#i-folder"/></svg>运维<span class="count mono">1</span></li>
+        </ul>
+      </div>
+      <div class="group">
+        <h2 class="label">標 籤</h2>
+        <ul class="tree">
+          <li><svg class="ic"><use href="#i-tag"/></svg>交接<span class="count mono">2</span></li>
+          <li><svg class="ic"><use href="#i-tag"/></svg>发布<span class="count mono">7</span></li>
+          <li><svg class="ic"><use href="#i-tag"/></svg>排障<span class="count mono">1</span></li>
+        </ul>
+      </div>
+      <div class="vmark">整 理 之 所</div>
+    </aside>
+
+    <main class="main">
+      <!-- ---------- 列表页 ---------- -->
+      <section class="page" id="view-list">
+        <div class="hero">
+          <div>
+            <h1>Prompt の 目録</h1>
+            <div class="sub">九 条 · 文庫 二 · 標籤 三 · <span class="mono">DATA_DIR/pm.db</span></div>
+          </div>
+          <div class="right">
+            <button class="chipbtn" onclick="go('import')"><svg class="ic"><use href="#i-io"/></svg>授受 / 出入</button>
+            <button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>新規作成</button>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><b>九</b><span>prompt 総数</span></div>
+          <div class="stat"><b>三</b><span>三十日取用 · session 1 / token 2</span></div>
+          <div class="stat"><b>v3</b><span>最近改訂</span></div>
+          <div class="stat"><b>0.3<span style="font-size:12px">ms</span></b><span>中文検索 FTS5 trigram</span></div>
+        </div>
+
+        <div class="toolbar">
+          <label class="field search"><svg class="ic"><use href="#i-search"/></svg>
+            <input placeholder="検索：標題 / 用户提示词 / 系统提示词 / 備考">
+          </label>
+          <button class="chipbtn"><svg class="ic"><use href="#i-folder"/></svg>文庫<svg class="ic" style="width:11px"><use href="#i-chev"/></svg></button>
+          <button class="chipbtn"><svg class="ic"><use href="#i-tag"/></svg>標籤<svg class="ic" style="width:11px"><use href="#i-chev"/></svg></button>
+          <button class="chipbtn">最近改訂<svg class="ic" style="width:11px"><use href="#i-chev"/></svg></button>
+          <span class="switch"><span class="track"><i></i></span>お気に入りのみ</span>
+        </div>
+
+        <table>
+          <thead><tr>
+            <th class="label" style="width:36%">標 題</th><th class="label">標 籤</th><th class="label">文 庫</th>
+            <th class="label">版</th><th class="label">取 用</th><th class="label">改 訂</th><th></th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="c-title"><span class="fav"></span>会话交接模板</div></td>
+              <td><span class="pill">交接</span> <span class="pill">发布</span></td><td>运维</td><td class="mono">v3</td><td class="mono">1</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>常用片段 4：SQL 与迁移</div></td>
+              <td><span class="pill">发布</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>排障：FTS5 trigram 子串检索</div></td>
+              <td><span class="pill">排障</span></td><td>工作</td><td class="mono">v1</td><td class="mono">3</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>代码评审助手</div></td>
+              <td><span class="pill">发布</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>发布前自检清单</div></td>
+              <td><span class="pill">发布</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>周报生成器</div></td>
+              <td><span class="pill">交接</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>常用片段 3：SQL 与迁移</div></td>
+              <td><span class="pill">发布</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>常用片段 2：SQL 与迁移</div></td>
+              <td><span class="pill">发布</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+            <tr>
+              <td><div class="c-title"><span class="fav off"></span>常用片段 1：SQL 与迁移</div></td>
+              <td><span class="pill">发布</span></td><td>工作</td><td class="mono">v1</td><td class="mono">0</td><td class="mono">09/18 16:35</td>
+              <td><div class="rowacts"><button>改訂</button><button class="del">削除</button></div></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pager"><span>全 九 条 · 毎頁 二十</span><span class="mono">絞込 9</span>
+          <span class="pages"><button>‹</button><button class="on">1</button><button>›</button></span></div>
+        <div class="foot">
+          <span>データは本機の SQLite 単一ファイル · <span class="mono">DATA_DIR/pm.db</span></span>
+          <span>控え = ファイルを写す / <span class="mono">GET /api/export</span></span>
+        </div>
+      </section>
+
+      <!-- ---------- 编辑器 ---------- -->
+      <section class="page" id="view-editor" hidden>
+        <div class="ed-head">
+          <div class="vmark">原 稿</div>
+          <h1>会话交接模板</h1><span class="id mono">#014</span>
+          <div class="right">
+            <button class="btn"><svg class="ic"><use href="#i-trash"/></svg>削除</button>
+            <button class="btn primary">保存（v4 を起こす）</button>
+          </div>
+        </div>
+        <div class="tabs"><button class="on">編集</button><button>改訂履歴</button><button>変数の埋め込み</button><button>Markdown 表示</button></div>
+        <div class="editor">
+          <div>
+            <div class="mini" style="margin-bottom:8px">標題</div>
+            <input class="input" value="会话交接模板">
+            <div style="height:18px"></div>
+            <div class="mini" style="margin-bottom:8px">用户提示词 · user_prompt</div>
+            <textarea class="area monoin" rows="9">你是 {{项目}} 项目的交接助手。请把当前工作上下文整理成交接文档。
+
+## 要求
+- 交接人：{{姓名}}
+- 必须包含：**已完成**、**进行中**、**下一步**
+- 风险点用 `[!]` 标出，并给出回滚办法
+
+```bash
+# 交接前先确认服务健康
+curl -s http://127.0.0.1:8767/healthz
+```</textarea>
+            <div style="height:18px"></div>
+            <div class="mini" style="margin-bottom:8px">系统提示词 · system_prompt</div>
+            <textarea class="area" rows="3">你是严谨的工程交接助手，只写事实，不编造进度。</textarea>
+            <div style="height:18px"></div>
+            <div class="mini" style="margin-bottom:8px">備考 · notes</div>
+            <textarea class="area" rows="2">每周五下班前用一次；交接文档发给接任者，并抄送 {{项目}} 负责人。</textarea>
+            <div style="height:22px"></div>
+            <div class="form-row">
+              <div><div class="mini" style="margin-bottom:8px">文庫</div>
+                <div class="field" style="justify-content:space-between"><span class="serif">运维</span><svg class="ic" style="width:11px;color:var(--ink-subtle)"><use href="#i-chev"/></svg></div>
+              </div>
+              <div><div class="mini" style="margin-bottom:8px">標籤</div>
+                <div class="field" style="justify-content:space-between"><span><span class="pill">交接</span> <span class="pill">发布</span></span><svg class="ic" style="width:11px;color:var(--ink-subtle)"><use href="#i-chev"/></svg></div>
+              </div>
+            </div>
+            <div style="height:18px"></div>
+            <div class="kv"><span>お気に入り（一覧の先頭に置く）</span><span class="switch"><span class="track" style="border-color:var(--vermilion)"><i style="left:18px;background:var(--vermilion)"></i></span>登録済み</span></div>
+          </div>
+
+          <div>
+            <div class="card">
+              <h3><svg class="ic"><use href="#i-history"/></svg><span class="label">改 訂 履 歴</span><span class="tail mono">v1 → v4</span></h3>
+              <div class="diff">
+                <div class="body">
+                  <div class="h"><span class="mono">--- v1</span><span class="mono">+++ v3</span><span class="mono" style="margin-left:auto">+2 −2</span></div>
+                  <div class="l meta">@@ [notes] @@</div>
+                  <div class="l del">- 交接文档发给 {{姓名}} 的接任者。</div>
+                  <div class="l add">+ 交接文档发给接任者，并抄送 {{项目}} 负责人。</div>
+                  <div class="l add">+ 补充：交接后 24 小时内确认对方已跑通。</div>
+                </div>
+              </div>
+              <div style="height:10px"></div>
+              <div class="kv"><span class="mono">v3</span><span class="serif">会话交接模板</span><span class="mono">09/18 16:35</span></div>
+              <div class="kv"><span class="mono">v2</span><span class="serif">会话交接模板</span><span class="mono">09/18 16:35</span></div>
+              <div class="kv"><span class="mono">v1</span><span class="serif">会话交接模板</span><span class="mono">09/18 16:35</span></div>
+              <div style="height:14px"></div>
+              <button class="btn sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-history"/></svg>v1 に戻す（新版を起こす）</button>
+            </div>
+
+            <div class="card">
+              <h3><svg class="ic"><use href="#i-var"/></svg><span class="label">変 数 の 埋 め 込 み</span><span class="tail">二 個</span></h3>
+              <div class="form-row">
+                <div><div class="mini" style="margin-bottom:8px">项目</div><input class="input" value="greenhouse"></div>
+                <div><div class="mini" style="margin-bottom:8px">姓名</div><input class="input" value="张三"></div>
+              </div>
+              <div style="height:14px"></div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <button class="btn sm primary">渲染</button>
+                <span class="pill ok">欠け 0</span>
+                <button class="btn sm" style="margin-left:auto"><svg class="ic" style="width:13px;height:13px"><use href="#i-copy"/></svg>成品を写す</button>
+              </div>
+              <div style="height:12px"></div>
+              <div class="mini serif" style="border-left:2px solid var(--vermilion);padding-left:11px;font-size:14px">你是 greenhouse 项目的交接助手 … 交接人：张三</div>
+            </div>
+
+            <div class="card">
+              <h3><svg class="ic"><use href="#i-md"/></svg><span class="label">Markdown 表 示</span><span class="tail mono">server-side</span></h3>
+              <div class="md">
+                <h4>要求</h4>
+                <ul><li>交接人：张三</li><li>必须包含：<b>已完成</b>、<b>进行中</b>、<b>下一步</b></li></ul>
+                <pre><code>curl -s http://127.0.0.1:8767/healthz</code></pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- 导入 / 导出 ---------- -->
+      <section class="page" id="view-import" hidden>
+        <div class="hero"><div><h1>授受 / 出入</h1><div class="sub">自前の JSON 形式 · schema_version 1 · 単一トランザクション</div></div></div>
+        <div class="editor" style="grid-template-columns:minmax(0,1fr) 336px">
+          <div>
+            <div class="card">
+              <h3><span class="label">出 す（控え）</span></h3>
+              <div class="kv"><span class="mini">改訂履歴を含む全量 JSON</span><button class="btn sm primary">全部書き出す</button></div>
+            </div>
+            <div class="card">
+              <h3><span class="label">入 れ る</span></h3>
+              <div class="drop">ここに JSON ファイルを落とす / クリックして選ぶ<div class="mini" style="margin-top:8px">解析はブラウザ内のみ。確定するまで送信しません</div></div>
+              <div style="height:14px"></div>
+              <div class="kv"><span class="mono">export-fixture.json</span><span class="mini">解析済み</span></div>
+              <div style="height:12px"></div>
+              <div class="counts"><div><span class="mini">prompt</span><b>9</b></div><div><span class="mini">文庫</span><b>2</b></div><div><span class="mini">標籤</span><b>3</b></div></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <h3><span class="label">取 込 方 式</span></h3>
+              <div class="seg"><button>merge（追加）</button><button class="on">replace（入れ替え）</button></div>
+              <div style="height:16px"></div>
+              <div class="notice danger"><svg class="ic" style="margin-top:2px"><use href="#i-io"/></svg>
+                <div><b>replace は先に既存データを空にします</b><br>将清空现有全部 prompt / 文件夹 / 标签 / 版本历史</div></div>
+              <div style="height:16px"></div>
+              <button class="btn danger" style="width:100%;justify-content:center">取り込む（再確認あり）</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<div class="mask" id="confirm-mask" hidden>
+  <div class="confirm">
+    <div class="mh">replace で取り込みますか？</div>
+    <div class="mb">
+      <div class="notice danger"><svg class="ic" style="margin-top:2px"><use href="#i-io"/></svg>
+        <div><b>将清空现有全部 prompt / 文件夹 / 标签 / 版本历史</b><br>随后按文件重建：prompt 9 条 / 文件夹 2 个 / 标签 3 个。</div></div>
+      <div class="mini">この操作は取り消せません。先に書き出して控えを残すことを勧めます。</div>
+    </div>
+    <div class="mf"><button class="btn">取消</button><button class="btn danger" style="background:var(--vermilion);color:#fff">空にして取り込む</button></div>
+  </div>
+</div>
+
+<nav class="labbar" aria-label="设计稿导航">
+  <a href="#list" data-v="list">目録</a><a href="#editor" data-v="editor">編集</a>
+  <a href="#import" data-v="import">授受</a><a href="#import-confirm" data-v="import-confirm">再確認</a>
+</nav>
+
+<script>
+  if (location.search.indexOf('shot=1') >= 0) document.body.classList.add('shot');
+  var views = { list: 'view-list', editor: 'view-editor', import: 'view-import', 'import-confirm': 'view-import' };
+  function go(name){
+    Object.keys(views).forEach(function(k){ document.getElementById(views[k]).hidden = views[k] !== views[name]; });
+    document.getElementById('confirm-mask').hidden = name !== 'import-confirm';
+    document.querySelectorAll('.labbar a').forEach(function(a){ a.classList.toggle('on', a.dataset.v === name); });
+  }
+  function route(){ go((location.hash || '#list').slice(1)); }
+  window.addEventListener('hashchange', route); route();
+
+  // 移动端行内 meta（10B 对应 antd List.Item.Meta 的 description）
+  document.querySelectorAll('#view-list tbody tr').forEach(function (tr) {
+    var td = tr.children, meta = document.createElement('div');
+    meta.className = 'm-meta';
+    meta.innerHTML = '<span>' + td[2].innerText + '</span><span class="mono">' + td[3].innerText + '</span>'
+                   + '<span>取用 ' + td[4].innerText + '</span><span class="mono">' + td[5].innerText + '</span>';
+    td[0].appendChild(meta);
+  });
+</script>
+</body>
+</html>
