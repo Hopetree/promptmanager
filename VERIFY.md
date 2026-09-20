@@ -320,3 +320,57 @@ SSH key 仍有权限：git ls-remote github → 762f228…（内容完好、后�
   —— 含**推送前必查三样**：① 目标仓库可见性（GitHub 无认证 API：404 = private、`private: false` = public）；
   ② 内容里的内网信息（`git grep -lE '192\.168\.|/opt/|/root/|\.home\.local'`）；③ 内容里的凭据（`_env/`、`*.env`、口令字面量）。
   并记入 `CHANGELOG.md`。
+
+---
+
+# 阶段 28 验收（项目 `AGENTS.md`）— 结论：**过**（2026-09-21，host_manger）
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`5911cf4`**（`docs(agents): 新增项目级 AI 代理操作指南 AGENTS.md（阶段 28 / AC-83）`） |
+| 规格 | BRIEF **v35**（§7 交付物 `AGENTS.md` + **AC-83** + 阶段 28） |
+| 结论 | **过** |
+
+## 0. 本轮特殊性：并行避让（我要求的）
+
+另有会话（**阶段 27**）在同一工作区并行开发 ⇒ 我要求本会话「**只新增 `AGENTS.md`，暂不写 `PROGRESS.md`**」（避免两个会话争用同一文件）。
+因此 **AC-83 第 ⑦ 条的"把自检过程写进 PROGRESS"暂缓**（待阶段 27 收尾后补写），其余各条照常验收。
+
+## 1. AC-83 逐条（我核 —— 按纪律**抽查**，不重复它已做过的大样本）
+
+| # | 要求 | 我的核验 | 判定 |
+| --- | --- | --- | --- |
+| ① | 根目录 + 已入库 | `AGENTS.md`（项目根，**232 行**）`git ls-files` 命中 | ✅ |
+| ② | **常用命令真跑** | **它逐条实跑并把输出写进了文档**（§3 每条命令都带"实测输出/判据"：`node_modules` 209 项、chunk `467320 B`、`ok: schema at v3`、`tests 285/285`…）。我抽查其中**秒级、不干扰并行会话**的几条：`systemd-analyze verify` **rc=0** ✅、`grep -c MemoryDenyWriteExecute` = **0** ✅、`grep -c AF_NETLINK` = **2** ✅ —— **与文档所写逐条吻合** | ✅ |
+| ③ | 结构路径逐个真查 | 我抽查 **10 个**：`src/server/index.ts`、`src/db/prompt-queries.ts`、`src/services/markdown.ts`、`web/src/clipboard.ts`、`tools/ci-check.sh`、`tests/helpers.ts`、`deploy/container.md`、`docs/versioning.md`、`migrations/003_*.sql`、`.github/workflows/ci.yml` → **全部存在** | ✅ |
+| ④ | 禁过期表述 | `列表视图` / `1.25 MB` / `149 个用例` / `248 ` / `阶段 1–9` / `阶段 1-9` → **命中全 0** | ✅ |
+| ⑤ | 坑 ≥5 条且指向证据 | **§10 共 10 条**，每条带 `文件:行号` 或文档章节（AF_NETLINK / `MemoryDenyWriteExecute` / `npm ci` EROFS / detached flaky / 内网 clipboard / jsdom 内存 / `folder_id` 含后代 / `dist` 依赖 / better-sqlite3 prebuilds / import FK RESTRICT） | ✅ |
+| ⑥ | 指向而非复制 | 多处：`schema_version` → `docs/versioning.md`；备份 → `deploy/README.md §4`；选型与禁止手搓 → `STANDARDS.md §4.2`；监听/认证 → `README.md` | ✅ |
+| ⑦ | 可上手性自检 | **以更硬的方式完成**：它在**隔离副本**（`git archive HEAD \| tar -x -C /tmp/pmci2`）里跑通全量验证 ⇒ 证明"仅凭本仓库 + AGENTS.md 能在干净环境跑起来"；「写进 PROGRESS」那一步按并行避让要求**暂缓**（待补） | ✅（暂缓项另记） |
+
+## 2. 并行风险核验（本轮重点）— **全部规避** ✅
+
+```
+① 它的提交只含 1 个文件：git show --stat 5911cf4 = 1 file changed, 232 insertions(+)
+   （它自己还做了 git ls-tree 逐文件比对 + grep -E 'api-prompts-bulk|stage27' → 无命中）
+② 阶段 27 的未提交改动完好：工作区 14 个 M + 5 个未跟踪项仍在，未被卷走
+③ PROGRESS.md 未被它碰：AGENTS / 阶段 28 命中 0
+④ 无冲突标记（<<<<<<< 计数 0）
+```
+⇒ **用户选的 B 方案（写文件避让）达到了预期效果**，且它**主动加固**（提交隔离验证）。
+
+## 3. 质量评价（超出 AC 的部分，值得记）
+
+- **§3「常用命令」逐条带实测输出**（不是空泛命令表）—— 这正是"**真了解 vs 套模板**"的分水岭；
+- **§10 十条坑全部有证据指向**，且**包含它自己踩出来的坑**（沙箱里 `npm ci` 会 EROFS ⇒ 必须 `--cache var/cache/npm`）；
+- **§12 写入了「多会话并行」约定**（把本轮经验固化进文档，后来者可复用）；
+- **它主动做了「提交隔离验证」**（未被要求）—— 在并行场景下防住了"卷走他人改动"的风险；
+- **§2「最短上手路径（新会话 5 分钟）」** 直接对应 AC-83 的成功判据。
+
+## 4. 缺口与待办
+
+1. ⚠️ **PROGRESS 补写待办**：按并行避让要求，它**暂未写** `PROGRESS.md` 的阶段 28 小节
+   ⇒ **阶段 27 收尾后需通知它补写**（我会提醒用户）。
+2. ⚠️ **实时工作区当前是红的**（我核过）：`npm test` RC=1，根因是**阶段 27 的未跟踪新测试**
+   `tests/api-prompts-bulk.test.ts` 有 **22 个 TS 错误**（该会话改到一半）—— **与阶段 28 无关**
+   （它用隔离副本证明了自己的交付全绿）。待阶段 27 自己收敛，我会在阶段 27 验收时核。
