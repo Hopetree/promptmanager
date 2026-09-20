@@ -231,3 +231,39 @@ $ npm test → ℹ tests 285 / pass 284 / fail 1   （rc=1）
 重复跑是几十倍的时间浪费。
 **已落盘**：`skills/greenhouse-kickoff/references/acceptance-gate.md` §1 第 2 步新增纪律「**验收方不重复实现方的大样本验证**」
 （含本次实证与唯一例外：怀疑它挑数据时才加样本）。
+
+---
+
+# 上线准备 P4 执行记录（git 重新初始化）— **完成**（2026-09-20，host_manger）
+
+| 项 | 值 |
+| --- | --- |
+| 授权 | 用户 2026-09-20 明确授权（回「A」） |
+| 结果 | **完成** —— 新仓库首个提交 **`8efd440`**（`chore: 初始提交（v1.0.0）`），分支 `main`，提交总数 **1**（原 **208**） |
+
+## 1. 三条护栏的执行情况（动手前承诺的）
+
+| 护栏 | 执行结果 |
+| --- | --- |
+| ① **旧仓库离线备份**（放新仓库之外） | ✅ `/root/greenhouse/backups/promptmanager-git-history-20260920.tar.gz`（**93M / 2572 条目**；可解压验证通过；内含 HEAD `0262541`）；已登记到 `/root/greenhouse/backups/README.md`（**保留期 90 天**至 2026-12-19，到期**列清单问用户**再处置） |
+| ② **首次提交前再扫一遍工作区** | ✅ `_env/` 0 命中、`data/` 0、`tmp/var/dist` 0、数据库/密钥文件 0（工作区里确有 `_env`/`var`/`dist`/`node_modules`，**均被 `.gitignore` 排除**） |
+| ③ **重初始化后逐项核对** | ✅ 见下表 |
+
+```
+文件零丢失：逐文件比对 **旧 352 = 新 352，差异为空**（从备份解出旧 index 列表 vs 新仓库 `git ls-files`）
+.git 体积：  **100M → 14M**
+敏感路径命中：0  ｜ git status：干净  ｜ 分支：main
+npm test：    rc=0 ｜ ℹ tests 285 / pass 285 / fail 0   （重初始化不影响代码）
+提交者配置：  保留 `dsh <dsh@greenhouse.local>`（供实现方后续提交用）；首个提交作者显式指定为 host_manger
+```
+
+## 2. ⚠️ 副作用：**本文件在 2026-09-20 之前引用的 commit hash 已失效**
+
+本次之前的所有记录（阶段 1–25 验收、上线准备 P1 / P2）里引用的 commit hash
+（如 `74fdde2` / `fadffde` / `de180ee` / `bfca0f1` / `90dccae` …）**指向旧历史，新仓库中不存在**。
+需要追溯时请用备份：
+```bash
+mkdir -p /tmp/oldgit && tar xzf /root/greenhouse/backups/promptmanager-git-history-20260920.tar.gz -C /tmp/oldgit
+git --git-dir=/tmp/oldgit/.git log --oneline | head
+```
+**文件内容本身未变**（逐文件比对零差异）—— 受影响的只是"按 hash 定位历史提交"这一条路径。
