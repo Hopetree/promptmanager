@@ -559,7 +559,7 @@ $ git diff --stat package.json package-lock.json   → 空（无新依赖）
 | ① | 后端批量接口 `POST /api/prompts/bulk` + 单测 | **`919ca8e`** `feat(prompts): 新增批量接口 POST /api/prompts/bulk（FR-77 ⑥ 方案①，整批一个事务）` |
 | ② | 前端 FR-77 表格批量 + FR-78/79/80 详情页改造 + 被取代断言的修订 + 体积预算记账 | **`1402f9e`** `feat(web): 表格批量操作（FR-77）+ 详情页元信息行与去备注页签/变量区块（FR-78/79/80）` |
 | ③ | FR-81 VarsDialog 尺寸 + `tools/ac-stage27.*` + `tests/stage27-ui.test.ts` + PROGRESS/README | **`2d65311`** `feat(web): 加大变量填值对话框宽高（FR-81）+ 阶段 27 AC 自检与文档` |
-| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | **`__CLOSING_COMMIT__`**（见下） |
+| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | `2e326e5`（回填三个单元 hash）；**最后一个 docs-only 收尾提交的 hash 见交付回复**（提交无法自引用自身 hash） |
 
 
 ## 归档与当前状态的关系
