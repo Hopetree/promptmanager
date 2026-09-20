@@ -96,9 +96,11 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm }: VarsDi
     <Modal
       open
       onCancel={onCancel}
-      width={640}
+      /* FR-81：宽、高各加大 ≥15%（改前实测 640×398 → 760×≥477；基线见 tools/ac-stage27.sh 的 AC82_BASELINE_*）。
+         所有触发位置（分栏 / 表格 / 卡片 / 编辑器）共用这一个组件，改一处即全生效。 */
+      width={760}
       title="请填写变量值（自动记忆）"
-      styles={{ body: { paddingTop: 8 } }}
+      styles={{ body: { paddingTop: 8, minHeight: 360 } }}
       footer={
         <Flex justify="space-between" align="center" gap={8}>
           <Typography.Text
@@ -177,7 +179,7 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm }: VarsDi
                 data-testid="pm-vars-preview"
                 className="pm-mono"
                 style={{
-                  maxHeight: 220,
+                  maxHeight: 280,
                   overflow: 'auto',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',

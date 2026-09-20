@@ -7,10 +7,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–25 已全部完成**；即将发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**上线准备 P1（文档整理 + 产物清理）✅**、**P2（质量检查 + 版本管理 + flaky 修复）✅** |
+| 阶段 | **阶段 1–27 已全部完成**；已发布 **v1.0.0** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）自检全过**（见本文件「阶段 27」） |
 | 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
-| 最后更新 | 2026-09-20 |
+| 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
 
 ## 阶段索引
@@ -47,6 +47,8 @@
 | 23 | FR-72 文件夹筛选含子目录 + FR-73 卡片末行贴底 + FR-74 表格拖拽与刷新感 | [`#2026-09-20-阶段-23-实施与自检fr-72-文件夹筛选含子目录-fr-73-卡片末行贴底-fr-74-表格拖拽刷新感`](dev-history/PROGRESS.md#2026-09-20-阶段-23-实施与自检fr-72-文件夹筛选含子目录-fr-73-卡片末行贴底-fr-74-表格拖拽刷新感) |
 | 24 | FR-75 修「卡片拖动根本不生效」：取消跨目录限制 + 后端槽位保持 + 本体可拖 | [`#2026-09-20-阶段-24-实施与自检fr-75-d-30修卡片拖动根本不生效`](dev-history/PROGRESS.md#2026-09-20-阶段-24-实施与自检fr-75-d-30修卡片拖动根本不生效) |
 | 25 | FR-76 顶栏品牌文字 → `PromptM`（其余四处保持全名） | [`#2026-09-20-阶段-25-实施与自检fr-76-d-31顶栏品牌文字-promptm`](dev-history/PROGRESS.md#2026-09-20-阶段-25-实施与自检fr-76-d-31顶栏品牌文字-promptm) |
+| 26 | 上线准备：文档整理 + 产物清理（P1）+ 质量检查/版本 1.0.0/flaky 修复（P2） | 本文件「上线准备 P1」「上线准备 P2」「P2 返工」 |
+| 27 | FR-77 表格批量操作（复选框/全选/批量收藏·移动·删除）+ FR-78 详情页「文件夹+标签」可改 + FR-79 去「备注」页签 + FR-80 去变量区块 + FR-81 加大 VarsDialog | 本文件「阶段 27」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -373,6 +375,191 @@ tests/cli-token.test.ts      -49/+?   ← 同上
 tools/ci-check.sh            +9/-2    ← 失败时打印完整诊断
 （src/ / web/src/ / migrations/ / package.json 均未改动）
 ```
+
+## 阶段 27（2026-09-21）：用户 5 条新需求（FR-77 ~ FR-81）
+
+### 开工前：AC-78~AC-82 → 检查命令（先落盘，再动手）
+
+> 基线：`npm test` 已跑，**285/285 全绿**（rc=0，`ℹ tests 285 / pass 285 / fail 0`）——绿色基线确认后才开工。
+> 说明：本阶段新增 1 个接口（`POST /api/prompts/bulk`）+ 前端 4 处改动；**无 schema 变更**（`migrations/*.sql` 仍 3 个）。
+
+| AC | 要执行的检查命令 | 判据 |
+| --- | --- | --- |
+| AC-78 | `node --test tests/api-prompts-bulk.test.ts tests/stage27-ui.test.ts`（接口语义 + 源码级）<br>`bash tools/ac-stage27.sh`（自起自停 + **真鼠标** + 网络请求计数 + 负例）<br>└ 内部调 `node tools/ac-stage27-probe.mjs bulk <base> <sid> <shots>` | ① 首列复选框 + 表头全选存在；② 勾 3 条 → 工具条含「已选择 3 项」与「批量收藏/批量移动/批量删除/取消」；③ 取消 → 选中清空、工具条消失；④ 批量收藏 2 条 → 两条 `favorite=true` + 反馈 + **恰好 1 个** `POST /api/prompts/bulk`；⑤ 批量移动 → `folder_id` 变目标值 + 侧栏计数同步；⑥ 批量删除 → 二次确认文本含条数与「不可恢复」→ 先取消不删 → 再确认删 2、total −2；⑦ 表头全选 → 当页全选中；⑧ 行内操作/行拖拽/分页/排序/筛选回归；⑨ 批量接口传不存在 id / 空 ids → **400** |
+| AC-79 | `node tools/ac-stage27-probe.mjs detail-meta <base> <sid> <shots>`<br>`node --test tests/stage27-ui.test.ts` | ① 右栏元信息行夹在 `pm-detail-notes` 之下、`pm-detail-fields` 之上，含当前文件夹名与全部标签；② 改文件夹 → 落库 `folder_id` 变化（前后对照）+ 左栏计数同步 + 成功反馈；再选「未归类」→ `folder_id=null`；③ 加标签 → `tags` 增；④ 点 `✕` 删标签 → `tags` 减；⑤ 卡片/表格/编辑器显示一致；⑥ 元信息行字号 < 标题、颜色为次级色、窄屏 `scrollWidth ≤ clientWidth+2`；⑦ 截图（有文件夹+多标签 / 未归类+无标签，亮暗各一张） |
+| AC-80 | `node tools/ac-stage27-probe.mjs detail-tabs <base> <sid> <shots>`<br>`node --test tests/stage27-ui.test.ts` | ① `pm-detail-fields` 内 `.ant-segmented-item` 恰好 **2** 个、文本 = 用户提示词 / 系统提示词；② 文本为「备注」的页签计数 **0**；③ 两页签切换后 Markdown 预览仍生效；④ 编辑器「备注」输入框仍在 |
+| AC-81 | `node tools/ac-stage27-probe.mjs detail-vars <base> <sid> <shots>`<br>`node --test tests/stage27-ui.test.ts` | ① 分栏详情右栏**不存在**「变量填值」区块（DOM 计数 0）；② 「预览」「版本历史」仍在；③ 编辑器 `pm-panel-variables` 变量面板仍可用；④ 复制含变量 prompt 仍弹 `pm-vars-dialog` |
+| AC-82 | 改前/改后各跑一次 `node tools/ac-stage27-probe.mjs vars-size <base> <sid> <shots>`（**先量基线再改**） | ① 确认弹窗 = 复制含变量 prompt 时的 `VarsDialog`（贴触发步骤）；② `getBoundingClientRect()` 宽、高各 **+≥15%**；③ 弹窗内 `scrollWidth ≤ clientWidth+2`、变量输入区可见；④ 分栏/表格/卡片三档触发尺寸一致（同一组件）；⑤ 改前/改后截图各一张 |
+| 回归 | `npm test`（≥285，只增不减）；`bash tools/ci-check.sh`；`bash tools/ac-stage20.sh`（AC-66/67 所在阶段脚本，**已随 FR-79 修订页签断言**）；`bash tools/ac-stage21.sh`（AC-68/69，**已随 FR-79 修订**）；`bash tools/ac-stage22.sh` / `ac-stage23.sh` / `ac-stage24.sh`（AC-70~75 拖拽与分栏） | 全绿；用例数变化须说明理由 |
+
+**FR-81 前置确认（本次第一件事，已完成）**：读 `web/src/use-copy.ts` 的 `copyPrompt()` —— `hasVariables(prompt.user_prompt, prompt.system_prompt)` 为真时 `setVarsPrompt(prompt)`，
+由 `Workspace.tsx` 渲染 `<LazyVarsDialog>`（`data-testid="pm-vars-dialog"`）；复制**不含变量**的条目只走 `message.success('已复制提示词')`、**无弹窗**。
+⇒ **"复制之后的弹窗" = `VarsDialog`**，无需写 QUESTIONS。
+
+### 阶段 27 实施与自检：逐条命令 + 原样输出
+
+> 改动面（`git diff --stat` 收尾核对）：后端 **+2 文件**（`src/services/prompts.ts` 新增 `bulkPrompts`、`src/server/routes/prompts.ts` 新增 `POST /api/prompts/bulk`）；
+> 前端 **6 文件**（`api.ts` / `UseView.tsx` / `SplitView.tsx` / `PromptDetail.tsx` / `Workspace.tsx` / `VarsDialog.tsx`）；
+> 新增测试 **2 个**（`tests/api-prompts-bulk.test.ts`、`tests/stage27-ui.test.ts`）；新增 AC 脚本 **2 个**（`tools/ac-stage27.sh`、`tools/ac-stage27-probe.mjs`）。
+> **无 schema 变更**（`migrations/*.sql` 仍 3 个）、**无新依赖**（`git diff --stat package.json package-lock.json` → 空）。
+
+#### ① 全量测试（用例数 285 → **300**，只增不减）
+
+```
+$ npm test
+ℹ tests 300
+ℹ pass 300
+ℹ fail 0
+```
+
+新增 15 个用例：`tests/api-prompts-bulk.test.ts` **6** 个（批量接口语义 + 负例 + 401 + 未选中条目不动）、
+`tests/stage27-ui.test.ts` **9** 个（FR-77~FR-81 前端源码级断言）。
+**用例数变化的理由**：本阶段新增 1 个接口（FR-77 ⑥ 方案①）与 5 处前端行为，全部是新行为，无既有用例被删除。
+
+#### ② AC-78 表格批量操作（`bash tools/ac-stage27.sh`，真鼠标 + 请求计数）
+
+```
+=== AC-78：表格批量操作（真鼠标 + 请求计数） ===
+ac78_has_selection_column=true          ← ① 首列复选框（每行都有）
+ac78_header_checkbox=true               ← ① 表头全选复选框
+ac78_toolbar_before=false               ← ② 未选中时工具条不占位
+ac78_checked_3=[1,2,3]
+ac78_toolbar={"text":"已选择 3 项 | 批量收藏 | 批量移动 | 批量删除 | 取消","count":"已选择 3 项","favorite":true,"move":true,"del":true,"cancel":true}
+ac78_after_cancel={"checked":"[]","toolbar":false}   ← ③ 取消 → 选中清空 + 工具条消失
+ac78_favorite_requests=1                ← ④ **只发 1 个 POST /api/prompts/bulk**
+ac78_favorite_messages=["已收藏 2 条"]   ← ④ 反馈文本
+ac78_after_favorite_checked=[]          ← ④ 批量操作后选中态清空
+ac78_move_requests=1                    ← ⑤ 批量移动只发 1 个请求
+ac78_sidebar_counts_before=["AC27 甲目录 3","AC27 目标目录 0"]
+ac78_sidebar_counts=["AC27 甲目录 3","AC27 目标目录 2"]   ← ⑤ 侧栏计数同步（目标目录 0→2）
+ac78_delete_confirm_text=批量删除 prompt？ | 将删除 2 条 prompt，不可恢复。 | 取 消 | 删 除   ← ⑥ 二次确认
+ac78_total_before=8 / ac78_total_after_cancel=8 / ac78_total_after_confirm=6   ← ⑥ 先取消不删、再确认删 2
+ac78_deleted_404=404
+ac78_select_all={"rows":[1,2,3,4,7,8],"checked":[1,2,3,4,7,8],"all":true}   ← ⑦ 表头全选
+ac78_select_all_text=已选择 6 项
+ac78_regression={"edit":6,"del":6,"copy":6,"dragRow":6,"pagination":true,"sort":true,"search":true}   ← ⑧ 行内操作/行拖拽/分页/排序/搜索仍在
+  ✅ ①…⑧ 全过；页面运行时异常（bulk） = []
+
+=== AC-78 ⑨：批量接口负例（原样输出） ===
+  不存在 id：HTTP 400 {"error":"invalid_body","details":[{"path":"ids","message":"以下 prompt id 不存在：999999"}]}
+  空 ids：HTTP 400 {"error":"invalid_body","details":[{"path":"/ids","message":"must NOT have fewer than 1 items"}]}
+  目标文件夹不存在：HTTP 400 {"error":"invalid_body","details":[{"path":"folder_id","message":"文件夹 999999 不存在"}]}
+```
+
+**落库方式（FR-77 ⑥ 二选一，选 ①）与理由**：新增 `POST /api/prompts/bulk`（body `{"action":"favorite|move|delete","ids":[...],"folder_id":null|N}`，
+返回 `{"action":…,"affected":N}`），**整批一个事务**，判据「一次批量操作只发 1 个请求」实测 = **1**（见 `ac78_favorite_requests` / `ac78_move_requests`）。
+语义选择：`favorite`/`move` **复用单条 `PUT` 的既有语义**（写目标列 + `version_no` 递增 + 留一条版本快照 + 更新 `updated_at`），
+理由是让「同一条 prompt 无论走单条还是批量，字段与版本号变化完全相同」（与表格行内星标 `toggleFavorite` 走 PUT 的行为一致）；
+**未选中的条目一个字段都不动**（`tests/api-prompts-bulk.test.ts` 末条用例断言 `updated_at`/`version_no` 不变）。
+`favorite` 语义 = **全部设为已收藏**（已是收藏的保持，不做"切换"—— BRIEF FR-77 ③ 的指定语义）。
+
+#### ③ AC-79 分栏详情页「文件夹 + 标签」（真鼠标 + 落库读数 + 侧栏计数）
+
+```
+ac79_meta={"text":"AC27 甲目录 | #AC27甲 | + 添加标签","tags":["#AC27甲"],"folderSelect":true,"addTag":true,"afterNotes":true,"beforeFields":true,"metaTop":201,"notesBottom":185,"fieldsTop":243}
+ac79_style={"metaFontSize":"12.5px","titleFontSize":"18px","metaColor":"rgb(60, 64, 70)","titleColor":"rgb(20, 22, 26)","scrollWidth":1600,"clientWidth":1600}
+ac79_sidebar_counts_before=["AC27 甲目录 3","AC27 目标目录 2"] → ac79_sidebar_counts=["AC27 甲目录 2","AC27 目标目录 3"]
+ac79_folder_after_move=…"folder_id":2…   ← ② 落库成功
+ac79_move_messages=["已更新文件夹"]        ← ② 成功反馈
+ac79_folder_after_unfiled={"folder_id":null}   ← ② 再选「未归类」
+ac79_tags_after_add={"tags":["AC27乙","AC27甲"]}   ← ③ 加标签
+ac79_tags_after_remove={"tags":["AC27甲"]}         ← ④ 点 ✕ 删标签
+ac79_table_row=…AC27甲 未归类… / ac79_card_text=…AC27甲… / ac79_editor_tags=["AC27甲（1）"] / ac79_editor_notes=AC27 备注文本…   ← ⑤ 三处同源一致
+ac79_narrow_scroll={"scrollWidth":1100,"clientWidth":1100,"metaPresent":true}   ← ⑥ 窄屏无横向溢出
+  ✅ ①…⑥ 全过；页面运行时异常（detail-meta） = []
+```
+
+**位置与排版**：元信息行 `data-testid="pm-detail-meta"` 夹在 `pm-detail-notes`（185）与 `pm-detail-fields`（243）之间（`metaTop=201`）；
+字号 12.5px < 标题 18px、颜色 `rgb(60,64,70)` ≠ 标题 `rgb(20,22,26)`（次级色，不抢重心）。
+文件夹用 antd `TreeSelect`（选项 = 「未归类」+ 全部文件夹树，复用 `buildFolderTree`）；标签用 antd `Tag`（`#` 前缀 + `✕`）+ 一个 `Select mode="tags"` 添加入口。
+**同源落库**：走既有 `PUT /api/prompts/:id`（与编辑器同一接口、同一批字段），改完 `refresh()` 让侧栏计数同步。
+
+#### ④ AC-80 / AC-81 详情页页签与变量区块
+
+```
+ac80_tabs=["用户提示词","系统提示词"]   ← ① 恰好 2 个
+ac80_notes_tab_count=0                  ← ② 无「备注」页签
+ac80_user_render=没有变量的正文 / ac80_system_render=系统提示词内容   ← ③ 切换后 Markdown 渲染仍生效
+ac80_editor_notes={"present":true,"textarea":true}   ← ④ 编辑器备注输入框仍在
+ac81_detail={"hasVariableBlock":false,"variablePanel":false,"markdownPreview":true,"previewToggle":true,"versionHistory":true,…}
+ac81_editor_panel={"panel":true,"text":"变量填值 | 这条有 3 个变量…"}
+ac81_vars_dialog={"present":true,"title":"请填写变量值（自动记忆）","preview":true}
+  ✅ AC-80 ①…④ / AC-81 ①…④ 全过；两档页面运行时异常均为 []
+```
+
+#### ⑤ AC-82 VarsDialog 宽高（真实像素；改前基线先量）
+
+```
+# 改前（HEAD 的构建，同一脚本 vars 模式）
+ac82_split={"w":640,"h":398,"scrollWidth":592,"clientWidth":592,"inputs":3,"inputsVisible":true}
+# 改后
+ac82_split={"w":760,"h":477,"scrollWidth":712,"clientWidth":712,"inputs":3,"inputsVisible":true}
+ac82_table={"w":760,"h":477,…} / ac82_card={"w":760,"h":477,…}   ← ④ 三档一致（同一组件）
+ac82_dialog={"dialogPresent":true,"title":"请填写变量值（自动记忆）","trigger":"复制含变量 prompt（pm-detail-copy）"}
+  ✅ ② 宽度增幅 = 1.1875（≥1.15）｜高度增幅 = 1.1985（≥1.15）｜③ 无横向溢出 + 输入区可见｜④ 三档一致
+```
+
+**改法**：`web/src/components/VarsDialog.tsx` 的 `Modal width` 640 → **760**（+18.75%）、body 加 `minHeight: 360`、预览区 `maxHeight` 220 → 280。
+**所有触发位置共用同一个组件**（分栏 / 表格 / 卡片 / 编辑器），改一处即全生效 —— 三档实测尺寸完全一致。
+
+#### ⑥ 截图识图（`docs/shots/stage27/`，五问逐张过）
+
+| 图 | 重叠/遮挡 | 硬断词 | 孤标题 | 溢出裁切 | 符合既定美学 |
+| --- | --- | --- | --- | --- | --- |
+| `02-table-selected-3-light`（勾 3 条 + 工具条） | 无 | 无 | 无 | 无 | ✅ 与既有表格/描边按钮体系一致 |
+| `05-table-bulk-delete-confirm-light`（批量删除二次确认） | 无（弹窗居中遮罩） | 无 | 无 | 无 | ✅ 危险色按钮 + 条数/不可恢复文案清晰 |
+| `01-table-no-selection-light`（未选中，无工具条） | 无 | 无 | 无 | 无 | ✅ 未选中不占位 |
+| `07-table-select-all-light`（表头全选） | 无 | 无 | 无 | 无 | ✅ 表头复选框半选/全选态清晰 |
+| `01-detail-meta-light`（详情：标题→备注→元信息行→页签→正文） | 无 | 无 | 无 | 无 | ✅ 元信息行小字号次级色，层级与参考图一致 |
+| `02-detail-meta-folder-changed-light` / `03-detail-meta-tag-added-light` / `04-detail-meta-tag-removed-light` | 无 | 无 | 无 | 无 | ✅ 改文件夹/增删标签即时生效 |
+| `06-detail-meta-narrow-light`（1100px） | 无 | 无 | 无 | 无（`scrollWidth == clientWidth`） | ✅ 自然折行 |
+| `01-detail-tabs-two-light`（两个页签） | 无 | 无 | 无 | 无 | ✅ 去掉「备注」页签后不空 |
+| `01-detail-no-variable-block-light`（无变量区块） | 无 | 无 | 无 | 无 | ✅ 预览 + 版本历史仍在，留白合理 |
+| `01-vars-dialog-split-light` / `02-vars-dialog-card-light`（改后弹窗） | 无 | 无 | 无 | 无 | ✅ 变量两列铺开、预览区更舒展、减少内部滚动 |
+| `02-editor-notes-still-there-light` / `02-editor-variable-panel-light` / `03-copy-still-opens-vars-dialog-light` | 无 | 无 | 无 | 无 | ✅ 编辑器能力未丢 |
+
+**降级清单**：**无**（FR-77~FR-81 无降级项；未做「跨文件夹拖拽」等超出本阶段范围的能力，见 BRIEF 非目标）。
+
+#### ⑦ 被本阶段取代的既有断言（旧 → 新，逐条留痕）
+
+| 位置 | 旧断言（原文） | 新断言 + 理由 |
+| --- | --- | --- |
+| `tests/stage21-notes-plain.test.ts` AC-68 ② | `/field === 'notes'/` 存在 + `sourceMode \|\| plain \|\| field === 'notes' ? (` 三段式 | 改为「**不存在** notes 字段分支 + 不存在『备注』页签 + `pm-detail-notes` 仍按纯文本（无 HTML/Markdown 元素）」；理由：**FR-79 明确删除详情页「备注」页签**，AC-68 ② 的页签部分被取代，备注的纯文本要求由 FR-69 的标题下行承担 |
+| `tests/stage20-detail-header.test.ts` AC-66 ② | 控件 token 列表含 `'备注'` | 换成 `'pm-detail-notes'`；理由同上（页签已移除，备注行仍在） |
+| `tools/ac-stage20-probe.mjs` / `ac-stage20.sh` | 页签含「备注」 | 改为「页签 = 用户/系统提示词 且 `notesTab == 0`」 |
+| `tools/ac-stage21-probe.mjs` / `ac-stage21.sh` | 点「备注」页签 → 断言纯文本 + 0 个 markdown 请求；`grep -c "sourceMode \|\| plain \|\| field === 'notes'"` = 1 | 改为「备注页签计数 = 0 + 备注行纯文本 + 查看备注**不额外**发 markdown 请求」；AC-68 ④ 改为先切「系统提示词」再切回，确保确有新请求 |
+| `tools/ac-stage23.sh` AC-74 ① | 列宽 `[301,183,123,83,94,106,155,275]`（8 列）+ 表头 8 项 | 改为 `[60,287,175,118,79,90,101,148,262]`（**9 列**，首列 60px = FR-77 的复选框列）+ 表头首项为空字符串；理由：**FR-77 ① 要求表格首列新增复选框**，必然多一列；行高 43 / 表头高 38 / 手柄不新增列等其余断言不变 |
+| `tests/stage18-bundle.test.ts` AC-61 ⑤ | 预算 = 基线 + 阶段 18/22 已对账增量 | 追加 `STAGE27_ACCOUNTED_DELTA = 963`（改前 417,515 B → 改后 418,478 B，同 `node_modules` 实测） |
+
+#### ⑧ 回归（收尾三件套 + 重点 AC）
+
+```
+$ npm test                                   → ℹ tests 300 / pass 300 / fail 0
+$ bash tools/ci-check.sh                     → ✅ 代码质量检查全部通过（6 项）
+  ③ npm test（rc=0）  ℹ tests 300 ℹ pass 300 ℹ fail 0
+  ④b 体积预算（rc=0） 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+$ bash tools/ac-stage27.sh                   → ✅ AC-78 / AC-79 / AC-80 / AC-81 / AC-82 全部通过
+$ bash tools/ac-stage20.sh                   → ✅ AC-66 / AC-67 全部通过
+$ bash tools/ac-stage21.sh                   → ✅ AC-68 / AC-69 全部通过
+$ bash tools/ac-stage22.sh                   → ✅ AC-70 / AC-71 全部通过
+$ bash tools/ac-stage23.sh                   → ✅ AC-72 / AC-73 / AC-74 全部通过
+$ bash tools/ac-stage24.sh                   → ✅ AC-75 全部通过
+$ grep -rn "navigator.clipboard" web/src | wc -l   → 1（FR-65 不变）
+$ ls migrations/*.sql | wc -l                      → 3（无 schema 变更）
+$ git diff --stat package.json package-lock.json   → 空（无新依赖）
+```
+
+**AC-1…AC-77 未回归**：拖拽与分栏（AC-70/71/72/73/74/75）、备注（AC-68/69）、详情页头部与修改密码（AC-66/67）全部由上述阶段脚本复跑通过；
+唯一两处被**本阶段规格主动取代**的旧断言（AC-74 ① 的 8 列基线、AC-68 ② 的备注页签）已在上表逐条留痕。
+
+#### ⑨ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | 后端批量接口 `POST /api/prompts/bulk` + 单测 | 见下方「阶段 27 收尾」 |
+| ② | 前端 FR-77 表格批量 + FR-78/79/80 详情页改造 + 被取代断言的修订 | 见下方「阶段 27 收尾」 |
+| ③ | FR-81 VarsDialog 尺寸 + `tools/ac-stage27.*` + PROGRESS | 见下方「阶段 27 收尾」 |
+
 
 ## 归档与当前状态的关系
 

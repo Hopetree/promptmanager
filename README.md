@@ -12,7 +12,7 @@
   版本历史（diff + 回滚）、模板变量填值、Markdown 预览（服务端渲染 + XSS 净化 + 高亮）、JSON 导入导出、带认证的管理后台、
   **拖拽排序（自定义顺序）**、API Token / MCP（agent 取用）、使用记录。
 
-> **当前进度：阶段 1–25 已全部完成，即将发布 v1.0.0**（P0 + 后续演进全部交付；实际部署仍单独立项）。
+> **当前进度：阶段 1–27 已全部完成，已发布 v1.0.0**（P0 + 后续演进全部交付；实际部署仍单独立项）。
 > 服务端：认证（cookie + **API Token / Bearer 双通道**）、prompt 增删改查、列表筛选分页、**中文全文检索**、
 > 文件夹树（筛选**含全部子目录**，与侧栏计数同口径）与标签、**版本列表 + unified diff + 回滚**、
 > **模板变量提取与渲染**、**Markdown 渲染（XSS 净化 + 高亮）**、**JSON 全量导出 / 导入**、
@@ -22,8 +22,9 @@
 > **浏览器管理后台**也已交付（全部用 Ant Design 组件库）：登录页 / **分栏视图（默认）· 表格 · 卡片三档** /
 > 编辑器（双提示词 + 备注 + 文件夹 + 标签 + 收藏 + **应用内全屏**）/ 版本面板（diff + 回滚）/ 变量填值面板 /
 > Markdown 预览 / 导入导出（`replace` 二次确认）/ **拖拽排序**（卡片 · 分栏 · 表格 · 文件夹树）/ 修改密码 /
+> **表格批量操作**（复选框 + 全选 + 批量收藏/移动/删除 + 二次确认）/ 详情面**元信息行**（文件夹 + 标签可改）/
 > 响应式 + 亮暗跟随系统。
-> 需求与验收标准见 `BRIEF.md` 第 8 节（**AC-1 … AC-76**）；逐条实测输出见 `PROGRESS.md`（当前状态 + 阶段索引）
+> 需求与验收标准见 `BRIEF.md` 第 8 节（**AC-1 … AC-82**）；逐条实测输出见 `PROGRESS.md`（当前状态 + 阶段索引）
 > 与 `docs/dev-history/PROGRESS.md`（完整过程记录），验收结论见 `VERIFY.md`。
 > ⚠️ **交付 ≠ 已部署**：`deploy/` 里的 systemd unit / env 模板 / 反代样例 / 部署说明是**交付物**，
 > 实际安装、开机自启、反代与对外暴露**只在用户明确要求时由 host_manger 执行**。
@@ -208,9 +209,9 @@ node bin/pm.mjs export --out backup.json             # 全量导出
 | --- | --- | --- |
 | 登录页 | 用户名 + 口令登录（会话 cookie）；失败/限流有可读提示 | `POST /api/login`、`GET /api/me` |
 | 分栏 · 中栏 | 每条 = **标题 + 备注（固定两行）**；单击切换右栏；可拖拽排序；**默认三档视图** | `GET /api/prompts?q=&folder_id=&tag=&favorite=&sort=&limit=&offset=` |
-| 表格 · 卡片 | 表格：行内编辑/删除/收藏/复制 + **行拖拽排序**；卡片：正文摘要 + 标签 + 元信息 + **卡片本体可拖** | 同上 |
+| 表格 · 卡片 | 表格：行内编辑/删除/收藏/复制 + **行拖拽排序** + **批量操作**（首列复选框 + 表头全选 → 工具条「已选择 N 项」+ 批量收藏/移动/删除 + 取消；删除二次确认）；卡片：正文摘要 + 标签 + 元信息 + **卡片本体可拖** | 同上、`POST /api/prompts/bulk` |
 | 左栏 | 文件夹树（增/改名/删 + 点击筛选 + **同层级拖拽排序**；筛选**含全部子目录**，与计数同口径）、标签列表（含计数） | `/api/folders`、`/api/tags` |
-| 详情面（右栏） | 标题 + **标题下备注行** + 字段页签（用户/系统提示词、备注）+ 预览/源码 + 显示纯文本 + **应用内全屏**；备注按**纯文本**原样显示（不解析 Markdown） | `GET /api/prompts/:id` |
+| 详情面（右栏） | 标题 + **标题下备注行**（纯文本，不解析 Markdown）+ **元信息行**（文件夹下拉可改含「未归类」+ 标签胶囊 `#`/`✕` 可增删，即时落库）+ 字段页签（**只有 用户提示词 / 系统提示词**，阶段 27 起无「备注」页签）+ 预览/源码 + 显示纯文本 + **应用内全屏** + 版本历史（阶段 27 起**不再有变量填值区块**） | `GET /api/prompts/:id`、`PUT /api/prompts/:id` |
 | 编辑器 | 标题 / 用户提示词 / 系统提示词 / 备注 / 文件夹 / 标签 / 收藏；保存即产生新版本；**应用内全屏** | `POST/PUT /api/prompts` |
 | 版本历史 | 版本列表、任选两版看 unified diff（红删绿增）、回滚（生成新版本，历史不删） | `/versions`、`/diff`、`/versions/:n/rollback` |
 | 变量填值 | 自动提取 `{{变量}}` → 填值 → 渲染成品，一键复制（渲染不写库） | `/variables`、`/render` |
@@ -246,7 +247,7 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 | --- | --- | --- |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
 | ② 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
-| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **285/285**） |
+| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **300/300**） |
 | ④ 构建 + 体积预算 | `npm run build` + 量 `dist/web/assets/*.js` | 无 `larger than 500 kB` 告警，且**最大 chunk ≤ 500 KB** |
 
 CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调 `tools/ci-check.sh`** ——
@@ -256,7 +257,7 @@ CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调
 ## 怎么验证
 
 ```bash
-npm test                       # 全量测试（node:test；52 个测试文件 / 285 个用例，自带构建与类型检查）
+npm test                       # 全量测试（node:test；54 个测试文件 / 300 个用例，自带构建与类型检查）
 bash tools/ac-stage1.sh        # 阶段 1：AC-1 / AC-2 / AC-16（部分）/ AC-18 / AC-19（+ AC-20/21 预览）
 bash tools/ac-stage2.sh        # 阶段 2：AC-3 / AC-4 / AC-15
 bash tools/ac-stage3.sh        # 阶段 3：AC-5 / AC-6 / AC-7 / AC-14
@@ -281,6 +282,7 @@ bash tools/ac-stage22.sh       # 阶段 22：AC-70 / AC-71（拖拽排序 / 分�
 bash tools/ac-stage23.sh       # 阶段 23：AC-72 / AC-73 / AC-74（目录含子项 / 卡片贴底 / 表格拖拽）
 bash tools/ac-stage24.sh       # 阶段 24：AC-75（拖拽在全部视图生效 + 槽位保持）
 bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM；另含 AC-47 / AC-51 回归）
+bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82（表格批量 / 详情元信息行 / 两页签 / 去变量区块 / 弹窗尺寸）
 bash tools/ui-shots.sh` 会**自起自停**一个临时实例（临时 `DATA_DIR`、真实登录 cookie、
   零安装 headless chromium），产出 53 张截图到 `docs/shots/`，并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；
   逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
@@ -298,7 +300,7 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 | --- | --- | --- |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
 | ② 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
-| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **285/285**） |
+| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **300/300**） |
 | ④ 构建 + 体积预算 | `npm run build` + 量 `dist/web/assets/*.js` | 无 `larger than 500 kB` 告警，且**最大 chunk ≤ 500 KB** |
 
 CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调 `tools/ci-check.sh`** ——
@@ -308,7 +310,7 @@ CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调
 ## 怎么验证
 
 ```bash
-npm test                       # 全量测试（node:test；52 个测试文件 / 285 个用例，自带构建与类型检查）
+npm test                       # 全量测试（node:test；54 个测试文件 / 300 个用例，自带构建与类型检查）
 bash tools/ac-stage1.sh        # 阶段 1：AC-1 / AC-2 / AC-17 / AC-18 / AC-19
 bash tools/ac-stage2.sh        # 阶段 2：AC-3 / AC-4 / AC-15
 bash tools/ac-stage3.sh        # 阶段 3：AC-5 / AC-6 / AC-7 / AC-14
@@ -334,6 +336,7 @@ bash tools/ac-stage22.sh       # 阶段 22：AC-70 / AC-71（拖拽排序 / 分�
 bash tools/ac-stage23.sh       # 阶段 23：AC-72 / AC-73 / AC-74（目录含子项 / 卡片贴底 / 表格拖拽）
 bash tools/ac-stage24.sh       # 阶段 24：AC-75（拖拽在全部视图生效 + 槽位保持）
 bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM + 其余四处保持全名）
+bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82
 bash tools/ui-shots.sh         # 只跑界面自证截图（服务自起自停；可传输出目录）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # AC-7 的 2000 条中文夹具（直接写库，触发器同步 FTS）
 bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # 部署文件语法
@@ -341,21 +344,22 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 
 - **阶段 9 没有独立脚本**（`tools/ac-stage9.sh` 不存在）：它的 AC-16（全量测试）/ AC-17（凭据与产物卫生）/ AC-18（部署文件语法）
   分别由 `npm test`、`git check-ignore` + `git grep` 凭据扫描、`systemd-analyze verify` 覆盖（`ac-stage1.sh` 里另有一段 AC-16 的抽查）。
-- 逐条 **验收标准（AC-1 … AC-76）** 见 `BRIEF.md` 第 8 节；每条的实际命令与**原样输出**记录在
+- 逐条 **验收标准（AC-1 … AC-82）** 见 `BRIEF.md` 第 8 节；每条的实际命令与**原样输出**记录在
   `docs/dev-history/PROGRESS.md`（完整过程）与根目录 `PROGRESS.md`（当前状态 + 阶段索引）。
 - 中文检索方案（本项目的最大风险点）有独立实测报告：`docs/search-zh.md`（含 2000 条规模基线与特殊字符安全性）。
 - 依赖、版本、协议与安全审计证据：`docs/dependencies.md`。
 
 ## 已知限制
 
-- **阶段边界**：阶段 1–25 已全部交付（P0 + 后续演进）；即将发布 v1.0.0。
+- **阶段边界**：阶段 1–27 已全部交付（P0 + 后续演进）；v1.0.0。
 - **前端已知限制**：
   ① **没有 URL 路由/深链**——列表 ↔ 编辑器是应用内视图状态（覆盖式浮层 + `Tabs`），刷新会回到列表、不能用浏览器前进/后退；
-  ② 未做**批量操作**与**快捷键面板**（拖拽排序已在阶段 22/24 交付：卡片 · 分栏 · 表格 · 文件夹树，同层级重排）；
+  ② 未做**快捷键面板**（表格**批量操作**已在阶段 27 交付：首列复选框 + 表头全选 + 批量收藏/移动/删除 + 二次确认；
+     拖拽排序已在阶段 22/24 交付：卡片 · 分栏 · 表格 · 文件夹树，同层级重排）；
   ③ 搜索是「提交后查询 + 300ms 防抖」（`Input.Search`），没有真正的输入即搜；
-  ④ **bundle 体积（阶段 18 瘦身后）**：最大单 chunk = `vendor-antd` **456 kB**（gzip 136 kB），
-     首屏入口 `index` **49 kB**（gzip 16 kB），其余重组件走懒加载（`app-lazy` 127 kB / 用时才取）；
-     全量 js+css 合计 raw ≈ **1.3 MB** / gzip ≈ **408 kB**。构建**无** `larger than 500 kB` 告警；
+  ④ **bundle 体积（阶段 18 瘦身后，阶段 27 复测）**：最大单 chunk = `vendor-antd` **460 kB**（470,985 B / gzip 137 kB），
+     首屏入口 `index` **53 kB**（54,120 B / gzip 17 kB），其余重组件走懒加载（`app-lazy` 111 kB / 用时才取）；
+     全量 js+css 合计 raw ≈ **1.3 MB** / gzip ≈ **409 kB**（418,478 B）。构建**无** `larger than 500 kB` 告警；
      体积预算由 `tests/stage18-bundle.test.ts` 守住（含各阶段已对账增量）；
   ⑤ 变量面板的填值不做持久化（渲染不写库，符合 FR-8 契约）；切换 prompt 会清空填值。
 - **导入导出语义**：`GET /api/export` 输出 `{app,schema_version:1,exported_at,folders,tags,prompts}`（prompt 内嵌 `versions`；
@@ -407,7 +411,7 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 
 ## 文档
 
-- `BRIEF.md` —— 需求合同与逐条验收标准（唯一需求来源，只读；AC-1 … AC-76）
+- `BRIEF.md` —— 需求合同与逐条验收标准（唯一需求来源，只读；AC-1 … AC-82）
 - `PROGRESS.md` —— **当前状态 + 阶段索引**（完整过程记录见 `docs/dev-history/PROGRESS.md`）
 - `QUESTIONS.md` —— 待决问题模板（历史问答见 `docs/dev-history/QUESTIONS-history.md`）
 - `VERIFY.md` —— 验收报告（host_manger 写）
