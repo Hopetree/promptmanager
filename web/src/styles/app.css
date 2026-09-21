@@ -243,6 +243,64 @@
 }
 
 /* ============================================================
+   阶段 29（FR-82 / FR-83）：阶段 27 的 5 条视觉细化
+   ============================================================ */
+
+/* FR-82 ①：表头「全选」复选框的半选态。
+   antd 6 的 indeterminate 默认是「白底 + 灰边 + 中间一个小主色方块」（见 antd/es/checkbox/style），
+   在表格里被读成"实心方块"、且视觉上比已勾选的行内复选框小 ⇒ 无法一眼区分"全选 / 部分选中"。
+   这里只覆盖**视觉**（组件仍是 antd 的 Checkbox），改成业界惯例的「主色底 + 白色横杠」，
+   外框仍是 16×16（与行内已勾选态同尺寸）。选择器带 .pm-table-dense 前缀以提高优先级 ——
+   antd 是运行时注入的 CSS-in-JS，同优先级会盖过静态样式表。 */
+.pm-table-dense .ant-checkbox-indeterminate {
+  background-color: var(--pm-primary);
+  border-color: var(--pm-primary);
+}
+
+.pm-table-dense .ant-checkbox-indeterminate::after {
+  width: 8px;
+  height: 2px;
+  border: 0;
+  border-radius: 1px;
+  background-color: #fff;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* FR-82 ②：批量工具条与表头行之间留出间距（原先紧贴，视觉拥挤；AC-84 ③ 要求 ≥6px，这里给 8px）。 */
+.pm-bulk-toolbar {
+  margin-bottom: 8px;
+}
+
+/* FR-83 ⑤：详情页元信息行的标签 chip 与左栏「胶囊云」用**同一套视觉**
+   （背景 / 边框 / 圆角 / 字号 / 高度一致）。antd Tag 默认是「浅蓝底 + 4px 圆角 + 无边框」，
+   与左栏 chip 不一致；这里按同名 class 对齐，并带 .pm-detail-meta 前缀提高优先级。 */
+.pm-detail-meta .ant-tag.pm-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: var(--pm-surface-2);
+  color: var(--pm-ink-subtle);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default; /* 详情页 chip 本体不可点，只有 ✕ 可点 */
+}
+
+.pm-detail-meta .ant-tag.pm-tag-chip .ant-tag-close-icon {
+  margin-inline-start: 6px;
+  font-size: 10px;
+  color: var(--pm-ink-subtle);
+}
+
+/* ============================================================
    阶段 16（FR-51 / FR-57 / FR-58）：可点 logo、收藏星标、主题双图标
    ============================================================ */
 

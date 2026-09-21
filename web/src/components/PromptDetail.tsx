@@ -127,14 +127,17 @@ export function PromptDetailPanel({
 
       {/* FR-78：元信息行 —— 位置在**备注行之下、字段页签之上**（排版参考 PromptHub：小字号、次级色、不抢重心）；
           文件夹下拉可改（含「未归类」）、标签以 `#` 前缀胶囊显示且每个带 ✕、另有「添加标签」入口；
-          改完立即生效（PUT 落库）并给出反馈，与编辑器 / 卡片 / 表格同源。 */}
+          改完立即生效（PUT 落库）并给出反馈，与编辑器 / 卡片 / 表格同源。
+          FR-83 ①：间距做成**层级对称** —— 与备注行拉开（父容器 gap 16 + marginTop 4 = 20px，≥12px），
+          且不大于与字段页签行的间距（gap 16 + marginBottom 8 = 24px），读起来是"独立的一行"而非备注的第二行。
+          FR-83 ④：minWidth:0 + wrap —— 长文件夹名 / 多标签时换行，不把「+ 添加标签」顶出面板。 */}
       <Flex
         data-testid="pm-detail-meta"
         className="pm-detail-meta"
         align="center"
         gap={10}
         wrap
-        style={{ fontSize: 12.5, color: token.colorTextSecondary }}
+        style={{ fontSize: 12.5, color: token.colorTextSecondary, marginTop: 4, marginBottom: 8, minWidth: 0 }}
       >
         <TreeSelect
           data-testid="pm-detail-folder"
@@ -147,20 +150,21 @@ export function PromptDetailPanel({
           showSearch
           treeNodeFilterProp="title"
           popupMatchSelectWidth={220}
-          style={{ minWidth: 150, maxWidth: 220 }}
+          style={{ minWidth: 140, maxWidth: 220, flex: '0 1 auto' }}
         />
-        <Flex align="center" gap={4} wrap style={{ minWidth: 0 }}>
+        <Flex align="center" gap={4} wrap style={{ minWidth: 0, flex: '1 1 auto' }}>
           {prompt.tags.map((tag) => (
             <Tag
               key={tag}
               data-testid="pm-detail-tag"
+              /* FR-83 ⑤：与左栏「胶囊云」同一套 chip 视觉（样式在 app.css 的 .pm-detail-meta .ant-tag.pm-tag-chip） */
+              className="pm-tag-chip pm-detail-tag"
               closable
               closeIcon={<CloseOutlined data-testid="pm-detail-tag-remove" />}
               onClose={(event) => {
                 event.preventDefault();
                 onMetaChange(prompt, { tags: prompt.tags.filter((item) => item !== tag) });
               }}
-              style={{ marginInlineEnd: 0, fontSize: 11.5 }}
             >
               #{tag}
             </Tag>
@@ -172,7 +176,7 @@ export function PromptDetailPanel({
             mode="tags"
             value={[]}
             placeholder="+ 添加标签"
-            style={{ minWidth: 118 }}
+            style={{ minWidth: 110, flex: '0 0 auto' }}
             options={tags.map((tag) => ({ value: tag.name, label: tag.name }))}
             onChange={(values: string[]) => {
               const next = [...prompt.tags];

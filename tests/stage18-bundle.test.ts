@@ -40,6 +40,14 @@ const STAGE22_ACCOUNTED_DELTA = 15_954;
  * 未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。
  */
 const STAGE27_ACCOUNTED_DELTA = 963;
+/**
+ * 阶段 29（FR-82 / FR-83）的**已对账**增量：**实测** +166 B gzip。
+ * 依据（2026-09-21）：阶段 27 收尾时总 gzip = **418,478 B**（见上一条）；本阶段完成后 = **418,644 B**
+ * ⇒ 差值 **166 B**。构成：`app.css` 新增的半选态覆写 + 工具条间距 + 详情 chip 统一（约 +0.4 KB raw / +0.16 KB gzip），
+ * 以及 `PromptDetail.tsx` 的间距/换行保护（无新增依赖、无新增组件）。
+ * 未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。
+ */
+const STAGE29_ACCOUNTED_DELTA = 166;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */

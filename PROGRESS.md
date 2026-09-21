@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–28 已全部完成**；已发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）与阶段 28（`AGENTS.md` / AC-83，含全英文返工）自检全过**（见本文件「阶段 27」「阶段 28」） |
+| 阶段 | **阶段 1–29 已全部完成**；已发布 **v1.0.0** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83，含全英文返工）与阶段 29（FR-82/FR-83 / AC-84/AC-85，阶段 27 的 5 条视觉细化）自检全过**（见本文件「阶段 27」「阶段 28」「阶段 29」） |
 | 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -50,6 +50,7 @@
 | 26 | 上线准备：文档整理 + 产物清理（P1）+ 质量检查/版本 1.0.0/flaky 修复（P2） | 本文件「上线准备 P1」「上线准备 P2」「P2 返工」 |
 | 27 | FR-77 表格批量操作（复选框/全选/批量收藏·移动·删除）+ FR-78 详情页「文件夹+标签」可改 + FR-79 去「备注」页签 + FR-80 去变量区块 + FR-81 加大 VarsDialog | 本文件「阶段 27」 |
 | 28 | 项目级 `AGENTS.md`（AI 代理操作指南：常用命令 / 结构地图 / 约定 / 红线 / 10 条本项目特有的坑 / 文档地图 / 协作约定；按 STANDARDS §5.1 **全文英文**） | 本文件「阶段 28」 |
+| 29 | FR-82 表格批量 UI 细化（表头半选态可辨 + 与行内尺寸一致 + 工具条间距≥6px）+ FR-83 详情页元信息行细化（层级间距 20≤24 + 长内容换行保护 + 标签 chip 与左栏统一） | 本文件「阶段 29」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -771,6 +772,156 @@ $ npm test                      → rc=0   ℹ tests 300 / ℹ pass 300 / ℹ fa
 | 常用命令可跑 | 隔离副本 rc 全 0（含返工后抽查 6 条） | 本节 ② |
 | 并行避让 | 只提交 1 文件 / 未动 `PROGRESS.md` / 隔离副本验证 / 未用 `git add -A` | 本节 ② |
 | AC-83 ⑧ 判据命令缺陷 | `LC_ALL=C` + `\x{}` → rc=2；`LC_ALL=C` + `\p{Han}` → 假绿（旧版也 0） | 本节 ⑧（建议 BRIEF 修订） |
+
+
+## 阶段 29（2026-09-21）：阶段 27 的 5 条视觉细化（FR-82 / FR-83）
+
+### 开工前：AC-84 / AC-85 → 检查命令（先落盘，再动手）
+
+> 基线：`npm test` 已跑，**300/300 全绿**（rc=0，`ℹ tests 300 / pass 300 / fail 0`）—— 绿色基线确认后才开工。
+> 本阶段**只改观感与健壮性**（CSS / 组件属性 / 间距），**不动功能语义、接口契约、数据模型**；**无 schema 变更**、**无新依赖**。
+
+| AC | 要执行的检查命令 | 判据 |
+| --- | --- | --- |
+| AC-84 ① | `node tools/ac-stage29-probe.mjs bulk-ui <base> <sid> <shots>`（真鼠标勾 3 行 → 读表头复选框 DOM/属性） | 部分选中 → 表头 `.ant-checkbox-indeterminate` 存在（或 `input[aria-checked="mixed"]`）；点表头全选 → `.ant-checkbox-checked` 存在且 `indeterminate` 消失；再点取消 → **两者皆无**（贴 DOM/属性证据） |
+| AC-84 ② | 同上（量 `getBoundingClientRect()`） | 表头复选框与行内复选框的宽、高**差 ≤1px**（贴数值） |
+| AC-84 ③ | 同上（量工具条底部 → 表头行顶部） | 间距 **≥6px**（贴像素） |
+| AC-84 ④ | `node tools/ac-stage27-probe.mjs bulk <base> <sid> <shots>`（沿用 AC-78 断言） | 批量收藏/移动/删除（含二次确认）+ **一次操作 1 个请求** 仍成立（贴关键行） |
+| AC-84 ⑤ | 同上 | 截图三态：未选 / 部分选（半选）/ 全选 |
+| AC-85 ① | `node tools/ac-stage29-probe.mjs meta-ui <base> <sid> <shots>`（真鼠标选中长内容夹具） | 「备注行底部 → 元信息行顶部」**≥12px**，且**不大于**「元信息行底部 → 字段页签行顶部」（贴两个数值） |
+| AC-85 ② | 同上（夹具：**长文件夹名 ≥20 字 + 5 个标签**） | 元信息行 `scrollWidth <= clientWidth + 2`，且「+ 添加标签」控件 `getBoundingClientRect().right <= 面板 right + 1`（贴数值 + 截图） |
+| AC-85 ③ | 同上（`getComputedStyle` 详情 chip vs 左栏同名 chip） | `backgroundColor` / `border` / `borderRadius` **三者一致**（贴两处数值对比） |
+| AC-85 ④ | `node tools/ac-stage27-probe.mjs detail-meta <base> <sid> <shots>`（沿用 AC-79 断言） | 改文件夹 / 加标签 / 删标签仍落库 + 三处（卡片/表格/编辑器）同源一致（贴关键行） |
+| AC-85 ⑤ | 同上 | 截图：常规（有文件夹 + 多标签）/ 长内容 / 亮暗 |
+| 回归 | `npm test`（≥300，只增不减）；`bash tools/ci-check.sh`；`bash tools/ac-stage27.sh`（AC-78~AC-82）；`bash tools/ac-stage22.sh` / `ac-stage23.sh` / `ac-stage24.sh`（AC-70~75） | 全绿；用例数变化须说明理由 |
+
+### 阶段 29 实施与自检：逐条命令 + 原样输出
+
+> 改动面（`git diff --stat` 收尾核对）：**2 个前端文件**（`web/src/styles/app.css` 新增 3 组规则、`web/src/components/PromptDetail.tsx` 元信息行间距/换行保护/chip class）；
+> 新增 **1 个测试**（`tests/stage29-ui.test.ts`，7 用例）、**2 个 AC 脚本**（`tools/ac-stage29.sh`、`tools/ac-stage29-probe.mjs`）、**1 组截图**（`docs/shots/stage29/`）；
+> `tests/stage18-bundle.test.ts` 追加体积记账。**无接口/契约/数据模型改动**、**无 schema 变更**（`migrations/*.sql` 仍 3 个）、**无新依赖**。
+> 本阶段需求规格（六维）已按 grill 共识落盘：`docs/dev-history/doublecheck-stage29-spec.md`。
+
+#### ① 五条现象的「改前 → 改后」真实数值（先量基线再动手）
+
+| # | 现象 | 改前（实测） | 改后（实测） | 落盘位置 |
+| --- | --- | --- | --- | --- |
+| ① | 半选态看不出 / 像实心方块 | `.ant-checkbox-indeterminate` **本来就有**（机械判据已满足），但 antd 6 的画法是「**白底 + 灰边 + 中间一个小主色方块**」（`node_modules/antd/es/checkbox/style/index.js` 的 `&-indeterminate`）⇒ 读起来就是"实心方块"、视觉上比已勾选的 16×16 小 | 覆写为「**主色底 + 白色 8×2 横杠**」，外框仍是 16×16，与已勾选态同尺寸；**只覆盖视觉**，组件仍是 antd `Checkbox` | `web/src/styles/app.css`（`.pm-table-dense .ant-checkbox-indeterminate`） |
+| ② | 表头复选框比行内小 | 表头 `16×16` / 行内 `16×16`（**差 0px**，机械判据本来就过） | 不变（规则里**不写 width/height**，只改底色与横杠） | 同上 + `tests/stage29-ui.test.ts` 的"未做尺寸覆写"断言 |
+| ③ | 工具条贴表头 | `toolbar.bottom=144`，`headerRow.top=144` ⇒ **0px** | `toolbar.bottom=144`，`headerRow.top=152` ⇒ **8px**（≥6） | `app.css`（`.pm-bulk-toolbar { margin-bottom: 8px }`） |
+| ④ | 元信息行贴备注、离页签远 | `notesToMeta=16`、`metaToFields=16`（**相等** ⇒ 读起来像备注的第二行） | `notesToMeta=**20**`、`metaToFields=**24**`（20≥12 且 20≤24，层级对称） | `PromptDetail.tsx`（元信息行 `marginTop:4 / marginBottom:8`，父容器 `gap=16`） |
+| ⑤ | 长内容把「+ 添加标签」顶出 | 1600px 下已不溢出（`scrollWidth=clientWidth=924`、`addRight=1408≤panelRight=1567`）—— AC-79 ⑥ 只测窄屏、未测长内容，**这次补上窄面板证据** | 1600px：`924=924`、`addRight=1462≤1567`；**1100px 窄面板**：`688=688`、`addRight=968≤1067`（新增 `minWidth:0` + `flex:1 1 auto` + 文件夹 `maxWidth:220`） | `PromptDetail.tsx`（元信息行 / 标签块 / 添加控件 / 文件夹下拉的 flex 约束） |
+| ⑤' | 详情 chip 与左栏 chip 不一致 | 详情 `bg=rgba(94,106,210,0.14)`、`radius=4px`、`color=rgb(94,106,210)`、`height=21.8px`；左栏 `bg=rgb(246,247,249)`、`radius=13px`、`color=rgb(107,114,128)`、`height=26px` | **逐项相等**：两处都是 `bg=rgb(246,247,249)` / `border=1px solid rgba(0,0,0,0)` / `radius=13px` / `color=rgb(107,114,128)` / `height=26px` | `PromptDetail.tsx`（`className="pm-tag-chip pm-detail-tag"`）+ `app.css`（`.pm-detail-meta .ant-tag.pm-tag-chip`） |
+
+> **诚实说明**：①②的**机械判据**（`ant-checkbox-indeterminate` 存在、表头/行内 16×16 差 0px）在改前**就已满足** —— 用户看到的问题来自 antd 的半选**画法**。
+> 因此本阶段对 ① 做的是**视觉覆写**（用户已确认保留该改法），对 ② 只做"不破坏尺寸"的约束与断言；④同理：1600px 下改前也不溢出，本阶段补的是**窄面板 + 长内容**的健壮性与证据。
+
+#### ② AC-84 表格批量 UI 细化（`bash tools/ac-stage29.sh bulk`，真鼠标 + 真实像素）
+
+```
+=== AC-84：表格批量 UI 细化（真鼠标 + 真实像素） ===
+  ✅ ① 未选：indeterminate 与 checked 皆无 = true
+  ✅ ① 部分选中：半选态（ant-checkbox-indeterminate 或 aria-checked=mixed） = true
+  ✅ ① 部分选中 DOM 证据：{"classes":"ant-checkbox ant-checkbox-indeterminate ant-wave-target css-19u5a7b","indeterminateClass":true,"checkedClass":false,"ariaChecked":null,"inputChecked":false}
+  ✅ ① 全选：打勾且无 indeterminate = true
+  ✅ ① 全选后当页全部勾选 = true
+  ✅ ① 再点取消：两者皆无 = true
+  ✅ ① 取消后 0 行勾选 = 0
+  ✅ ② 表头与行内复选框尺寸差 ≤1px（宽/高） = true
+  ✅ ② 表头复选框 rect：{"left":286,"top":162,"right":302,"bottom":178,"w":16,"h":16}
+  ✅ ② 行内复选框 rect：{"left":286,"top":203,"right":302,"bottom":219,"w":16,"h":16}
+  ✅ ② 表头 wrapper：{"left":286,"top":160,"right":302,"bottom":181,"w":16,"h":21} ｜ 行内 wrapper：{"left":286,"top":200,"right":302,"bottom":221,"w":16,"h":21}
+  ✅ ③ 工具条底部 → 表头行顶部（px） = 8（≥ 6）
+  ✅ ③ 工具条 rect：{"left":264,"top":118,"right":1584,"bottom":144,"w":1320,"h":26} ｜ 表头行 rect：{"left":264,"top":152,"right":1584,"bottom":190,"w":1320,"h":38}
+  ✅ 页面运行时异常（bulk-ui） = []
+
+=== AC-84 ④：批量动作回归（沿用 AC-78 断言；真鼠标 + 请求计数） ===
+  ✅ ④ 批量收藏：2 条 favorite=true = true
+  ✅ ④ 只发 1 个 POST /api/prompts/bulk（收藏） = 1
+  ✅ ④ 批量移动只发 1 个请求 = 1
+  ✅ ④ 批量移动：2 条 folder_id = 目标目录 = true
+  ✅ ④ 二次确认文本含条数与「不可恢复」 = true
+  ✅ ④ 先取消不删 / 再确认删 2 = true
+  ✅ ④ 表头全选 → 当页全部选中 = true
+  ✅ ④ 行内操作 / 行拖拽手柄 / 分页 / 排序 / 搜索仍在 = true
+  ✅ 页面运行时异常（AC-78 回归） = []
+```
+
+#### ③ AC-85 详情页元信息行细化（`bash tools/ac-stage29.sh meta`，真实像素 + 长内容夹具）
+
+```
+=== AC-85：详情页元信息行细化（真鼠标 + 真实像素 + 长内容夹具） ===
+ac85_spacing={"notesBottom":185,"metaTop":205,"metaBottom":231,"fieldsTop":255,"notesToMeta":20,"metaToFields":24}
+  ✅ ① 备注行底部 → 元信息行顶部（px） = 20（≥ 12）
+  ✅ ① 前者 ≤ 元信息行底部 → 字段页签行顶部 = true
+  ✅ ② 长内容元信息行：{"scrollWidth":924,"clientWidth":924,"metaRight":1567,"addRight":1462,"panelRight":1567,"folderText":"AC29 超长文件夹名称用于换行保护验证ABC一二三四五六七八九十","tagCount":5,"docScrollWidth":1600,"docClientWidth":1600}
+  ✅ ② 长内容不横向溢出（scrollWidth ≤ clientWidth+2） = true
+  ✅ ② 「+ 添加标签」仍在面板可视区内（right ≤ 面板 right+1） = true
+  ✅ ② 页面整体无横向溢出 = true
+  ✅ ② 长内容夹具确实含 5 个标签 = 5
+  ✅ ③ chip 样式对比：{"name":"#AC29乙","detail":{"backgroundColor":"rgb(246, 247, 249)","border":"1px solid rgba(0, 0, 0, 0)","borderTopWidth":"1px","borderTopStyle":"solid","borderTopColor":"rgba(0, 0, 0, 0)","borderRadius":"13px","color":"rgb(107, 114, 128)","height":"26px"},"sidebar":{"backgroundColor":"rgb(246, 247, 249)","border":"1px solid rgba(0, 0, 0, 0)","borderTopWidth":"1px","borderTopStyle":"solid","borderTopColor":"rgba(0, 0, 0, 0)","borderRadius":"13px","color":"rgb(107, 114, 128)","height":"26px"}}
+  ✅ ③ 详情 chip 与左栏同名 chip 样式一致（backgroundColor / border / borderRadius） = true
+  ✅ 页面运行时异常（meta-ui） = []
+（② 补充证据·窄面板 1100px）ac85_meta_long_narrow={"scrollWidth":688,"clientWidth":688,"addRight":968,"panelRight":1067,"docScrollWidth":1100,"docClientWidth":1100}
+
+=== AC-85 ④：改文件夹 / 加标签 / 删标签 + 三处同源回归（沿用 AC-79 断言） ===
+  ✅ ④ 元信息行位置：备注行之下、字段页签之上 = true
+  ✅ ④ 改文件夹落库 = 目标目录 = true
+  ✅ ④ 再选「未归类」→ folder_id=null = true
+  ✅ ④ 加标签 → 落库 tags 增加 = true
+  ✅ ④ 点 ✕ 删标签 → 落库 tags 减少 = true
+  ✅ ④ 三处同源：表格行含标签 = true
+  ✅ ④ 三处同源：卡片含标签 = true
+  ✅ ④ 三处同源：编辑器标签一致 = true
+  ✅ ④ 侧栏计数同步（甲目录 −1 / 目标目录 +1） = true
+  ✅ 页面运行时异常（AC-79 回归） = []
+```
+
+#### ④ 截图识图（`docs/shots/stage29/`，五问逐张过）
+
+| 图 | 重叠/遮挡 | 硬断词 | 孤标题 | 溢出裁切 | 符合既定美学 |
+| --- | --- | --- | --- | --- | --- |
+| `01-bulk-none-light`（未选） | 无 | 无 | 无 | 无 | ✅ 表头复选框为空框 |
+| `02-bulk-partial-light`（**半选**） | 无 | 无 | 无 | 无 | ✅ 表头复选框 = **主色底 + 白色横杠**，与行内已勾选（白勾）一眼可辨、同为 16×16；工具条与表头有可见间距 |
+| `03-bulk-all-light`（全选） | 无 | 无 | 无 | 无 | ✅ 表头 = 白勾；「已选择 16 项」 |
+| `01-meta-regular-light`（常规） | 无 | 无 | 无 | 无 | ✅ 标题 → 备注 → **元信息行（独立一行）** → 页签 → 正文；chip 与左栏同款灰胶囊 |
+| `02-meta-long-light`（长内容 1600px） | 无 | 无 | 无 | 无（文件夹名省略号截断；5 chip + 添加入口同排） | ✅ |
+| `02b-meta-long-narrow-light`（长内容 1100px） | 无 | 无 | 无 | 无（`scrollWidth == clientWidth`，添加入口在面板内） | ✅ 自然折行 |
+| `03-meta-long-dark` / `04-meta-regular-dark`（暗色） | 无 | 无 | 无 | 无 | ✅ 暗色下 chip 为等价低对比底色，与左栏一致 |
+
+> `docs/shots/stage29/regression-ac27/`（13 张）是 **AC-78 / AC-79 回归**的截图（由 `tools/ac-stage27-probe.mjs` 在新视觉下重跑产出，与本阶段自己的 8 张分开存放）。
+
+**降级清单**：**无**。**明确不做**（已与用户确认，见 `docs/dev-history/doublecheck-stage29-spec.md` 的 non-goals）：
+① 表格「标签」列的 chip 仍用 antd 默认（FR-83 ⑤ 只点名「详情页元信息行 vs 左栏」）；
+② 顶层 `docs/shots/*.png`（53 张"当前状态"证据）**未重跑**，留待下次"上线准备"批次统一刷新（本阶段证据在 `docs/shots/stage29/`）。
+
+#### ⑤ 回归（收尾三件套 + 重点 AC）
+
+```
+$ npm test                       → ℹ tests 307 / pass 307 / fail 0        （300 → 307，+7 = tests/stage29-ui.test.ts）
+$ bash tools/ci-check.sh         → ✅ 代码质量检查全部通过（6 项）
+   ③ npm test（rc=0）  ℹ tests 307 ℹ pass 307 ℹ fail 0
+   ④b 体积预算（rc=0） 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+$ bash tools/ac-stage29.sh       → ✅ AC-84 / AC-85 全部通过（rc=0）
+$ bash tools/ac-stage27.sh       → ✅ AC-78 / AC-79 / AC-80 / AC-81 / AC-82 全部通过（rc=0）
+$ bash tools/ac-stage22.sh       → ✅ AC-70 / AC-71 全部通过（rc=0）
+$ bash tools/ac-stage23.sh       → ✅ AC-72 / AC-73 / AC-74 全部通过（rc=0）
+$ bash tools/ac-stage24.sh       → ✅ AC-75 全部通过（rc=0）
+$ ls migrations/*.sql | wc -l    → 3（无 schema 变更）
+$ git diff --name-only package.json package-lock.json → 空（无新依赖）
+```
+
+**体积记账**：`tests/stage18-bundle.test.ts` 追加 `STAGE29_ACCOUNTED_DELTA = 166`（阶段 27 收尾 418,478 B → 本阶段 418,644 B，同 `node_modules` 实测），
+预算 = 399,175 + 2,560 + 15,954 + 963 + 166 = **418,818 B**，实测 418,644 B ≤ 预算 ✓。
+
+**AC-1…AC-83 未回归**：AC-78~AC-82（阶段 27 批量与详情页）与 AC-70~75（拖拽与分栏）由上述脚本复跑全过；
+本阶段**没有**任何"被取代的旧断言"（AC-84/85 是新增判据，旧断言全部继续成立）。
+
+#### ⑥ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-82 表格批量 UI（半选态/尺寸/间距）+ FR-83 元信息行（间距/换行/chip）+ 源码级测试 + AC 脚本 + 截图 + 文档 | 见交付回复（本表由收尾 docs-only 提交回填） |
 
 
 ## 归档与当前状态的关系

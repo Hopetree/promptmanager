@@ -12,7 +12,7 @@
   版本历史（diff + 回滚）、模板变量填值、Markdown 预览（服务端渲染 + XSS 净化 + 高亮）、JSON 导入导出、带认证的管理后台、
   **拖拽排序（自定义顺序）**、API Token / MCP（agent 取用）、使用记录。
 
-> **当前进度：阶段 1–27 已全部完成，已发布 v1.0.0**（P0 + 后续演进全部交付；实际部署仍单独立项）。
+> **当前进度：阶段 1–29 已全部完成，已发布 v1.0.0**（P0 + 后续演进全部交付；实际部署仍单独立项）。
 > 服务端：认证（cookie + **API Token / Bearer 双通道**）、prompt 增删改查、列表筛选分页、**中文全文检索**、
 > 文件夹树（筛选**含全部子目录**，与侧栏计数同口径）与标签、**版本列表 + unified diff + 回滚**、
 > **模板变量提取与渲染**、**Markdown 渲染（XSS 净化 + 高亮）**、**JSON 全量导出 / 导入**、
@@ -24,7 +24,7 @@
 > Markdown 预览 / 导入导出（`replace` 二次确认）/ **拖拽排序**（卡片 · 分栏 · 表格 · 文件夹树）/ 修改密码 /
 > **表格批量操作**（复选框 + 全选 + 批量收藏/移动/删除 + 二次确认）/ 详情面**元信息行**（文件夹 + 标签可改）/
 > 响应式 + 亮暗跟随系统。
-> 需求与验收标准见 `BRIEF.md` 第 8 节（**AC-1 … AC-82**）；逐条实测输出见 `PROGRESS.md`（当前状态 + 阶段索引）
+> 需求与验收标准见 `BRIEF.md` 第 8 节（**AC-1 … AC-85**）；逐条实测输出见 `PROGRESS.md`（当前状态 + 阶段索引）
 > 与 `docs/dev-history/PROGRESS.md`（完整过程记录），验收结论见 `VERIFY.md`。
 > ⚠️ **交付 ≠ 已部署**：`deploy/` 里的 systemd unit / env 模板 / 反代样例 / 部署说明是**交付物**，
 > 实际安装、开机自启、反代与对外暴露**只在用户明确要求时由 host_manger 执行**。
@@ -247,7 +247,7 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 | --- | --- | --- |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
 | ② 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
-| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **300/300**） |
+| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **307/307**） |
 | ④ 构建 + 体积预算 | `npm run build` + 量 `dist/web/assets/*.js` | 无 `larger than 500 kB` 告警，且**最大 chunk ≤ 500 KB** |
 
 CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调 `tools/ci-check.sh`** ——
@@ -257,7 +257,7 @@ CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调
 ## 怎么验证
 
 ```bash
-npm test                       # 全量测试（node:test；54 个测试文件 / 300 个用例，自带构建与类型检查）
+npm test                       # 全量测试（node:test；55 个测试文件 / 307 个用例，自带构建与类型检查）
 bash tools/ac-stage1.sh        # 阶段 1：AC-1 / AC-2 / AC-16（部分）/ AC-18 / AC-19（+ AC-20/21 预览）
 bash tools/ac-stage2.sh        # 阶段 2：AC-3 / AC-4 / AC-15
 bash tools/ac-stage3.sh        # 阶段 3：AC-5 / AC-6 / AC-7 / AC-14
@@ -283,6 +283,7 @@ bash tools/ac-stage23.sh       # 阶段 23：AC-72 / AC-73 / AC-74（目录含�
 bash tools/ac-stage24.sh       # 阶段 24：AC-75（拖拽在全部视图生效 + 槽位保持）
 bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM；另含 AC-47 / AC-51 回归）
 bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82（表格批量 / 详情元信息行 / 两页签 / 去变量区块 / 弹窗尺寸）
+bash tools/ac-stage29.sh       # 阶段 29：AC-84 / AC-85（表格批量 UI 半选态·尺寸·间距 / 详情元信息行间距·换行·chip 统一）
 bash tools/ui-shots.sh` 会**自起自停**一个临时实例（临时 `DATA_DIR`、真实登录 cookie、
   零安装 headless chromium），产出 53 张截图到 `docs/shots/`，并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；
   逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
@@ -300,7 +301,7 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 | --- | --- | --- |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
 | ② 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
-| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **300/300**） |
+| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **307/307**） |
 | ④ 构建 + 体积预算 | `npm run build` + 量 `dist/web/assets/*.js` | 无 `larger than 500 kB` 告警，且**最大 chunk ≤ 500 KB** |
 
 CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调 `tools/ci-check.sh`** ——
@@ -310,7 +311,7 @@ CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调
 ## 怎么验证
 
 ```bash
-npm test                       # 全量测试（node:test；54 个测试文件 / 300 个用例，自带构建与类型检查）
+npm test                       # 全量测试（node:test；55 个测试文件 / 307 个用例，自带构建与类型检查）
 bash tools/ac-stage1.sh        # 阶段 1：AC-1 / AC-2 / AC-17 / AC-18 / AC-19
 bash tools/ac-stage2.sh        # 阶段 2：AC-3 / AC-4 / AC-15
 bash tools/ac-stage3.sh        # 阶段 3：AC-5 / AC-6 / AC-7 / AC-14
@@ -337,6 +338,7 @@ bash tools/ac-stage23.sh       # 阶段 23：AC-72 / AC-73 / AC-74（目录含�
 bash tools/ac-stage24.sh       # 阶段 24：AC-75（拖拽在全部视图生效 + 槽位保持）
 bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM + 其余四处保持全名）
 bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82
+bash tools/ac-stage29.sh       # 阶段 29：AC-84 / AC-85（表格批量 UI / 详情元信息行 视觉细化）
 bash tools/ui-shots.sh         # 只跑界面自证截图（服务自起自停；可传输出目录）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # AC-7 的 2000 条中文夹具（直接写库，触发器同步 FTS）
 bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # 部署文件语法
@@ -344,14 +346,14 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 
 - **阶段 9 没有独立脚本**（`tools/ac-stage9.sh` 不存在）：它的 AC-16（全量测试）/ AC-17（凭据与产物卫生）/ AC-18（部署文件语法）
   分别由 `npm test`、`git check-ignore` + `git grep` 凭据扫描、`systemd-analyze verify` 覆盖（`ac-stage1.sh` 里另有一段 AC-16 的抽查）。
-- 逐条 **验收标准（AC-1 … AC-82）** 见 `BRIEF.md` 第 8 节；每条的实际命令与**原样输出**记录在
+- 逐条 **验收标准（AC-1 … AC-85）** 见 `BRIEF.md` 第 8 节；每条的实际命令与**原样输出**记录在
   `docs/dev-history/PROGRESS.md`（完整过程）与根目录 `PROGRESS.md`（当前状态 + 阶段索引）。
 - 中文检索方案（本项目的最大风险点）有独立实测报告：`docs/search-zh.md`（含 2000 条规模基线与特殊字符安全性）。
 - 依赖、版本、协议与安全审计证据：`docs/dependencies.md`。
 
 ## 已知限制
 
-- **阶段边界**：阶段 1–27 已全部交付（P0 + 后续演进）；v1.0.0。
+- **阶段边界**：阶段 1–29 已全部交付（P0 + 后续演进）；v1.0.0。
 - **前端已知限制**：
   ① **没有 URL 路由/深链**——列表 ↔ 编辑器是应用内视图状态（覆盖式浮层 + `Tabs`），刷新会回到列表、不能用浏览器前进/后退；
   ② 未做**快捷键面板**（表格**批量操作**已在阶段 27 交付：首列复选框 + 表头全选 + 批量收藏/移动/删除 + 二次确认；
@@ -411,7 +413,7 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 
 ## 文档
 
-- `BRIEF.md` —— 需求合同与逐条验收标准（唯一需求来源，只读；AC-1 … AC-82）
+- `BRIEF.md` —— 需求合同与逐条验收标准（唯一需求来源，只读；AC-1 … AC-85）
 - `PROGRESS.md` —— **当前状态 + 阶段索引**（完整过程记录见 `docs/dev-history/PROGRESS.md`）
 - `QUESTIONS.md` —— 待决问题模板（历史问答见 `docs/dev-history/QUESTIONS-history.md`）
 - `VERIFY.md` —— 验收报告（host_manger 写）

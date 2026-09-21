@@ -1,0 +1,19 @@
+# Doublecheck spec
+
+## Goal
+按 BRIEF v38 §4 FR-82 / FR-83 完成阶段 29：修复阶段 27 的 5 条视觉/健壮性问题（表格批量 UI：半选态可辨、复选框尺寸一致、工具条与表头间距；详情页元信息行：层级间距、长内容换行保护、chip 样式与左栏统一），只改观感与健壮性，不改功能语义。
+
+## Scope
+In scope: web/src/styles/app.css（半选态覆写 / .pm-bulk-toolbar 间距 / .pm-detail-meta .ant-tag.pm-tag-chip）、web/src/components/PromptDetail.tsx（元信息行 marginTop/marginBottom + minWidth:0/wrap + chip class）、tests/stage29-ui.test.ts（新增源码级断言 7 例）、tools/ac-stage29.sh + tools/ac-stage29-probe.mjs（AC-84/85 自起自停 + 真鼠标 + 真实像素）、docs/shots/stage29/（本阶段截图证据）、tests/stage18-bundle.test.ts（追加 STAGE29_ACCOUNTED_DELTA=166）、PROGRESS.md（AC 翻译 + 自检 + 识图）、README.md（用例数/验证脚本等事实性数字）。Out of scope: 功能语义与接口契约、数据模型与迁移、表格「标签」列的 chip 统一、顶层 docs/shots/*.png（53 张）、部署/systemd/8767、BRIEF.md 与 STANDARDS.md。
+
+## Acceptance criteria
+AC-84 ① 部分选中→.ant-checkbox-indeterminate（或 aria-checked=mixed）、全选→.ant-checkbox-checked 且无 indeterminate、未选→两者皆无（贴 DOM/属性）；② 表头与行内复选框 rect 宽高差 ≤1px（实测 16×16 差 0）；③ 工具条底部→表头行顶部 ≥6px（实测 8px）；④ 批量收藏/移动/删除+二次确认与「一次操作 1 个请求」仍成立（沿用 AC-78 断言）；⑤ 三态截图。AC-85 ① 备注→元信息 ≥12px 且 ≤ 元信息→页签（实测 20 ≤ 24）；② 长内容（长文件夹名 33 字 + 5 标签）元信息行 scrollWidth ≤ clientWidth+2 且「+ 添加标签」right ≤ 面板 right+1（实测 1600px: 924=924 / 1462≤1567；1100px: 688=688 / 968≤1067）；③ 详情 chip 与左栏同名 chip 的 backgroundColor/border/borderRadius 一致（实测 rgb(246,247,249) / 1px solid transparent / 13px）；④ 改文件夹/加标签/删标签落库 + 三处同源（沿用 AC-79 断言）；⑤ 常规/长内容/亮暗截图。回归：npm test 全绿（≥300，现 307）、bash tools/ci-check.sh 6/6、bash tools/ac-stage27.sh（AC-78~82）与 ac-stage22/23/24.sh（AC-70~75）全过。
+
+## Failure modes
+① antd 运行时注入的 CSS-in-JS 盖过静态样式表 → 已用 .pm-table-dense / .pm-detail-meta 前缀提高优先级，实测主色底与 chip 三属性均生效；② 覆写半选态时误改外框尺寸破坏 AC-84 ② → 规则内不写 width/height，实测两者 16×16 差 0px；③ chip 选择器优先级不足 → 实测 computed style 与左栏逐项相等；④ 长内容横向溢出或「+ 添加标签」被顶出 → 元信息行 minWidth:0 + wrap、标签块 flex:1 1 auto、添加控件 flex:0 0 auto、文件夹 maxWidth:220，1600/1100 两档实测均无溢出；⑤ 间距改过头或层级反了 → 实测 notesToMeta 20 ≤ metaToFields 24 且 ≥12；⑥ 体积预算爆掉 → +166B 已记账，总 gzip 418,644 ≤ 预算 418,818；⑦ 改 CSS 波及表格列宽/拖拽像素回归 → ac-stage23/24 复跑全过。
+
+## Priorities
+先满足 AC 的可贴数值判据，再满足用户观感（半选态必须一眼可辨）；严格不越 BRIEF 范围（表格列 chip、顶层截图明确不做）；任何改动不得触碰功能语义、接口契约、数据模型；能复用既有 AC 断言（AC-78/AC-79 探针）就不另写一套。
+
+## Non-goals
+不统一表格「标签」列的 chip 视觉（用户已确认按 BRIEF 字面范围）；不重跑顶层 docs/shots/*.png 53 张（用户已确认，留待下次上线准备批次）；不改批量操作的功能语义/文案/顺序/请求数；不改元信息行的功能与位置；不引新依赖、不引 CDN、不自建组件；不动部署与系统配置；不改 BRIEF.md / STANDARDS.md。
