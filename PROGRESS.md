@@ -1697,7 +1697,21 @@ AC-3 / AC-4（`tools/ac-stage2.sh` 覆盖，未跑：本阶段未改认证与接
      60+ 行的文档重构不属于本阶段范围，按纪律不"顺手"做。**建议 host_manger 单独下一次清理指令**。
 2. **登录页移动端标题词中折行**（见识图 ③）：既有观感问题，未改，见上。
 
-### ⑦ 落盘对账（每条结论 → 落盘位置）
+### ⑦ AC-89 ④：GitHub Actions 实跑（**我拿不到结论，如实说明**）
+
+- **推送已确认**：`git ls-remote github main` = `3c53bb4fb82687a0992929a7300d771566788b06` = 本地 HEAD
+  （`origin` 同值）⇒ 三端一致；workflow 的触发条件是 `on: push: branches: ['**']`，**本次 push 已触发 `ci`**。
+- **拿不到 run 结论的原因（可核）**：仓库是**私有**的 —— 未认证访问
+  `https://api.github.com/repos/Hopetree/promptmanager` 与 `.../actions/runs` **都是 HTTP 404**
+  （GitHub 对私有仓库统一返回 404）；本机**没有 `gh` CLI**、`_env/` 为空、git 远端是 SSH（`git@github.com:...`）
+  且无 credential helper ⇒ **没有任何可用于查 Actions 的凭据**。按 BRIEF「若拿不到就说明"已推送，待 Actions 跑完"」处理。
+- **我能提供的最强等价证据**：CI 跑的就是 `npm ci` + `bash tools/ci-check.sh`，而
+  **AC-89 ① 已在"先删 `dist` 的干净环境"里把同一脚本跑到 rc=0 / 6 项全绿**（见 §① 原样输出）——
+  这正是本次 CI 红的根因场景。
+- **请用户/host_manger 复核**：<https://github.com/Hopetree/promptmanager/actions>（需登录；看 `ci` workflow
+  在 `3c53bb4` 上的结论）。**若仍红，请把 run 日志贴回来，我按新指令返工。**
+
+### ⑧ 落盘对账（每条结论 → 落盘位置）
 
 | 结论 | 落盘位置 |
 | --- | --- |
@@ -1711,14 +1725,15 @@ AC-3 / AC-4（`tools/ac-stage2.sh` 覆盖，未跑：本阶段未改认证与接
 | 改前基线（过程产物，不入库） | `tmp/stage32-before.sh`（HEAD 的临时 worktree）+ `tmp/shots/stage32-before/` |
 | 本阶段截图（过程产物，不入库） | `tmp/shots/stage32/*.png`（5 张） |
 
-### ⑧ commit（收尾 commit hash 单独标注）
+### ⑨ commit（收尾 commit hash 单独标注）
 
 | 单元 | 内容 | commit |
 | --- | --- | --- |
-| ① | FR-87：`tools/ci-check.sh` 顺序 + `package.json` 前置 + 5 例单测 | 见下方交付回复 |
-| ② | FR-88：`LoginPage.tsx` 简化 + 5 例单测 | 同上 |
-| ③ | AC 工具：`tools/ac-stage32.sh` + `ac-stage32-probe.mjs` | 同上 |
-| ④ | 文档：README / AGENTS / 本小节 | **收尾 commit** |
+| ① | FR-87：`tools/ci-check.sh` 顺序 + `package.json` 前置 + 5 例单测 | `69a8d46` |
+| ② | FR-88：`LoginPage.tsx` 简化 + 5 例单测 | `91e45e7` |
+| ③ | AC 工具：`tools/ac-stage32.sh` + `ac-stage32-probe.mjs` | `431aca3` |
+| ④ | 文档：README / AGENTS / 本小节 | `3c53bb4` |
+| ⑤ | 补 AC-89 ④ 的如实说明（本节 ⑦） | **收尾 commit**（见交付回复） |
 
 **纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
 `git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动部署（`/opt/promptmanager`、systemd、
