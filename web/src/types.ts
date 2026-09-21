@@ -87,6 +87,8 @@ export interface TokenSummary {
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+  /** FR-94：明文是否还能再查看（= 库里存了密文）。存量 token 为 false（不可恢复，建议撤销后重建）。 */
+  revealable: boolean;
 }
 
 /** 创建 token 的响应：**明文只在这一个响应里出现一次**（BRIEF §5）。 */

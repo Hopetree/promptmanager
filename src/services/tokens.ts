@@ -1,18 +1,24 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { QueryEngine } from '../db/index.js';
-import { InvalidBodyError, NotFoundError } from '../errors.js';
+import { ConflictError, InvalidBodyError, NotFoundError } from '../errors.js';
 import { nowIso } from './auth.js';
+import { TokenEncKeyUnavailableError, type TokenCipher } from './token-crypto.js';
 
 /** 明文 token 前缀（AC-22 期望"形如 pm_… 的一行明文"）。 */
 export const TOKEN_PREFIX = 'pm_';
 
-/** 契约里的 token 摘要（**绝不含明文**，也不含 token_hash）。 */
+/** 契约里的 token 摘要（**绝不含明文**，也不含 token_hash / token_enc）。 */
 export interface TokenSummary {
   id: number;
   name: string;
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+  /**
+   * FR-94：这条 token 的明文**是否可以再查看**（= 库里存了密文）。
+   * 存量 token（迁移前创建）为 `false` —— 原明文从未落库，不可恢复，只能撤销后重建。
+   */
+  revealable: boolean;
 }
 
 function toSummary(row: {
@@ -21,6 +27,7 @@ function toSummary(row: {
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
+  token_enc: string | null;
 }): TokenSummary {
   return {
     id: row.id,
@@ -28,6 +35,7 @@ function toSummary(row: {
     created_at: row.created_at,
     last_used_at: row.last_used_at,
     revoked_at: row.revoked_at,
+    revealable: row.token_enc !== null,
   };
 }
 
@@ -41,22 +49,39 @@ export function hashToken(plaintext: string): string {
 }
 
 /**
- * 创建 token：**明文只在这一个返回值里出现一次**，此后任何接口/日志都不再回显。
+ * 创建 token：明文出现在返回值里（创建响应），**并且**（FR-94）加密后落 `token_enc` 以便日后随时查看。
+ *
+ * `cipher` 可选：密钥不可用时**不阻断创建**（退化为"这条不可查看"，与存量 token 同态），
+ * 只在服务端记一条**不含明文**的告警。
  */
 export async function createToken(
   qe: QueryEngine,
   rawName: string | undefined,
+  cipher?: TokenCipher,
 ): Promise<{ token: string; summary: TokenSummary }> {
   const name = (rawName ?? '').trim();
   if (name === '') throw new InvalidBodyError([{ path: 'name', message: 'token 名不能为空' }]);
   if ([...name].length > 100) throw new InvalidBodyError([{ path: 'name', message: 'token 名不能超过 100 字符' }]);
 
   const token = generateToken();
+  let tokenEnc: string | null = null;
+  if (cipher !== undefined) {
+    try {
+      tokenEnc = cipher.encrypt(token);
+    } catch (error) {
+      // 不打印明文/密钥；只说明"这条以后看不了"
+      const reason = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`warn: token 加密不可用，这条 token 之后无法查看（鉴权不受影响）：${reason}\n`);
+      tokenEnc = null;
+    }
+  }
+
   const inserted = await qe
     .insertInto('api_tokens')
     .values({
       name,
       token_hash: hashToken(token),
+      token_enc: tokenEnc,
       created_at: nowIso(),
       last_used_at: null,
       revoked_at: null,
@@ -67,7 +92,7 @@ export async function createToken(
   return { token, summary: toSummary(inserted) };
 }
 
-/** 列表：按 id 升序；只给摘要（无明文、无 hash）。 */
+/** 列表：按 id 升序；只给摘要（无明文、无 hash、无密文，只有 `revealable` 布尔）。 */
 export async function listTokens(qe: QueryEngine): Promise<TokenSummary[]> {
   const rows = await qe.selectFrom('api_tokens').selectAll().orderBy('id', 'asc').execute();
   return rows.map(toSummary);
@@ -100,3 +125,25 @@ export async function resolveApiToken(
   await qe.updateTable('api_tokens').set({ last_used_at: nowIso() }).where('id', '=', row.id).execute();
   return { id: row.id, name: row.name };
 }
+
+/**
+ * FR-94：**查看 token 明文**（`POST /api/tokens/:id/reveal` 与 CLI `token reveal` 共用）。
+ *
+ * - 不存在 → `NotFoundError`（404）；
+ * - 存量行（`token_enc IS NULL`）→ `ConflictError('token_not_revealable')`（409）——**它的鉴权照样可用**；
+ * - 密钥不可用/不匹配 → `TokenEncKeyUnavailableError`（上层映射成明确错误，不崩不泄）。
+ *
+ * ⚠️ 明文只在返回值里出现，**绝不进日志**（调用方只允许记"某 id 被查看"）。
+ */
+export async function revealToken(qe: QueryEngine, id: number, cipher: TokenCipher): Promise<string> {
+  const row = await qe
+    .selectFrom('api_tokens')
+    .select(['id', 'token_enc'])
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (row === undefined) throw new NotFoundError();
+  if (row.token_enc === null) throw new ConflictError('token_not_revealable');
+  return cipher.decrypt(row.token_enc);
+}
+
+export { TokenEncKeyUnavailableError };

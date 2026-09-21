@@ -16,8 +16,9 @@ const USAGE = `用法：node bin/pm.mjs <命令> [选项]
   migrate                              执行 migrations/*.sql（幂等），输出 ok: schema at v<N>
   user set-password --username <u>     设置/新建用户口令（口令从 stdin 读，绝不打印）  [阶段 2]
   export --out <path>                  导出全量 JSON（与 GET /api/export 同格式；用于备份）
-  token create --name <n>              创建 API Token（明文只在 stdout 最后一行出现一次）
-  token list                           列出 API Token（不含明文）
+  token create --name <n>              创建 API Token（明文在 stdout 最后一行；FR-94 起加密落库、可再查看）
+  token list                           列出 API Token（不含明文；含 revealable）
+  token reveal <id>                     查看 API Token 明文（本机管理路径，读同一加密密钥）
   token revoke <id>                     撤销 API Token（立即失效）
   get [<关键词>] [--id <N>] [--json]    经 HTTP API 检索 / 取单个 prompt（需 PM_API_URL+PM_API_TOKEN）
   render --id <N> [--set k=v ...] [--json]  经 HTTP API 渲染变量，缺省输出渲染后的 user_prompt
@@ -45,12 +46,17 @@ async function readStdin(): Promise<string> {
   return Buffer.concat(chunks).toString('utf8').replace(/\r?\n$/, '');
 }
 
-async function openCliDatabase(): Promise<{ qe: QueryEngine; close: () => Promise<void> }> {
+async function openCliDatabase(): Promise<{
+  qe: QueryEngine;
+  /** 运行期配置（FR-94：`token reveal` 需要 dataDir 来定位加密密钥文件） */
+  config: ReturnType<typeof import('../config.js').loadConfig>;
+  close: () => Promise<void>;
+}> {
   const { loadConfig } = await import('../config.js');
   const { prepareDatabase } = await import('../db/index.js');
   const config = loadConfig();
   const { qe } = prepareDatabase(config);
-  return { qe, close: () => qe.destroy() };
+  return { qe, config, close: () => qe.destroy() };
 }
 
 async function migrate(argv: string[]): Promise<number> {
@@ -256,7 +262,16 @@ async function token(argv: string[]): Promise<number> {
     process.stdout.write(USAGE);
     return 0;
   }
-  if (sub !== 'create' && sub !== 'list' && sub !== 'revoke') return usage(`token 的子命令 "${sub}" 未实现（create / list / revoke）`);
+  if (sub !== 'create' && sub !== 'list' && sub !== 'reveal' && sub !== 'revoke') {
+    return usage(`token 的子命令 "${sub}" 未实现（create / list / reveal / revoke）`);
+  }
+  if (sub === 'reveal') {
+    // FR-94：reveal **只走本机管理路径**（读同一加密密钥）。HTTP 面刻意只允许 cookie 会话
+    // （避免 token 互相窥视），而 CLI 没有 cookie ⇒ 设置 PM_API_URL 时明确拒绝，不回退。
+    if (resolveApiEnv().explicit) {
+      return usage('token reveal 只支持本机管理路径（不设 PM_API_URL）；HTTP 面只允许浏览器会话调用 /api/tokens/:id/reveal');
+    }
+  }
 
   const api = resolveApiEnv();
   if (api.explicit) {
@@ -297,6 +312,20 @@ async function tokenLocal(sub: string, argv: string[]): Promise<number> {
       if (parsed.rest.length > 0) return usage(`list 不接受参数："${parsed.rest[0]}"`);
       printTokenList(await tokens.listTokens(handle.qe));
       return 0;
+    }
+    if (sub === 'reveal') {
+      const rawId = parsed.rest[0];
+      if (rawId === undefined) return usage('缺少 <id>（token reveal <id>）');
+      const { loadTokenCipher, TokenEncKeyUnavailableError } = await import('../services/token-crypto.js');
+      try {
+        const plaintext = await tokens.revealToken(handle.qe, Number(rawId), loadTokenCipher(handle.config));
+        process.stderr.write(`ok: token ${rawId} revealed（明文在下一行）\n`);
+        process.stdout.write(`${plaintext}\n`);
+        return 0;
+      } catch (error) {
+        if (error instanceof TokenEncKeyUnavailableError) return fail(error.message);
+        throw error;
+      }
     }
     // revoke <id>
     const rawId = parsed.rest[0];

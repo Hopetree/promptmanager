@@ -60,7 +60,7 @@ test('FR-70 迁移：旧库升级后既有条目顺序不变（按升级前的�
     assert.deepEqual(before.map((row) => row.id), [1, 2, 3]);
 
     const result = runMigrations(db, MIGRATIONS);
-    assert.equal(result.version, 3);
+    assert.equal(result.version, 4);
     assert.ok(result.applied.includes('003_prompt-sort-order.sql'));
 
     const after = rows(db);
@@ -92,12 +92,12 @@ test('FR-70 迁移幂等：重复执行不报错、不改动已有 sort_order', 
   }
 });
 
-test('FR-70 迁移：全新库从 0 跑到 3（含 sort_order 列与索引）', () => {
+test('FR-70 迁移：全新库从 0 跑到当前版本（含 sort_order 列与索引）', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'pm-fresh-'));
   const db = new Database(path.join(dir, 'pm.db'));
   try {
     const result = runMigrations(db, MIGRATIONS);
-    assert.equal(result.version, 3);
+    assert.equal(result.version, 4);
     const columns = (db.prepare('PRAGMA table_info(prompts)').all() as Array<{ name: string }>).map((row) => row.name);
     assert.ok(columns.includes('sort_order'), 'prompts 必须有 sort_order 列');
     const indexes = (db.prepare('PRAGMA index_list(prompts)').all() as Array<{ name: string }>).map((row) => row.name);

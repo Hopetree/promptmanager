@@ -17,6 +17,7 @@ import {
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { api, ApiError, describeError } from '../api';
+import { writeClipboard } from '../clipboard';
 import { formatDateTime } from '../pure';
 import type { CreatedToken, TokenSummary } from '../types';
 import { EmptyState } from './States';
@@ -27,7 +28,12 @@ interface TokenDrawerProps {
   onUnauthorized: () => void;
 }
 
-/** API Token 管理（FR-15）：浏览器用 cookie 会话管理；**明文只在创建时显示一次**。 */
+/**
+ * API Token 管理（FR-15；FR-94 起**可随时查看/复制**）：浏览器用 cookie 会话管理。
+ * - 新建：创建响应里给明文（模态框可复制）；
+ * - 已有：`revealable=true` 的行有「复制」按钮（现取现复制，明文不落前端状态之外的地方）；
+ * - 存量 token（迁移前创建，`revealable=false`）：显示"不可查看"，提示撤销后重建。
+ */
 export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDrawerProps) {
   const { message } = AntdApp.useApp();
   const [tokens, setTokens] = useState<TokenSummary[]>([]);
@@ -78,6 +84,18 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
     }
   };
 
+  /** FR-94：现取明文 → 写剪贴板（明文只在内存里过一手，不落 state、不进日志）。 */
+  const copyPlaintext = async (id: number): Promise<void> => {
+    try {
+      const { token } = await api.revealToken(id);
+      const ok = await writeClipboard(token);
+      if (ok) message.success('已复制到剪贴板');
+      else message.warning('浏览器不允许自动复制，请打开「显示」后手动复制');
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   const revoke = async (id: number): Promise<void> => {
     try {
       await api.revokeToken(id);
@@ -89,7 +107,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
   };
 
   const columns: TableProps<TokenSummary>['columns'] = [
-    { title: '名称', dataIndex: 'name', key: 'name', ellipsis: true },
+    { title: '名称', dataIndex: 'name', key: 'name', ellipsis: true, width: 200 },
     {
       title: '状态',
       key: 'state',
@@ -112,6 +130,33 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       render: (value: string | null) => <Typography.Text type="secondary">{formatDateTime(value)}</Typography.Text>,
     },
     {
+      title: '令牌',
+      key: 'reveal',
+      width: 150,
+      render: (_value, token) =>
+        token.revoked_at !== null ? (
+          <Typography.Text type="secondary">—</Typography.Text>
+        ) : token.revealable ? (
+          <Button
+            type="link"
+            size="small"
+            icon={<CopyOutlined />}
+            data-testid={`pm-token-copy-${String(token.id)}`}
+            onClick={() => void copyPlaintext(token.id)}
+          >
+            复制
+          </Button>
+        ) : (
+          <Typography.Text
+            type="secondary"
+            style={{ fontSize: 12 }}
+            data-testid={`pm-token-unrevealable-${String(token.id)}`}
+          >
+            不可查看（旧令牌，请撤销后重建）
+          </Typography.Text>
+        ),
+    },
+    {
       title: '操作',
       key: 'action',
       width: 90,
@@ -132,7 +177,8 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
     <Drawer
       open={open}
       onClose={onClose}
-      width={720}
+      /* FR-94 新增「令牌」列（复制/不可查看）后，720 会把名称挤成 "A..." ⇒ 加宽到 880 */
+      width={880}
       rootClassName="pm-tokens"
       title={
         <Space>
@@ -147,7 +193,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           type="info"
           showIcon
           message="Token 与本人等价（单用户，不做权限分层）"
-          description="用法：curl -H 'Authorization: Bearer <token>' …；明文只在创建时显示一次，库里只存 sha256。"
+          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机（可随时点「复制」再取）。"
         />
 
         <Form form={form} layout="inline" onFinish={() => void create()}>
@@ -168,7 +214,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           dataSource={tokens}
           loading={loading}
           pagination={false}
-          locale={{ emptyText: <EmptyState title="还没有 token" hint="创建一个给 CLI 或 MCP 用；明文只显示一次" /> }}
+          locale={{ emptyText: <EmptyState title="还没有 token" hint="创建一个给 CLI 或 MCP 用；之后可随时复制" /> }}
         />
       </Space>
 
@@ -178,10 +224,14 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
         onOk={() => setCreated(null)}
         okText="我已保存"
         cancelButtonProps={{ style: { display: 'none' } }}
-        title="新 token（只显示这一次）"
+        title="新 token"
       >
         <Flex vertical gap={12}>
-          <Alert type="warning" showIcon message="关闭后无法再看到明文，请立刻复制保存。" />
+          <Alert
+            type="info"
+            showIcon
+            message="现在复制一下；之后也能在列表里点「复制」再取（明文加密存在本机）。"
+          />
           <Typography.Paragraph
             copyable={{ text: created?.token ?? '', icon: [<CopyOutlined key="copy" />, <CopyOutlined key="copied" />] }}
             style={{ wordBreak: 'break-all', marginBottom: 0, fontFamily: 'monospace' }}

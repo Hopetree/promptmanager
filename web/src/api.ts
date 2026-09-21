@@ -167,6 +167,8 @@ export const api = {
   createToken: (name: string) => request<CreatedToken>('POST', '/api/tokens', { name }),
 
   revokeToken: (id: number) => request<void>('DELETE', `/api/tokens/${String(id)}`),
+  /** FR-94：查看 token 明文（**只允许会话 cookie**；Bearer 调会被 403）。 */
+  revealToken: (id: number) => request<{ token: string }>('POST', `/api/tokens/${String(id)}/reveal`),
 };
 
 /** 统一的用户可读错误文案（401 单独判，用于把用户踢回登录页）。 */

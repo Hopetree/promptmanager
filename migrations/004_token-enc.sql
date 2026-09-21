@@ -1,0 +1,13 @@
+-- 004_token-enc.sql —— 阶段 35 / FR-94 / D-35 ②：api_tokens 增加"可随时查看"所需的加密列
+--
+-- 背景：原先明文只在创建时返回一次（库里只存 sha256），用户要求"可随时复制获取，安全就行"。
+-- 本迁移新增 `token_enc`（nullable），存 **AES-256-GCM** 密文：`base64(nonce ‖ tag ‖ ciphertext)`。
+--
+-- 关键权衡（写在这里省下一个人）：
+--   · **`token_hash`（sha256）继续用于鉴权，语义一字不变** ⇒ 即使加密密钥丢失，token 照样能用，只是"看不了"；
+--   · 密钥**不进库**：`TOKEN_ENC_KEY`（32 字节 hex）env 优先，缺失时自动生成到 `<DATA_DIR>/token-enc.key`（600）。
+--     于是"只有库泄露"拿不到 token；但若把**整个数据目录**一起拷走，等于钥匙和锁放一起（靠备份落点权限保护）。
+--   · **存量行保持 NULL**：原明文从未落库，无法恢复 ⇒ reveal 时返回 409 `token_not_revealable`（如实提示重建）。
+--
+-- 幂等：由 schema_migrations 记录版本号保证只执行一次（与 001–003 同一机制）。
+ALTER TABLE api_tokens ADD COLUMN token_enc TEXT;

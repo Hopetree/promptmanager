@@ -73,7 +73,8 @@ export interface PromptVersionsTable {
 export interface ApiTokensTable {
   id: Generated<number>;
   name: string;
-  token_hash: string; // sha256(明文) hex（64 字符）
+  token_hash: string; // sha256(明文) hex（64 字符）—— **鉴权唯一依据**（FR-94 后语义不变）
+  token_enc: string | null; // FR-94：AES-256-GCM 密文 base64(nonce‖tag‖ciphertext)；存量行为 NULL（不可恢复）
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;

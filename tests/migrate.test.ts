@@ -23,10 +23,10 @@ test('runMigrations 幂等：重复执行不报错，schema 版本稳定在当�
   withDb((db) => {
     const first = runMigrations(db);
     const second = runMigrations(db);
-    // 001 初始 schema + 002（阶段 6：api_tokens / usage_events）
-    // 阶段 22 起当前 schema 版本 = 3（003_prompt-sort-order.sql）
-    assert.equal(first.version, 3);
-    assert.equal(second.version, 3);
+    // 001 初始 schema + 002（阶段 6：api_tokens / usage_events）+ 003（阶段 22：prompts.sort_order）
+    // + 004（阶段 35：api_tokens.token_enc）⇒ 当前 schema 版本 = 4
+    assert.equal(first.version, 4);
+    assert.equal(second.version, 4);
     assert.equal(second.applied.length, 0, '第二次执行不应重复应用迁移');
     const rows = db
       .prepare("select name from sqlite_master where type = 'table' order by name")
