@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v42 |
+| 版本 | v43 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -771,6 +771,28 @@
 - FR-30 关系树 / 语义关系面板 / 输出格式序列 / 看板 / 图谱
 - FR-31 私有加密文件夹、AI 改写与多模型测试、图片反推
 - FR-32 外部同步（WebDAV/S3）、多端、i18n 多语言、桌面/移动打包
+
+- FR-89 **GitHub Actions：构建容器镜像并推送到 Docker Hub（用户 2026-09-21 提出）**——
+  用户原话：「**github action 添加构建镜像推动到docker hub的配置**」。
+  - **要交付**：新增 **`.github/workflows/docker.yml`**（**不改动** `ci.yml` 的任何检查项）：
+    - **触发**：① `push: tags: ['v*']`（**主用途**：发版 tag 即构建并推送）；② `workflow_dispatch`（手动补跑）；
+      ③ `push: branches: [main]` —— **只构建、不推送**（尽早发现 Dockerfile 被改坏；`push: false`）。
+    - **权限最小化**：`permissions: contents: read`（不需要 `packages: write`，Docker Hub 与 GITHUB_TOKEN 无关）。
+    - **步骤**：`actions/checkout` → `docker/setup-buildx-action` → `docker/login-action`（凭据只从 **GitHub Secrets** 取）
+      → `docker/metadata-action`（算 tag）→ `docker/build-push-action`。**官方 action 一律 pin 到大版本**（如 `@v4`/`@v3`/`@v6`）。
+    - **镜像名**：`${{ secrets.DOCKERHUB_USERNAME }}/promptmanager` —— **不得硬编码任何用户名/命名空间**。
+    - **镜像 tag 规则（由 metadata-action 自动算）**：推 `v1.0.1` 时产出 **`1.0.1` + `1.0` + `latest`**；
+      `main` 分支构建**不推送**；手动触发按当前 ref 算 tag。
+    - **平台**：**`linux/amd64`**（与生产 106 一致）。**`linux/arm64` 本期不做**（要加 QEMU/buildx 多平台，代价翻倍；列为后续可选）。
+    - **构建上下文 = 仓库根**、`Dockerfile` = 仓库根 `Dockerfile`（与 106 现行构建命令等价：`docker build -t promptmanager:<ver> .`）。
+  - **安全红线（硬）**：① **任何 step 都不得 echo/打印/回显 secret**（含 `set -x`、`run: echo ${{ secrets.* }}`、日志打印）；
+    ② 凭据**只**出现在 `docker/login-action` 的 `with` 里；③ **不得**把用户名/token 写进仓库任何文件、文档、镜像或 commit；
+    ④ 文档里只写 **secret 名**（`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`），**不写值**；⑤ 不给 workflow 加 `pull_request_target` 等危险触发器。
+  - **文档（交付物）**：`README.md` 增「**从镜像运行**」一节（`docker pull <ns>/promptmanager:<ver>` + `docker run` 的完整命令，
+    含 `-v <宿主数据目录>:/data`、`-e TRUST_PROXY/PUBLIC_ORIGIN` 的可选说明）；`deploy/container.md` 增「**镜像发布（Docker Hub）**」节：
+    触发方式、tag 规则、**需要在 GitHub 仓库配哪两个 secret（只写名字）**、失败怎么看日志。
+  - **不改**：`Dockerfile`（除非只加 `LABEL org.opencontainers.image.*`，可选）；`ci.yml`；任何运行时行为/接口/数据模型。
+  - **本机事实（写规格时必须知道）**：**228 上没有 Docker**（dsh 无法本地 `docker build`）⇒ 等价构建由 host_manger 在 **106/203** 上做（见 AC-91 ③）。
 
 ## 5. 技术约束（硬性）
 
@@ -1751,6 +1773,20 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 
 
 
+- **AC-91 Docker Hub 镜像构建推送（v43 新增）**
+  - ① **YAML 静态断言**（无 Docker 也能跑）：`.github/workflows/docker.yml` 能被 YAML 解析；断言 **触发条件**（`tags: ['v*']` + `workflow_dispatch` + `branches: [main]`）、
+    `permissions: contents: read`、五个官方 action 的 `uses` 都 pin 了大版本、镜像名引用 `secrets.DOCKERHUB_USERNAME`、
+    登录引用 `secrets.DOCKERHUB_TOKEN`；**负向断言**：全文**不得**出现 `echo` + `secrets`、不得出现任何明文 token/用户名、
+    不得出现 `pull_request_target`。（贴命令与输出）
+  - ② **与 106 现行构建的一致性**：断言 context/Dockerfile 路径与 tag 方案（`1.0.1`/`1.0`/`latest`）；
+    并给出对照：106 上现行部署用的等价命令 `docker build -t promptmanager:1.0.1 .`（**该命令已由 host_manger 在 106 上实测成功、36 秒**）。
+  - ③ **等价构建实测（由 host_manger 执行，dsh 记录到 PROGRESS 即可）**：本机无 Docker ⇒ 用 106 的实测结果作为"镜像能构建"的证据；
+    断言 workflow 的 build 参数与之等价（context=`.`、`file=Dockerfile`、无自定义 target）。
+  - ④ **端到端实跑（需要用户先配 secrets；由 host_manger 在阶段验收时执行）**：用户在 GitHub 仓库配好
+    `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 后 → 手动 `workflow_dispatch`（或推一个 tag）→ **Actions 绿** →
+    `docker pull <ns>/promptmanager:<ver>` **能拉下来** → 在 106 上 `docker run` 起容器 → `/healthz` 返回 `version` 正确。
+    ⚠️ **本条在"用户配好 secrets 之前"不算完成**：dsh 交付时须写明"①②③ 已完成、④ 待用户配 secrets 后由 host_manger 触发验证"。
+
 ## 9. 已定决策（不要再问）
 
 - **D-1 技术栈**：Node 24 + TypeScript + SQLite 单文件 + React/Vite 前端（**UI 用 Ant Design 组件库**），**单进程单端口**（前端产物同进程托管）。
@@ -1841,6 +1877,12 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 
 
 
+- **D-32（v43）Docker Hub 镜像坐标与 tag 方案** —— 由 host_manger 定（用户只要求"构建并推送"，未指定细节）：
+  ① **命名空间走 secret**（`${{ secrets.DOCKERHUB_USERNAME }}/promptmanager`），仓库里不出现任何用户名；
+  ② 仓库名 = **`promptmanager`**；③ 平台 **仅 `linux/amd64`**；④ tag 方案 = **`<semver>` + `<major.minor>` + `latest`**；
+  ⑤ **Docker Hub 仓库可见性（public/private）由用户在 Docker Hub 侧自行决定**，workflow 两种都兼容
+  （注：**public** 时任何人可拉取并可读到镜像内**已编译**的 `dist/**` 与 `node_modules`，**不含**源码 `.ts`、文档、凭据与数据）。
+
 ## 10. 边界与停止条件
 
 - 遇到本文件未覆盖、且会影响交付的决策 → 写入 `QUESTIONS.md` 并**停手**，不要猜。
@@ -1890,6 +1932,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 | **阶段 30**（**非阶段** —— 用户 2026-09-21 **直接交办 dsh**，不走常规派活流程） | **`docs/` 只放最终状态：`docs/shots/` 收敛为关键展示图一套（6–10 张）+ 各阶段截图移 `tmp/shots-archive/` + 改 `ui-shots.sh` 默认输出约定 + 把规范写进 `AGENTS.md`** | **AC-86**（供 dsh 自查；host_manger 验收时按它核） |
 | **阶段 31** | **表格「标签」列加标签间距 + **版本保留策略（每个 prompt 最多保留最近 10 个版本，数据层裁剪 + 版本面板与 README 文案说明）** | **AC-87、AC-88** + 不得回归（AC-1…AC-86） |
 | **阶段 32** | **FIX CI 步骤顺序（`typecheck:tests` 必须在构建之后，干净环境必失败）+ 登录页简化（去掉默认预填 `admin`〔安全〕+ 删除四条噪音信息，只留登录）** | **AC-89、AC-90** + 不得回归（AC-1…AC-88） |
+| **阶段 33** | **GitHub Actions：构建容器镜像并推送到 Docker Hub**（`docker.yml`：tag `v*` 构建并推送 `1.0.x`/`1.0`/`latest`；`main` 只构建不推送；凭据只走 GitHub Secrets；平台 `linux/amd64`） | **AC-91**（① 静态断言 ② 与 106 一致性 ③ 等价构建 ④ **实跑待用户配 secrets 后由 host_manger 触发**）+ 不得回归（AC-1…AC-90） |
 | **阶段 12** | **导航归位 + 信息克制（用户反馈）**：使用视图只留"用"（顶栏去管理项、左栏只作筛选）、解释性文案下线并收进「设置/关于」、卡片去内部 id、状态条移出使用视图 | **AC-37、AC-38、AC-39、AC-40** + 不得回归（AC-33/33b/34/35/36） |
 | **阶段 11** | **使用优先改造（用户纠偏）**：一键复制（列表/卡片/编辑器/变量面板）× 使用·管理分离（默认使用视图、模式记忆）
   × 快捷（`/`、`Ctrl+K`、`Esc`、双击、键盘选择）× 移动端大按钮 + 复制计入使用记录 | **AC-33、AC-34、AC-35、AC-36** + 不得回归（AC-13/20/21/29/31） |
@@ -1907,6 +1950,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v43 2026-09-21（用户新需求：GitHub Actions 构建镜像推送到 Docker Hub）**：新增 **FR-89**（新增 `.github/workflows/docker.yml`：tag `v*` 构建并推送 `<semver>`/`<major.minor>`/`latest`、`main` 只构建不推送、`workflow_dispatch` 手动补跑；凭据**只**从 GitHub Secrets 取、任何 step 不得回显 secret、不硬编码命名空间；平台 `linux/amd64`；文档补「从镜像运行」与「镜像发布」） + **AC-91**（① 静态断言 ② 与 106 一致性 ③ 等价构建 ④ 端到端实跑〔**待用户配 secrets**〕）+ **D-32**（镜像坐标与 tag 方案）+ **阶段 33**。
 - **v42 2026-09-21（用户两条：CI 报错 + 登录页简化）**：新增 **FR-87**（**FIX `tools/ci-check.sh` 步骤顺序** —— `typecheck:tests` 跑在 `npm run build` 之前，
   而测试 import 的是 `../dist/**` ⇒ 干净环境（CI）38 个 `TS2307`；本地因已有 `dist/` 而看不出来。判据=**先删 `dist/` 再跑 ci-check 全绿** + GitHub Actions 实跑通过）
   + **FR-88**（**登录页简化**：① **P0 去掉 `initialValues={{ username: 'admin' }}` 预填与 `placeholder="admin"`**〔不得暴露账号名〕；
