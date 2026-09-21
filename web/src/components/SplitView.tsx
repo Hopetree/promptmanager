@@ -125,8 +125,11 @@ export default function SplitView({
         size="small"
         className="pm-split-list"
         styles={{ body: { padding: 6 } }}
-        /* FR-71：中栏宽度 -8%（三档 clamp 各缩小 8%：实测 366px @1600 → 337px，比值 0.92） */
-        style={{ flex: '0 0 clamp(276px, 31.3%, 350px)', minWidth: 0 }}
+        /* FR-71：桌面中栏宽度 -8%（三档 clamp 各缩小 8%：实测 366px @1600 → 337px，比值 0.92）。
+           FR-90：**移动端必须撑满可用宽度** —— 原来的 clamp 与断点无关，390 宽时 `31.3%` ≈ 112px 会被
+           clamp 下限抬到 276px，而可用宽度是 358px（390 − 2×16 内边距）⇒ 右侧白空 82px。
+           移动端改 `flex: 1 1 100%`（单栏降级时右栏不渲染，中栏独占整行）。 */
+        style={{ flex: isMobile ? '1 1 100%' : '0 0 clamp(276px, 31.3%, 350px)', minWidth: 0 }}
       >
         {list}
       </Card>

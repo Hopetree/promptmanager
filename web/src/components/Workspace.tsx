@@ -3,7 +3,7 @@ import { ArrowLeftOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import type { CSSProperties } from 'react';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError, describeError } from '../api';
-import { formatListDateTime, orderPrompts } from '../pure';
+import { defaultViewMode, formatListDateTime, orderPrompts } from '../pure';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag } from '../types';
 import type { ThemeMode } from '../theme-mode';
 import {
@@ -91,9 +91,10 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     // FR-70：'custom'（自定义排序）也必须能被记住 —— 否则刷新后会回退成 updated、拖拽结果看起来丢失
     readPref<UseSort>('pm-use-sort', 'updated', ['updated', 'recent_used', 'title', 'custom']),
   );
-  // v19（FR-46）：默认 = 分栏；档位 split/table/card（旧值 `list` 自然回退到 split）
+  // v19（FR-46）：默认 = 分栏；档位 split/table/card（旧值 `list` 自然回退到 split）。
+  // FR-92 ② / D-34 ②：**移动端首次进入默认卡片**（桌面仍分栏）；已有本地偏好一律不覆盖（readPref 先读存储）。
   const [viewMode, setViewMode] = useState<UseViewMode>(() =>
-    readPref<UseViewMode>('pm-view-mode', 'split', ['split', 'table', 'card']),
+    readPref<UseViewMode>('pm-view-mode', defaultViewMode(isMobile), ['split', 'table', 'card']),
   );
   const [pinFavorites, setPinFavorites] = useState(() => readBoolPref('pm-pin-favorites', true));
   const [activeIndex, setActiveIndex] = useState(0);

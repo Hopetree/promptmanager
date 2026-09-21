@@ -29,7 +29,7 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { buildFolderTree, extractVariablesLocal, formatListDateTime, orderPrompts, promptExcerpt } from '../pure';
+import { buildFolderTree, extractVariablesLocal, formatListDateTime, orderPrompts, promptExcerpt, viewModeOptions } from '../pure';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag as PromptTag } from '../types';
 import FavoriteStar from './FavoriteStar';
 import type { PromptMetaPatch } from './PromptDetail';
@@ -620,11 +620,8 @@ export default function UseView({
           size="large"
           value={viewMode}
           onChange={(value) => onViewModeChange(value as UseViewMode)}
-          options={[
-            { value: 'split', label: '分栏' },
-            { value: 'table', label: '表格' },
-            { value: 'card', label: '卡片' },
-          ]}
+          /* FR-92 ①：顺序按断点 —— 桌面 分栏/表格/卡片，移动端 卡片/表格/分栏（见 pure.ts viewModeOptions） */
+          options={viewModeOptions(isMobile)}
           data-testid="pm-use-viewmode"
         />
         <Space size={6}>

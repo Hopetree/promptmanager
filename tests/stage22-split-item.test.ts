@@ -37,13 +37,16 @@ test('AC-71 ②：备注区固定两行（-webkit-line-clamp: 2 + 最小高度 =
   assert.ok(/white-space:\s*pre-wrap/.test(rule), '备注按纯文本显示（保留换行 + 自动折行，与 FR-68 一致）');
 });
 
-test('AC-71 ③：中栏宽度 -8%（clamp 三项各 ×0.92）', () => {
+test('AC-71 ③（v45 按断点修订）：桌面中栏仍是 -8% clamp；移动端改为撑满', () => {
+  // 桌面分支必须仍是三档 clamp（原 300/34%/380 ⇒ 实测 366px→337px，比值 0.92）
   assert.ok(
-    /flex: '0 0 clamp\(276px, 31\.3%, 350px\)'/.test(split),
-    '中栏宽度应为 clamp(276px, 31.3%, 350px)（原 300/34%/380 ⇒ 实测 366px→337px，比值 0.92）',
+    /flex: isMobile \? '1 1 100%' : '0 0 clamp\(276px, 31\.3%, 350px\)'/.test(split),
+    '桌面中栏宽度应为 clamp(276px, 31.3%, 350px)；移动端撑满（FR-90）',
   );
-  const styleLine = split.slice(split.indexOf("style={{ flex: '0 0 clamp"), split.indexOf("style={{ flex: '0 0 clamp") + 80);
-  assert.equal(/clamp\(300px, 34%, 380px\)/.test(styleLine), false, '旧宽度不得残留在 style 里');
+  // 两个分支都必须真的在：不允许"顺手把桌面 clamp 也改掉"或"只留一个分支"
+  assert.ok(split.includes("'1 1 100%'"), '移动端必须撑满可用宽度（1 1 100%）');
+  assert.ok(split.includes('clamp(276px, 31.3%, 350px)'), '桌面必须保留三档 clamp');
+  assert.equal(/clamp\(300px, 34%, 380px\)/.test(split), false, '旧宽度不得残留在 style 里');
 });
 
 test('AC-71 ⑥：卡片 / 表格视图不受影响（卡片仍有正文摘要与元信息）', () => {

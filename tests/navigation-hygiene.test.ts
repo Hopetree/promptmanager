@@ -6,6 +6,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { defaultViewMode, viewModeOptions } from '../web/src/pure.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB_SRC = path.join(ROOT, 'web', 'src');
@@ -135,17 +136,35 @@ test('AC-37 回归：主列表组件不出现内部 id 与禁用文案', () => {
    v19（BRIEF FR-46 / AC-44 / AC-45）：分栏视图 + 删除「列表」档
    ============================================================ */
 
-test('AC-45：视图档位按「分栏 / 表格 / 卡片」顺序，且「列表」档已删除', () => {
+test('AC-45 ① ②（v45 按断点修正）：档位顺序与默认档位分桌面/移动断言；「列表」档已删除', () => {
   const useView = src('components/UseView.tsx');
   assert.ok(
     /export type UseViewMode = 'split' \| 'table' \| 'card'/.test(useView),
     'UseViewMode 必须只含 split / table / card',
   );
-  const splitAt = useView.indexOf("value: 'split'");
-  const tableAt = useView.indexOf("value: 'table'");
-  const cardAt = useView.indexOf("value: 'card'");
-  assert.ok(splitAt >= 0 && tableAt > splitAt && cardAt > tableAt, '档位顺序必须是 分栏 → 表格 → 卡片');
-  assert.ok(useView.includes("label: '分栏'") && useView.includes("label: '表格'") && useView.includes("label: '卡片'"));
+  // 顺序与默认值的**单一真相源**是 pure.ts 的 viewModeOptions / defaultViewMode ⇒ 直接断言行为，
+  // 而不是像 v19 那样断言"源码里 value: 'split' 出现在 value: 'card' 之前"（那会把移动端倒序判成错）。
+  assert.deepEqual(
+    viewModeOptions(false).map((option) => option.label),
+    ['分栏', '表格', '卡片'],
+    '桌面（≥768px）顺序必须是 分栏 → 表格 → 卡片（不得回归）',
+  );
+  assert.deepEqual(
+    viewModeOptions(true).map((option) => option.label),
+    ['卡片', '表格', '分栏'],
+    '移动端（<768px）顺序必须是 卡片 → 表格 → 分栏',
+  );
+  assert.deepEqual(viewModeOptions(false).map((option) => option.value), ['split', 'table', 'card']);
+  assert.deepEqual(viewModeOptions(true).map((option) => option.value), ['card', 'table', 'split']);
+  assert.equal(defaultViewMode(false), 'split', '桌面默认档位 = 分栏');
+  assert.equal(defaultViewMode(true), 'card', '移动端默认档位 = 卡片');
+  // 组件必须**取用**这两个函数（不能自己再写一份顺序/默认值，否则又会出现两处漂移）
+  assert.ok(/options=\{viewModeOptions\(isMobile\)\}/.test(useView), 'UseView 必须用 viewModeOptions(isMobile)');
+  const workspace = src('components/Workspace.tsx');
+  assert.ok(
+    /readPref<UseViewMode>\('pm-view-mode', defaultViewMode\(isMobile\), \['split', 'table', 'card'\]\)/.test(workspace),
+    'Workspace 必须用 defaultViewMode(isMobile)，且取值集合不变（split/table/card）',
+  );
   // 列表档：源码里不得再有 pm-view-list / 'list' 档
   assert.equal(blob.includes('pm-view-list'), false, 'web/src 里不得再出现 pm-view-list');
   assert.equal(/value: 'list'/.test(blob), false, "不得再有 value: 'list' 档");
@@ -166,12 +185,16 @@ test('AC-44：分栏视图的三栏结构锚点齐备，且右栏复用详情面
   assert.equal(split.includes('data-testid="pm-detail"'), false, '分栏不得再写一份 pm-detail（要复用组件）');
 });
 
-test('AC-45：默认视图 = split（旧值 list 回退 split），且沿用 pm-view-mode 记忆', () => {
+test('AC-45 ②（v45 按断点修正）：默认档位按断点（桌面 split / 移动 card），旧值 list 仍回退', () => {
   const workspace = src('components/Workspace.tsx');
+  // 默认值不再是写死的 'split'，而是按断点的 defaultViewMode(isMobile)（桌面 split / 移动 card）；
+  // 允许值仍是 split/table/card ⇒ 旧值 `list` 不在其中，自动回退到 fallback（AC-45 ⑤ 不变）。
   assert.ok(
-    /readPref<UseViewMode>\('pm-view-mode', 'split', \['split', 'table', 'card'\]\)/.test(workspace),
-    '默认必须是 split，且允许值只有 split/table/card（list 自动回退）',
+    /readPref<UseViewMode>\('pm-view-mode', defaultViewMode\(isMobile\), \['split', 'table', 'card'\]\)/.test(workspace),
+    '默认必须走 defaultViewMode(isMobile)，且允许值只有 split/table/card（list 自动回退）',
   );
+  assert.equal(defaultViewMode(false), 'split', '桌面默认仍是分栏');
+  assert.equal(defaultViewMode(true), 'card', '移动端默认是卡片');
 });
 
 /* ============================================================
