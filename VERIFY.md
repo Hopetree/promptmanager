@@ -581,3 +581,66 @@ reflog「1 条非 commit」→ **我的 grep 误报**（`commit (initial):` 含�
 **识图**说"表头复选框比行内**小**（14–16 vs 18–20px）、且行内更圆" —— **与我的探针数据矛盾**（`getBoundingClientRect` 两者均 `16×16`，差 0）。
 **我的判断**：**采信探针数据**（精确测量 > 视觉估计；识图自己也用了 "roughly"）；可能识图把**选中态的波浪/圆角效果**误读成了尺寸差异。
 ⇒ 记为「识图与数据的分歧」；**若用户肉眼仍觉得小**，我再让实现方统一 checkbox wrapper 的尺寸并复测。
+
+---
+
+# 阶段 30（**非阶段** · 用户直接交办 dsh）验收 —— `docs/` 只放最终状态 — 结论：**过**
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`a59a294`**（收尾）｜实施部分混在 `1e1e4a5`（见 §4 说明） |
+| 规格 | BRIEF **v40**（FR-84 / AC-86）+ `/root/greenhouse/STANDARDS.md` **§5.2** |
+| 结论 | **过** |
+
+## 1. AC-86 逐条（**我自己核**）
+
+```
+① find docs -name '*.png' | wc -l          → **8**（改前 172）✅
+② find docs -type d -name 'stage*'         → **0**（阶段截图目录已不在 docs/ 下）✅
+③ tmp/shots-archive/ 存在                  → **24M / 251 张** ✅；`git ls-files tmp` → **0**（不入库）✅
+④ tools/ui-shots.sh 已改成两种模式          → 默认（无参）= 自证 → `tmp/ui-shots/shots/`（53 张）；
+                                              `--key` = 发版 → `docs/shots/`（8 张，旧的先归档到 `tmp/shots-archive/docs-shots/`）；
+                                              注释里写明规范与判据 ✅
+⑤ AGENTS.md 新增 §5.1（英文）               → `Where documentation and screenshots live: docs/ vs tmp/`（引 STANDARDS §5.2）+
+                                              Rule of thumb + 两条清单 + **`git ls-files tmp` must always be `0`** ✅
+⑥ git ls-files docs | grep -c '\.png$'     → **8**（改前 94）✅
+⑦ 回归                                      → `npm test` **307/307** ✅ + `bash tools/ci-check.sh` **6/6** ✅ + `git status` 干净 ✅
+```
+
+## 2. 覆盖度（8 张 = 正好一套关键页面）
+
+```
+01-login  02-split  03-table  04-cards  05-editor  06-detail  07-mobile  08-dark
+⇒ 登录 / 分栏 / 表格 / 卡片 / 编辑器 / 详情 / 移动端 / 暗色 —— **全覆盖**，命名清晰 ✅
+```
+
+## 3. 规范落地实测（**我亲自跑**）
+
+```
+$ bash tools/ui-shots.sh          # 默认（自证模式）
+  → 53 张落 tmp/ui-shots/shots/ ✅ ｜ docs/shots 仍 **8** 张 ✅ ｜ git status **0 项** ✅
+```
+⇒ **「自证截图不进 git」这条规范真的生效了** —— 这正是它要解决的问题（此前每跑一次自证都会脏掉 `docs/`）。
+
+## 4. ⚠️ 验收方失误：我的 v40 提交混进了实现方的改动（提交边界不干净）
+
+**现象**：`1e1e4a5`（我提交的 `docs(brief): v40 口径澄清`）**含 195 个文件** —— 除 `BRIEF.md` 外，
+还包含了实现方的 `docs/` 收敛（**251 张 png 的删除 + 8 张新增** + `AGENTS.md` / `README.md` / `PROGRESS.md` / `tools/**` 等）。
+
+**根因**：实现方用 **`git mv`** 移动文件 ⇒ **自动进了暂存区**；我随后 `git add BRIEF.md` + `git commit` 时**没有先核暂存区**，
+于是把它的改动一并提交了。
+
+**影响**：**内容无错**（那些改动本来就要提交），但**提交边界混乱** —— 实现方的收尾提交 `a59a294` 因此只剩 3 个文件
+（`AGENTS.md` / `PROGRESS.md` / `tools/ui-shots.sh`）。
+
+**处理**：**不改写历史**（规范禁止，且内容无误）；如实记录于此。
+
+**教训（已固化进技能）**：**每次 `commit` 前必须核 `git diff --cached --name-only`** ——
+**尤其在"有并行会话 / 工作区里有他人改动"的场景**（`git mv` / `git add` 会悄悄把别人的改动放进暂存区）。
+我在阶段 29 的 VERIFY 提交时核过这一点，这次漏了。
+
+## 5. 产出与现状
+
+`docs/` 现为：**4 个 md**（`brief-changelog` / `dependencies` / `search-zh` / `versioning`）+ **`shots/`（8 张关键展示图）** +
+**`dev-history/`（文档类保留 —— 用户选 A：验收凭据）**。
+`tmp/` 现为：`shots-archive/`（251 张归档）+ `ui-shots/`（自证产出 53 张 + DOM dump）—— **全部不入库** ✅
