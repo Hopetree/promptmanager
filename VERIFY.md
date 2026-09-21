@@ -882,3 +882,122 @@ $ 我自己再看图：8767 登录页 = 无预填、无噪音 ✅
    并且 `splitList=false` 这类"少了一个元素"的结果**先怀疑夹具/环境**（我当时是空库 + 无前端产物，两个原因叠在一起）。
 2. 验收命令是在 dsh **仍在回答用户追问**（turn 7）时跑的 —— 我只碰了 gitignore 的构建产物，但纪律上**应尽量选它停手时做**。
 3. 阶段 32 的 AC-90 我**补了 3 条夹具**（它自测时只有 1 条）——夹具按真实数据分布构造这条纪律继续有效。
+
+---
+
+# 阶段 33 验收（FR-89 GitHub Actions 构建镜像并推送 Docker Hub）— 结论：**过**（含端到端实跑）
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`46c8a8a`**（收尾）—— 交付 `d2e1a34`（`docker.yml` + `ac-stage33.sh`）/ `8722955`（README + container.md + PROGRESS）/ `46c8a8a`（自查修正 container.md 的错误表述） |
+| 规格 | BRIEF **v43**（FR-89 / AC-91 / D-32 / 阶段 33） |
+| 验收方 | host_manger（**独立复现 AC-91 ①②③，并亲自跑通 ④ 的端到端发布**） |
+| 结论 | **过** —— 四条判据全部由我复现；镜像已发布、可拉取、可运行 |
+
+## 1. AC-91 ① YAML 静态断言（我自己跑，不采信它的脚本）
+
+```
+$ python3 -c "import yaml,io; d=yaml.safe_load(...)"     # 真解析（不是 grep 文本）
+  解析成功: True | name = docker
+  on = {'push': {'tags': ['v*'], 'branches': ['main']}, 'workflow_dispatch': None}
+  permissions = {'contents': 'read'}
+  steps = 5：actions/checkout@v4 · docker/setup-buildx-action@v3 · docker/login-action@v3
+             · docker/metadata-action@v5 · docker/build-push-action@v6        ← 全部 pin 大版本 ✅
+  build-push with = {context: '.', file: 'Dockerfile', platforms: 'linux/amd64',
+                     push: "${{ startsWith(github.ref, 'refs/tags/v') }}"}
+  metadata images = ${{ secrets.DOCKERHUB_USERNAME }}/promptmanager              ← 命名空间不硬编码 ✅
+  login with = {username: <secret>, password: <secret>} | if = startsWith(github.ref, 'refs/tags/v')
+  负向断言命中（须空）: []      ← 无 echo+secrets、无 set -x、无明文用户名/口令、无 pull_request_target、无凭据字面量
+  引用 secrets 的行仅 4 处（1 处注释 + login 的 username/password + metadata 的 images）✅
+```
+
+> **如实记录我自己的失误**：第一版负向断言我用 `username:\s*(\S+)` 截断匹配，把 `${{ secrets...` 误判成"明文用户名"；
+> 改成**整行判定**后通过。**是我的检查写得糙，不是它的问题。**
+
+## 2. AC-91 ② 与 106 现行构建的一致性（我自己核）
+
+| 项 | workflow | 106 上现行命令（已实测） |
+| --- | --- | --- |
+| context | `.`（仓库根） | `/opt/cloud/promptmanager/src` |
+| Dockerfile | `Dockerfile`（仓库根） | 同 |
+| 平台 | `linux/amd64` | amd64（实测 `Architecture=amd64`） |
+| tag 方案 | `{{version}}` + `{{major}}.{{minor}}` + `latest` | 本地镜像名 `promptmanager:<ver>` |
+
+**Dockerfile 本阶段未被改动**（`git log e6b7e37..HEAD -- Dockerfile` = **0** 提交）；`ci.yml` 亦未动（最近改动仍是 `8efd440`）。
+
+## 3. AC-91 ③ 等价构建
+
+```
+本机（228）: command -v docker → 无 ⇒ 由 host_manger 在 106 产生该证据
+106 实测（v1.0.1 时）: docker build -t promptmanager:1.0.1 . → rc=0、36 秒、镜像 959MB
+⇒ workflow 的 build 参数与该命令等价（context=. / file=Dockerfile / 无自定义 target）
+```
+
+## 4. AC-91 ④ 端到端实跑 —— **我亲自跑的，且镜像真的能拉能跑**
+
+**为什么必须发一个 tag**：`workflow_dispatch` 在**分支 ref** 上跑时 `push=false`（不推送），而 GitHub UI 的 dispatch 只能选分支
+⇒ **唯一能触发"推送"路径的是推 `v*` tag**。所以我按项目自己的发版流程发了 **v1.0.2**：
+
+```
+228 上：package.json 1.0.1→1.0.2 + CHANGELOG 新增 [1.0.2] + docs/versioning.md §6 补行
+        闸门：rm -rf dist && bash tools/ci-check.sh → rc=0、6 项全绿、npm test 329/329
+        commit ea0125d → git tag -a v1.0.2 → main 与 tag 都推两远程（三端 ea0125d）
+```
+
+> **版本语义说明（我的决定，可被否决）**：v1.0.2 的**运行时行为与 1.0.1 完全一致**（只加 workflow 与文档）——
+> 升版本的目的就是**让镜像有一个可引用的版本号**（工作流只在推 tag 时推送）。CHANGELOG 里已如实写明这一点。
+
+**结果（Docker Hub 侧，我独立查到的）**：
+
+```
+$ curl https://dockerproxy.net/v2/hopetree/promptmanager/tags/list
+{"name":"hopetree/promptmanager","tags":["1.0","1.0.2","latest"]}      ← 与 D-32 设计的三 tag 完全一致
+```
+
+**结果（我把它拉下来真跑，全程在 106、不碰生产容器）**：
+
+```
+$ bash /root/docker-pull-mirror.sh hopetree/promptmanager:1.0.2
+  Digest: sha256:fda6d3b3d5a373ce6920f04e8d799df659300e3d6284c9e2427fc70a4daebde8
+  架构=amd64 系统=linux 大小=165MB（压缩）/ 959MB（本地展开）
+$ docker run -d -p 127.0.0.1:18767:8767 -e DATA_DIR=/data -v <临时目录>:/data hopetree/promptmanager:1.0.2
+  /healthz → {"status":"ok","version":"1.0.2"} ✅
+  数据目录自动初始化：media / pm.db / pm.db-wal / pm.db-shm ✅
+  未认证 /api/prompts → 401 ✅
+  镜像内前端 chunk：四条噪音 = 0、含「用户名」占位 ✅（= 阶段 32 的登录页修复确实在镜像里）
+$ 收尾：临时容器与临时数据已删除；**生产容器 promptmanager(1.0.1) 未受影响、仍 healthy**
+```
+
+**镜像内容安全自查（我自己跑的 `docker run --rm --entrypoint sh`）**：
+
+```
+/app 顶层 = bin dist migrations node_modules package-lock.json package.json
+无 web/src、无 .ts 源码、无 .env/_env、无 .git；以 node(uid 1000) 运行 ✅
+```
+
+## 5. 过程审查 — 干净（窗口 19:00–19:45）
+
+```
+工具调用 48 次（bash 22 / edit 17 / read 6 / write 2 / job_output 1）
+跑测试：npm test 1 次（329/329）+ ac-stage33.sh 多次（其自检 rc=0、❌ 计数 0）
+git：全部 `git add <明确路径>` + commit 前核暂存区；提交边界 2/3/3 文件
+未碰部署/系统/别的机器（无 /opt、无 systemctl、无 8767、无 106 操作）；未改 BRIEF/STANDARDS/ci.yml
+三端一致 46c8a8a（随后被我发版推进到 ea0125d）
+```
+
+## 6. 缺口与观察（不阻塞）
+
+1. **106 生产仍跑 `1.0.1` 镜像**（v1.0.2 无运行时变化）。⚠️ **106 不能直连 Docker Hub**（只配了腾讯官方镜像站 `mirror.ccs.tencentyun.com`，
+   实测 `hub.docker.com` / `registry-1.docker.io` 全部超时；可用的是 `dockerproxy.net` / `docker.1panel.live` 这类代理）
+   ⇒ 若要让 106 改成"拉 Docker Hub 镜像"，需要额外配镜像站/代理，**收益不大**（106 本地构建只要 36 秒）。
+   **建议维持现状**：Docker Hub 镜像主要服务"别的机器/别人"。
+2. **私有仓库的 Actions run 我仍看不到**（无凭据）——但"镜像已出现在 Docker Hub、且能拉能跑"本身就是**推送成功**的直接证据（比看日志更强）。
+3. 228 测试环境（8767）已同步到 **1.0.2**（与仓库版本一致）。
+
+## 7. 验收方自省
+
+1. **我第一次起容器失败（exit=1、写不进 `/data/media`）——是我自己的错**：漏了**文档已经写明**的
+   `chown 1000:1000`（`README.md` 第 233 行、`deploy/container.md` §属主映射 都写了）。
+   ⇒ **教训：跑"交付物文档里的命令"要逐条照抄（含注释里的前提）；失败先怀疑自己漏前提，别先怀疑交付物。**
+   （我先查了文档才下结论 —— 这一步做对了，避免了把"我的操作错误"写成"它的文档缺陷"。）
+2. 我的负向断言正则第一次误报（截断式 `\S+`）——**写检查也要严谨**，已修正后重跑。
