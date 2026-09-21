@@ -1,0 +1,74 @@
+name: docker
+
+# 构建容器镜像并推送到 Docker Hub（BRIEF FR-89 / D-32；用户 2026-09-21 提出）。
+#
+# ⚠️ 本 workflow **只做「构建镜像 + 推送」**，不跑任何质量检查 —— 检查仍在 `ci.yml`
+#    （本地与 CI 同一套 `tools/ci-check.sh`），两个 workflow **互不影响**。
+# ⚠️ 凭据**只**来自 GitHub Secrets（`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`）：
+#    只有 `docker/login-action` 的 `with` 引用 token，**任何 step 都不回显 secret**
+#    （无回显、不打开 shell 的命令追踪、不把 token 写进日志/文件/镜像）。
+# ⚠️ 命名空间**不硬编码**：镜像名 = `${{ secrets.DOCKERHUB_USERNAME }}/promptmanager`。
+#
+# 触发与行为：
+#   · push tag `v*`      → 构建并**推送**；tag 由 metadata-action 算：`1.0.1` + `1.0` + `latest`
+#   · push branch `main` → **只构建、不推送**（尽早发现 Dockerfile 被改坏；不需要任何 secret 即可跑）
+#   · workflow_dispatch  → 手动补跑，按当前 ref 决定是否推送（tag 上 = 推送，分支上 = 只构建）
+#
+# 平台：仅 **linux/amd64**（与生产 106 一致）。arm64 本期不做（要加 QEMU/多平台，代价翻倍）。
+# 构建上下文 = 仓库根、Dockerfile = 仓库根 `Dockerfile` —— 与 106 上现行命令
+# `docker build -t promptmanager:<ver> .` **等价**（见 deploy/container.md「镜像发布」节）。
+
+on:
+  push:
+    tags: ['v*']
+    branches: [main]
+  workflow_dispatch:
+
+# Docker Hub 与 GITHUB_TOKEN 无关 ⇒ 只需要读代码的权限（最小化；**不给** packages: write）
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: 构建镜像（linux/amd64）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取出源码
+        uses: actions/checkout@v4
+
+      - name: 准备 buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 只有「确实要推送」（tag `v*`）时才登录：分支构建无需任何凭据也能验证 Dockerfile 能否构建
+      - name: 登录 Docker Hub（仅 tag 推送时）
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 计算镜像 tag 与标签
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/promptmanager
+          # `latest=false` 关掉 action 的自动 latest，改由下面的 raw 规则显式给 —— 产出集合可预期：
+          #   tag 推送 v1.0.1 → 1.0.1 / 1.0 / latest ｜ 分支构建 main → main（不推送）
+          flavor: |
+            latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=ref,event=branch
+
+      - name: 构建并推送
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          # 只有 tag `v*` 才推送；分支 / 手动（分支 ref）一律只构建
+          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
