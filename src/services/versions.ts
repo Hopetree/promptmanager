@@ -1,6 +1,6 @@
 import { createTwoFilesPatch } from 'diff';
 import type { QueryEngine } from '../db/index.js';
-import { selectVersion, selectVersions, type PromptVersionRow } from '../db/prompt-versions.js';
+import { pruneVersions, selectVersion, selectVersions, type PromptVersionRow } from '../db/prompt-versions.js';
 import { InvalidBodyError, NotFoundError } from '../errors.js';
 import { nowIso } from './auth.js';
 import { getPrompt, type PromptObject } from './prompts.js';
@@ -72,7 +72,9 @@ export async function diffVersions(
 }
 
 /**
- * 回滚到第 n 版（FR-7）：**恢复内容并生成新版本，绝不删历史**。
+ * 回滚到第 n 版（FR-7）：**恢复内容并生成新版本**。
+ * FR-86 起每次产生新版本后统一裁剪到最近 10 个（见 `pruneVersions`），所以"历史"是**有上限**的：
+ * 回滚到一个已被裁剪掉的版本 → `selectVersion` 拿不到 → **404**（既有语义不变）。
  * 只回滚内容四字段（title/user_prompt/system_prompt/notes）——版本快照里没有标签/文件夹/收藏。
  */
 export async function rollbackToVersion(
@@ -119,6 +121,10 @@ export async function rollbackToVersion(
         created_at: now,
       })
       .execute();
+
+    // FR-86：回滚 = 恢复内容 + **生成新版本**，所以也是"产生新版本之后"的写入点 ⇒ 同样裁剪（仍 ≤10）。
+    // 注意语义边界：回滚到**已被裁剪掉**的版本会先在 `selectVersion` 处 404，走不到这里（既有语义不变）。
+    await pruneVersions(trx as QueryEngine, promptId);
   });
 
   const prompt = await getPrompt(qe, promptId);

@@ -57,7 +57,7 @@ function writeNote(promptId: number, versionNo: number, value: string): void {
 
 /**
  * 版本历史（FR-7 + FR-41e 第 6 条）：**表格 / 对比版本 / 详情** 三个视图 + 可选**变更备注**。
- * 保留原有能力：版本列表、两版本 unified diff、回滚（生成新版本，不删历史）。
+ * 保留原有能力：版本列表、两版本 unified diff、回滚（生成新版本；FR-86 起最多保留最近 10 个版本）。
  * 视图切换用 antd `Segmented`（不是 `Tabs`——AC-31 ⑥ 要求编辑器面 `.ant-tabs-tab` = 0）。
  */
 export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onUnauthorized }: VersionPanelProps) {
@@ -136,7 +136,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
     if (promptId === null) return;
     try {
       await api.rollback(promptId, versionNo);
-      message.success(`已回滚到 v${String(versionNo)}（生成新版本，历史保留）`);
+      message.success(`已回滚到 v${String(versionNo)}（已生成新版本）`);
       onRollbackDone();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -217,7 +217,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
           </Button>
           <Popconfirm
             title={`回滚到 v${String(version.version_no)}？`}
-            description="会生成一个新版本，历史版本不会被删除。"
+            description="会生成一个新版本；最多保留最近 10 个版本。"
             onConfirm={() => void rollback(version.version_no)}
           >
             <Button
@@ -257,6 +257,15 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
         />
         <Typography.Text style={{ fontSize: 11.5, color: token.colorTextTertiary }}>
           共 <span className="pm-mono">{versions.length}</span> 个版本
+        </Typography.Text>
+        {/* FR-86：保留策略必须有**可见文案**（用户明确要求）。数字与 src/db/prompt-versions.ts 的
+            VERSION_KEEP_LIMIT 保持一致；前端不 import 服务端常量（Vite 不打包 src/），故这里硬编码并注明出处。 */}
+        <Typography.Text
+          type="secondary"
+          style={{ fontSize: 11.5 }}
+          data-testid="pm-version-retention-note"
+        >
+          最多保留最近 10 个版本（更早的版本会在产生新版本时自动清理）
         </Typography.Text>
       </Flex>
 
@@ -316,7 +325,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
             {detailNo !== null && (
               <Popconfirm
                 title={`回滚到 v${String(detailNo)}？`}
-                description="会生成一个新版本，历史版本不会被删除。"
+                description="会生成一个新版本；最多保留最近 10 个版本。"
                 onConfirm={() => void rollback(detailNo)}
               >
                 <Button size="small" danger icon={<HistoryOutlined />}>
@@ -392,7 +401,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
           <Alert
             type="info"
             showIcon
-            message="每次保存自动留档；回滚会生成新版本，历史不删除。"
+            message="每次保存自动留档；回滚会生成新版本。最多保留最近 10 个版本，更早的会自动清理。"
           />
           <Table<VersionSummary>
             rowKey="version_no"

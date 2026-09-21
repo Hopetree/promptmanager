@@ -1,4 +1,5 @@
 import type { QueryEngine } from '../db/index.js';
+import { pruneVersions } from '../db/prompt-versions.js';
 import { searchPrompts } from '../db/prompt-queries.js';
 import type { PromptRow } from '../db/schema.js';
 import { InvalidBodyError, NotFoundError, isConstraintError } from '../errors.js';
@@ -159,6 +160,9 @@ export async function createPrompt(qe: QueryEngine, input: CreatePromptInput): P
         })
         .execute();
 
+      // FR-86：每次产生新版本后统一裁剪（新建只有 v1，这里是"覆盖全部写入点"的一部分，防止将来改动漏掉）
+      await pruneVersions(trx as QueryEngine, id);
+
       for (const name of tags) {
         const tagId = await findOrCreateTag(trx as QueryEngine, name, now);
         await trx.insertInto('prompt_tags').values({ prompt_id: id, tag_id: tagId }).execute();
@@ -259,6 +263,9 @@ export async function updatePrompt(
           created_at: now,
         })
         .execute();
+
+      // FR-86：PUT 每次都产生新版本 ⇒ 每次都要裁剪到最近 10 个
+      await pruneVersions(trx as QueryEngine, id);
 
       if (patch.tags !== undefined) {
         await trx.deleteFrom('prompt_tags').where('prompt_id', '=', id).execute();
@@ -391,6 +398,9 @@ export async function bulkPrompts(qe: QueryEngine, input: BulkPromptsInput): Pro
           created_at: now,
         })
         .execute();
+      // FR-86：批量收藏/移动**也**会产生新版本（与单条 PUT 同语义），所以同样是"产生新版本之后"的写入点，
+      // 必须一起裁剪 —— 否则"最多 10 个"这条数据层不变式会被批量操作打破（BRIEF 列了四处，这里是第五处）。
+      await pruneVersions(trx as QueryEngine, id);
     }
   });
 

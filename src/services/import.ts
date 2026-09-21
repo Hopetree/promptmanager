@@ -1,4 +1,5 @@
 import type { QueryEngine } from '../db/index.js';
+import { pruneVersions } from '../db/prompt-versions.js';
 import { InvalidImportError, isConstraintError } from '../errors.js';
 import { nowIso } from './auth.js';
 import { EXPORT_APP, SUPPORTED_SCHEMA_VERSION, type ExportFile } from './export.js';
@@ -302,6 +303,12 @@ async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<Imp
           .execute();
       }
 
+      // FR-86：导入的版本若多于 10 个，同样裁到最近 10 个 —— "最多 10 个"是**数据层不变式**，导入后也必须成立。
+      // ⚠️ 已知张力（BRIEF v41 §4 FR-86 明确以本 FR 为准）：replace 模式原本保留文件里的 id、并让
+      //    "导出 → 导入 → 再导出"逐字一致；当文件里某个 prompt 的版本 >10 时，再导出会少掉最旧的几版。
+      //    已写进 README「已知限制」。
+      await pruneVersions(trx as QueryEngine, prompt.id);
+
       for (const name of prompt.tags) {
         let tagId = tagIdByName.get(name);
         if (tagId === undefined) {
@@ -405,6 +412,9 @@ async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<Impor
           .values({ prompt_id: inserted.id, ...version })
           .execute();
       }
+
+      // FR-86：merge 模式同样裁剪（与 replace 一致，"最多 10 个"是数据层不变式）
+      await pruneVersions(trx as QueryEngine, inserted.id);
 
       for (const name of prompt.tags) {
         let tagId = tagIdByName.get(name);
