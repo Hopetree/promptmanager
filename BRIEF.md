@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v44 |
+| 版本 | v45 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -828,6 +828,19 @@
     README 保持**中文**、`AGENTS.md` 保持**英文**（政策）；`docs/` 只放**最终状态**文档（阶段 30 规范，过程产物进 `tmp/`）。
   - **不改**：代码（除 FR-90 的那一处样式）、接口、数据模型、`ci.yml` / `docker.yml`。
 
+- FR-92 **移动端：视图档位顺序改为「卡片 / 表格 / 分栏」，且默认落在卡片（用户 2026-09-21 提出）**——
+  用户原话：「**我希望移动端的模式顺序变成卡片，表格，分栏，因为移动端卡片效果更好**」。
+  - **① 档位开关顺序（移动端）**：`web/src/components/UseView.tsx` 的 `Segmented`（`data-testid="pm-use-viewmode"`）
+    在 **<768px** 时选项**依次为** `卡片` / `表格` / `分栏`（= 现值 `分栏 / 表格 / 卡片` 的**倒序**）；
+    **桌面（≥768px）保持 `分栏 / 表格 / 卡片` 不变**。
+  - **② 默认档位（移动端）**：`web/src/components/Workspace.tsx` 的 `readPref('pm-view-mode', 'split', …)` ⇒
+    **移动端首次进入（`localStorage` 无该键）默认 `card`**；**桌面默认仍是 `split`**；
+    **用户已有本地偏好时一律不覆盖**（在桌面选过 `table` 的用户，到移动端也仍是 `table`）。
+  - **③ 不得回归**：三档在移动端都能正常切换与渲染；`pm-view-split` / `pm-view-table` / `pm-view-card` 三个 testid 不变；
+    旧值 `list` 仍回退到 `split`（AC-45 ⑤）；**桌面档位顺序、默认值与三栏布局一字不变**；
+    **不新增第四个档位**；不改 `localStorage` 键名与取值集合（仍是 `split` / `table` / `card`）。
+  - **不改**：三个视图自身的实现（除 FR-90 的那一处宽度）、接口、数据模型。
+
 ## 5. 技术约束（硬性）
 
 - **依赖策略**：优先成熟生态包；**禁止手搓** HTTP 路由/框架、SQLite 驱动、markdown 渲染、代码高亮、diff 算法、
@@ -1411,8 +1424,10 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
     ④ 切到「表格」→ 再切回「分栏」→ 分栏结构恢复（`pm-split-list` + `pm-detail` 同屏）。
   - 期望：①–④ 全过。
 - **AC-45 视图开关档位与「列表」档删除（v19 新增）**
-  - 命令：① `[data-testid="pm-use-viewmode"]` 内档位文本**依次**为 `分栏`、`表格`、`卡片`（顺序断言，不是集合断言）；
-    ② 清空 `localStorage` 后默认选中的是 `分栏`，且 `localStorage['pm-view-mode'] === 'split'`；
+  - 命令：① **[v45 修正] 档位顺序按断点断言** —— **桌面（≥768px）** `[data-testid="pm-use-viewmode"]` 内档位文本**依次**为
+    `分栏`、`表格`、`卡片`；**移动端（<768px）依次为 `卡片`、`表格`、`分栏`**（两者都是顺序断言，不是集合断言）；
+    ② **[v45 修正] 默认档位按断点** —— **桌面**清空 `localStorage` 后默认选中 `分栏` 且 `localStorage['pm-view-mode'] === 'split'`；
+    **移动端**清空后默认选中 **`卡片`** 且 `localStorage['pm-view-mode'] === 'card'`；
     ③ 切到「表格」→ 刷新 → 仍落在表格（记忆生效）；
     ④ **不存在** `pm-view-list`；源码 `grep -rc 'pm-view-list' web/src` → `0`；
     ⑤ 手工把 `localStorage['pm-view-mode']` 写成旧值 `list` → 刷新 → 落回**分栏**且控制台**无报错**、页面不空白。
@@ -1844,6 +1859,17 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   - ⑤ **用户视角抽查**：README 通读一遍**不出现**内部术语与"开发者才关心"的命令（如 `tools/ac-*.sh`、`ci-check.sh` 作为主推命令）；
     功能描述与当前实现一致（不得写已删除的能力）。
 
+- **AC-94 移动端档位顺序与默认档位（v45 新增；按断点分别断言）**
+  - ① **移动端 390×844**：`[data-testid="pm-use-viewmode"]` 内档位文本**依次**为 `卡片`、`表格`、`分栏`（**顺序断言**，不是集合断言）。
+  - ② **桌面 1600×900**：同一控件内档位文本**依次**为 `分栏`、`表格`、`卡片`（**不得回归**）。
+  - ③ **默认档位按断点**：清空 `localStorage['pm-view-mode']` 后 ——
+    **移动端**落在 **`卡片`**（`pm-view-card` 存在、`pm-view-split` 不存在、`localStorage['pm-view-mode'] === 'card'`）；
+    **桌面**落在 **`分栏`**（`pm-view-split` 存在、`localStorage['pm-view-mode'] === 'split'`）。
+  - ④ **不覆盖已有偏好**：预置 `localStorage['pm-view-mode'] = 'table'` → **移动端与桌面都**落在表格。
+  - ⑤ **三档在移动端都可切**：依次点 `卡片` / `表格` / `分栏` → 对应 `pm-view-*` 出现、**无 JS 异常**、`document.documentElement.scrollWidth === 390`。
+  - ⑥ **回归**：AC-45 的 ③④⑤ 仍过（记忆生效 / 无 `pm-view-list` / 旧值 `list` 回退分栏）；**AC-92（分栏中栏 358）不回归**；
+    `npm test` 全绿（**既有断言档位顺序/默认档位的测试必须同步更新为"按断点"**，不得删断言了事）。
+
 ## 9. 已定决策（不要再问）
 
 - **D-1 技术栈**：Node 24 + TypeScript + SQLite 单文件 + React/Vite 前端（**UI 用 Ant Design 组件库**），**单进程单端口**（前端产物同进程托管）。
@@ -1947,6 +1973,12 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   ④ **`AGENTS.md`（英文，保持）** = AI 代理操作指南，**不承载人类开发者文档**（`STANDARDS.md §5.1` 硬性要求全英文），只加一行指引；
   ⑤ 用户原话提到"可以移到 AGENT.md"——**按上述拆分执行**，理由与政策依据写进 README/AGENTS 的交叉引用里（**若用户坚持要合进 AGENTS.md，再改**）。
 
+- **D-34（v45）移动端档位：顺序倒序 + 默认卡片；桌面不动** —— 由 host_manger 定（用户原话只说"顺序变成卡片、表格、分栏"）：
+  ① 移动端档位顺序 = `卡片 / 表格 / 分栏`；② **移动端默认档位 = `卡片`** —— 用户给的理由是"移动端卡片效果更好"，
+  若只改顺序而不改默认，移动端首次进入**仍会落在分栏**，与理由矛盾；③ 桌面顺序与默认**一字不变**；
+  ④ **不覆盖用户已有偏好**；⑤ 旧值 `list` 仍回退 `split`（保持 AC-45 ⑤ 不变）。
+  ⚠️ **② 是 host_manger 的推断（用户原话只说"顺序"）—— 若用户只要改顺序，删 ② 即可（`readPref` 的默认值一处）。**
+
 ## 10. 边界与停止条件
 
 - 遇到本文件未覆盖、且会影响交付的决策 → 写入 `QUESTIONS.md` 并**停手**，不要猜。
@@ -1997,7 +2029,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 | **阶段 31** | **表格「标签」列加标签间距 + **版本保留策略（每个 prompt 最多保留最近 10 个版本，数据层裁剪 + 版本面板与 README 文案说明）** | **AC-87、AC-88** + 不得回归（AC-1…AC-86） |
 | **阶段 32** | **FIX CI 步骤顺序（`typecheck:tests` 必须在构建之后，干净环境必失败）+ 登录页简化（去掉默认预填 `admin`〔安全〕+ 删除四条噪音信息，只留登录）** | **AC-89、AC-90** + 不得回归（AC-1…AC-88） |
 | **阶段 33** | **GitHub Actions：构建容器镜像并推送到 Docker Hub**（`docker.yml`：tag `v*` 构建并推送 `1.0.x`/`1.0`/`latest`；`main` 只构建不推送；凭据只走 GitHub Secrets；平台 `linux/amd64`） | **AC-91**（① 静态断言 ② 与 106 一致性 ③ 等价构建 ④ **实跑待用户配 secrets 后由 host_manger 触发**）+ 不得回归（AC-1…AC-90） |
-| **阶段 34** | **分栏视图手机端中栏撑满（FR-90，一处响应式宽度）+ README 重写为"用户文档"并给 Docker/源码两种部署方式（FR-91：开发者内容迁到 `docs/development.md`、接口迁到 `docs/api.md`，顺带消除 README 重复两节 = backlog R-5）** | **AC-92、AC-93** + 不得回归（AC-1…AC-91） |
+| **阶段 34** | **分栏视图手机端中栏撑满（FR-90，一处响应式宽度）+ README 重写为"用户文档"并给 Docker/源码两种部署方式（FR-91：开发者内容迁到 `docs/development.md`、接口迁到 `docs/api.md`，顺带消除 README 重复两节 = backlog R-5）+ **FR-92 移动端档位顺序改为「卡片 / 表格 / 分栏」且默认落在卡片**（桌面顺序与默认一字不变、不覆盖已有偏好）** | **AC-92、AC-93、AC-94** + 不得回归（AC-1…AC-91） |
 | **阶段 12** | **导航归位 + 信息克制（用户反馈）**：使用视图只留"用"（顶栏去管理项、左栏只作筛选）、解释性文案下线并收进「设置/关于」、卡片去内部 id、状态条移出使用视图 | **AC-37、AC-38、AC-39、AC-40** + 不得回归（AC-33/33b/34/35/36） |
 | **阶段 11** | **使用优先改造（用户纠偏）**：一键复制（列表/卡片/编辑器/变量面板）× 使用·管理分离（默认使用视图、模式记忆）
   × 快捷（`/`、`Ctrl+K`、`Esc`、双击、键盘选择）× 移动端大按钮 + 复制计入使用记录 | **AC-33、AC-34、AC-35、AC-36** + 不得回归（AC-13/20/21/29/31） |
@@ -2015,6 +2047,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v45 2026-09-21（用户新增：移动端档位顺序）**：新增 **FR-92**（移动端 <768px 档位开关顺序改为 `卡片 / 表格 / 分栏`、**首次进入默认落 `卡片`**；桌面顺序与默认一字不变；**不覆盖已有本地偏好**；旧值 `list` 仍回退 `split`） + **AC-94**（按断点分别断言顺序与默认档位 + 三档可切 + 回归）+ **D-34**（② 默认档位是 host_manger 的推断，可否决） + **AC-45 ① ② 按断点修正**（原断言写死桌面顺序）；**并入阶段 34**（尚未派发）。
 - **v44 2026-09-21（用户两条新需求：分栏手机端全屏 + README 用户化）**：新增 **FR-90**（分栏中栏在 <768px 必须撑满可用宽度 358；实测根因 = `SplitView.tsx` 中栏 `flex: 0 0 clamp(276px, 31.3%, 350px)` 与移动端无关 ⇒ 390 宽时被 clamp 下限抬到 276、右侧空 82；同宽度下卡片/表格视图都是 358；桌面三档 clamp 与 FR-71 比值不得回归）+ **FR-91**（README 改为用户文档：是什么/能做什么/两种部署方式〔Docker 与源码，都要能照着跑通〕/怎么用/备份升级/FAQ/已知限制/文档索引；开发者信息迁 `docs/development.md`、接口迁 `docs/api.md`；README 不得出现 AC-/FR-/阶段号等内部术语；顺带消除重复两节 = backlog R-5）+ **AC-92 / AC-93** + **D-33**（文档归属）+ **阶段 34**。
 - **v43 2026-09-21（用户新需求：GitHub Actions 构建镜像推送到 Docker Hub）**：新增 **FR-89**（新增 `.github/workflows/docker.yml`：tag `v*` 构建并推送 `<semver>`/`<major.minor>`/`latest`、`main` 只构建不推送、`workflow_dispatch` 手动补跑；凭据**只**从 GitHub Secrets 取、任何 step 不得回显 secret、不硬编码命名空间；平台 `linux/amd64`；文档补「从镜像运行」与「镜像发布」） + **AC-91**（① 静态断言 ② 与 106 一致性 ③ 等价构建 ④ 端到端实跑〔**待用户配 secrets**〕）+ **D-32**（镜像坐标与 tag 方案）+ **阶段 33**。
 - **v42 2026-09-21（用户两条：CI 报错 + 登录页简化）**：新增 **FR-87**（**FIX `tools/ci-check.sh` 步骤顺序** —— `typecheck:tests` 跑在 `npm run build` 之前，
