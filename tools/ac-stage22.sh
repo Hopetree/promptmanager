@@ -11,7 +11,7 @@ cd "$(dirname "$0")/.." || exit 1
 PORT=${PORT:-auto}
 AC_PW='ac-fixture-pw-20260918'
 AC_USER='admin'
-SHOTS='docs/shots/stage22'
+SHOTS='tmp/shots/stage22'
 SPLIT_WIDTH_BEFORE=366   # 阶段 21 实测（@1600 视口，见 PROGRESS §3）
 FAIL=0
 

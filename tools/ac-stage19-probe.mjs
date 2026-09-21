@@ -18,7 +18,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const [mode, baseUrl, sid, extra, shotsDir = 'docs/shots/stage19'] = process.argv.slice(2);
+const [mode, baseUrl, sid, extra, shotsDir = 'tmp/shots/stage19'] = process.argv.slice(2);
 if (mode === undefined || baseUrl === undefined || sid === undefined || extra === undefined) {
   console.error('用法：node tools/ac-stage19-probe.mjs <editor|copy> <baseUrl> <sid> <extra> [shotsDir]');
   process.exit(2);

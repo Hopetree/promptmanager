@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const [baseUrl, sid, shotsDir = 'docs/shots/stage25'] = process.argv.slice(2);
+const [baseUrl, sid, shotsDir = 'tmp/shots/stage25'] = process.argv.slice(2);
 if (baseUrl === undefined || sid === undefined) {
   console.error('用法：node tools/ac-stage25-probe.mjs <baseUrl> <sid> [shotsDir]');
   process.exit(2);

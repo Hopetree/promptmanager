@@ -14,7 +14,7 @@ PORT=${PORT:-auto}
 LAN_IP=${LAN_IP:-192.168.0.228}
 AC_PW='ac-fixture-pw-20260918'
 AC_USER='admin'
-SHOTS='docs/shots/stage19'
+SHOTS='tmp/shots/stage19'
 FAIL=0
 
 pick_port() {

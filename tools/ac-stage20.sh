@@ -16,7 +16,7 @@ LAN_IP=${LAN_IP:-192.168.0.228}
 AC_USER='admin'
 AC_PW='ac-fixture-pw-20260918'          # 原值（验收后要改回来的就是它）
 AC_PW_NEW='ac-fixture-pw-20260920-NEW'  # 正例用的新口令
-SHOTS='docs/shots/stage20'
+SHOTS='tmp/shots/stage20'
 FAIL=0
 
 pick_port() {

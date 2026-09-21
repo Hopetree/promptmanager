@@ -25,7 +25,7 @@ if (!['folder', 'table', 'card'].includes(mode ?? '') || baseUrl === undefined |
   console.error('用法：node tools/ac-stage23-probe.mjs <folder|table|card> <baseUrl> <sid> [...]');
   process.exit(2);
 }
-const shotsDir = mode === 'folder' ? (rest[3] ?? 'docs/shots/stage23') : (rest[0] ?? 'docs/shots/stage23');
+const shotsDir = mode === 'folder' ? (rest[3] ?? 'tmp/shots/stage23') : (rest[0] ?? 'tmp/shots/stage23');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CHROME = [
   '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',

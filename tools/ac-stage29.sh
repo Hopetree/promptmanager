@@ -17,7 +17,7 @@ ONLY=${1:-all}
 PORT=${PORT:-auto}
 AC_PW='ac-fixture-pw-20260918'
 AC_USER='admin'
-SHOTS='docs/shots/stage29'
+SHOTS='tmp/shots/stage29'
 FAIL=0
 # AC-85 ② 的长文件夹名（≥20 字）
 LONG_FOLDER='AC29 超长文件夹名称用于换行保护验证ABC一二三四五六七八九十'

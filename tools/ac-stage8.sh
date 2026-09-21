@@ -4,11 +4,11 @@
 # AC-13 调 `tools/ui-shots.sh`（服务**自起自停**，临时 DATA_DIR，不碰生产数据）；
 # AC-21 用 ui-shots 产出的**渲染后 DOM dump**（headless chromium 真实执行 React 后的 HTML）跑 BRIEF 原命令。
 #
-# 用法：bash tools/ac-stage8.sh [截图输出目录，默认 docs/shots]
+# 用法：bash tools/ac-stage8.sh [截图输出目录，默认 tmp/shots（自证产物不入库，见 STANDARDS §5.2）]
 set -u
 
 cd "$(dirname "$0")/.." || exit 1
-SHOTS_DIR=${1:-docs/shots}
+SHOTS_DIR=${1:-tmp/shots}
 PORT=${PORT:-8767}
 LOG=tmp/ac-stage8-shots.log
 FAIL=0
@@ -18,6 +18,7 @@ pass() { printf '  ✅ %s\n' "$1"; }
 fail() { printf '  ❌ %s\n' "$1"; FAIL=1; }
 expect_eq() { if [ "$2" = "$3" ]; then pass "$1 = $3"; else fail "$1 = $3（期望 $2）"; fi; }
 expect_ge() { if [ "${3:-}" != '' ] && [ "$3" -ge "$2" ] 2>/dev/null; then pass "$1 = $3（期望 ≥$2）"; else fail "$1 = ${3:-空}（期望 ≥$2）"; fi; }
+expect_le() { if [ "${3:-}" != '' ] && [ "$3" -le "$2" ] 2>/dev/null; then pass "$1 = $3（期望 ≤$2）"; else fail "$1 = ${3:-空}（期望 ≤$2）"; fi; }
 
 mkdir -p tmp
 
@@ -100,9 +101,11 @@ for p in glob.glob(os.path.join(sys.argv[1], '*.png')):
 print(n)
 PY
 )"
-  # ⚠️ 上线准备 P1：`docs/shots/before/`（阶段 8 修前对比图）已按清理清单删除，故不再断言它；
-  # 改为核"当前状态截图"与"归档里的阶段 8 识图结论"（归档 = docs/dev-history/PROGRESS.md）。
-  expect_ge "当前状态截图 docs/shots/*.png" 40 "$(ls -1 docs/shots/*.png 2>/dev/null | wc -l)"
+  # ⚠️ 上线准备 P1：`docs/shots/before/`（阶段 8 修前对比图）已按清理清单删除，故不再断言它。
+  # 【阶段 30 / FR-84 修订】自证截图默认落 tmp/（STANDARDS §5.2）⇒ 这里核**自证输出目录**的全套张数；
+  # 另核 `docs/shots/` 只留一套关键展示图（≤10）。
+  expect_ge "自证截图 $SHOTS_DIR/*.png（全套）" 40 "$(ls -1 "$SHOTS_DIR"/*.png 2>/dev/null | wc -l)"
+  expect_le "docs/shots 只留关键展示图（≤10）" 10 "$(ls -1 docs/shots/*.png 2>/dev/null | wc -l)"
   expect_ge "归档 PROGRESS 里「识图」结论条数" 6 "$(grep -c '识图' docs/dev-history/PROGRESS.md || true)"
 fi
 

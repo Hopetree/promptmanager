@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.." || exit 1
 PORT=${PORT:-auto}
 AC_PW='ac-fixture-pw-20260918'
 AC_USER='admin'
-SHOTS='docs/shots/stage23'
+SHOTS='tmp/shots/stage23'
 FAIL=0
 
 pick_port() {

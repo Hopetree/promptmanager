@@ -15,7 +15,7 @@ ONLY=${1:-all}
 PORT=${PORT:-auto}
 AC_PW='ac-fixture-pw-20260918'
 AC_USER='admin'
-SHOTS='docs/shots/stage27'
+SHOTS='tmp/shots/stage27'
 FAIL=0
 
 # AC-82 改前基线（改 VarsDialog 之前用本脚本 vars 模式实测的真实像素；见 PROGRESS「阶段 27」）

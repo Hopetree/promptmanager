@@ -5,9 +5,9 @@
 > and `/root/greenhouse/STANDARDS.md` (**highest precedence**; it wins on any conflict).
 >
 > This file covers **how to work in this repo** and nothing else. Every command below was actually executed
-> on 2026-09-21 against the code tree of commit `d6285ba`, and every path was checked with `test -e`.
-> Where a topic is already documented elsewhere, this file **points to it instead of duplicating it**,
-> so there is exactly one source of truth.
+> on 2026-09-21 and re-verified in stage 30 (test counts, bundle size, screenshot conventions); every path
+> was checked with `test -e`. Where a topic is already documented elsewhere, this file **points to it
+> instead of duplicating it**, so there is exactly one source of truth.
 >
 > This file is **English-only by policy** (`STANDARDS.md` section 5.1: AI instruction files are English so
 > agents can match and update them reliably). The rest of the repo's documentation is Chinese.
@@ -37,7 +37,7 @@
 cd /root/greenhouse/projects/promptmanager
 npm ci --cache var/cache/npm     # WARNING: /root/.npm is read-only in this sandbox; keep the cache in-repo (see section 3 and pitfall 3)
 npm run build                    # tsc -> dist/server, vite -> dist/web
-npm test                         # expect: tests 285 / pass 285 / fail 0 (~17s)
+npm test                         # expect: tests 307 / pass 307 / fail 0 (~15s)
 
 # Start a throwaway instance (never touches production data, never takes port 8767)
 AC=$(mktemp -d)
@@ -53,21 +53,21 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 | Goal | Command | Verified output / pass criterion |
 | --- | --- | --- |
 | Install deps | `npm ci --cache var/cache/npm` | rc=0; 209 entries in `node_modules`. **Without `--cache` it fails with EROFS** (pitfall 3). The trailing `npm warn allow-scripts ... better-sqlite3@13.0.3 (install: node-gyp rebuild)` is **expected** (pitfall 9). |
-| Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` = 467320 B (no `larger than 500 kB` warning). |
+| Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` = 470985 B (no `larger than 500 kB` warning). |
 | Server build only | `npm run build:server` | rc=0. The CLI and `node --test` both load from `dist/**` (pitfall 8). |
 | Web build only | `npm run build:web` | rc=0. |
-| Full test suite | `npm test` | rc=0; `tests 285` / `pass 285` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
+| Full test suite | `npm test` | rc=0; `tests 307` / `pass 307` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
 | One test file | `npm run build && node --test tests/health.test.ts` | rc=0; `tests 3` / `pass 3` / `fail 0`. **Build first**: tests import from `../dist/**`, and some cases need `dist/web`. |
 | One test case | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0; `tests 1` / `pass 1` / `fail 0`. |
 | Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). |
-| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (deps / 2x typecheck / npm test / build / 500 KB chunk budget). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 285 ... fail 0` and max chunk `467320 B`. |
+| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (deps / 2x typecheck / npm test / build / 500 KB chunk budget). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 307 ... fail 0` and max chunk `470985 B`. |
 | Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v3`**. A second run prints the same and also exits 0. |
 | Set the admin password | `printf '%s\n' '<strong-password>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0; prints **`ok: user admin password updated`** (password is read from stdin and never echoed). |
 | Start (default 8767) | `npm start` | rc=0; logs `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=...)`. Verified with `PORT=8765`; **8767 is currently occupied by the test environment**. |
 | **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"1.0.0"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
 | Big fixture (2000 rows) | `DATA_DIR=$AC node tools/seed-prompts.mjs 2000` | rc=0; `ok: seeded 2000 prompts (total=2000, fts_hits=2000) in ... [192 ms]`. |
 | Deployment file syntax | `systemd-analyze verify deploy/promptmanager.service` | rc=0 and **no output**. Note: it cannot catch the "starts, then crashes" trap (pitfall 1). |
-| UI evidence screenshots | `bash tools/ui-shots.sh` | rc=0; `OK ui-shots done`; 53 PNGs written to `docs/shots/`. |
+| UI evidence screenshots | `bash tools/ui-shots.sh` | rc=0; `OK ui-shots done`; **self-check mode writes the full 68-shot set to `tmp/ui-shots/shots/` (not committed)**. Use `bash tools/ui-shots.sh --key` to (re)generate the one key set of 8 into `docs/shots/` (see section 5.1). |
 | One representative stage script | `bash tools/ac-stage25.sh` | rc=0; the script's final banner (Chinese in its source) means "AC-76 all checks passed". For the full script list see the verification section of `README.md`; there is no stage 9 script. |
 
 **Port discipline**: never use 8767 for a throwaway instance - the test environment is already listening
@@ -87,12 +87,12 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
 | `migrations/` | `001_init.sql`, `002_tokens-and-usage.sql`, `003_prompt-sort-order.sql`. |
-| `tests/` | `node:test` cases (52 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
+| `tests/` | `node:test` cases (55 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
 | `tools/` | `ci-check.sh` (the local = CI quality gate), `ui-shots.sh` + `ui-shot.mjs` (UI evidence), `ac-stage<N>.sh` + `ac-stage<N>-probe.mjs` (per-stage AC self-checks), `seed-prompts.mjs`, `search-zh-poc.mjs`, `mcp-client-smoke.py`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
-| `docs/` | `dependencies.md` (deps + licenses + CVEs), `versioning.md`, `search-zh.md`, `brief-changelog.md`, `shots/` (current UI evidence), `dev-history/` (process archive: full PROGRESS/VERIFY, past QUESTIONS, design studies, per-stage screenshots). |
+| `docs/` | **Final-state documentation only, for humans** (developers + users): `dependencies.md` (deps + licenses + CVEs), `versioning.md`, `search-zh.md`, `brief-changelog.md`, `shots/` (**one** set of key page shots, 8 PNGs), `dev-history/` (process archive kept as acceptance evidence: full PROGRESS/VERIFY, past QUESTIONS, design studies — **documents only; its screenshots live in `tmp/`**). See section 5.1. |
 | Root files | `BRIEF.md` (requirements + ACs, **read-only**), `README.md`, `PROGRESS.md`, `VERIFY.md`, `QUESTIONS.md`, `CHANGELOG.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/ci.yml`. |
-| Runtime (never committed) | `tmp/`, `var/` (logs and caches), `dist/` (build output), `node_modules/`, `_env/` (credentials, mode 700, read-only use). The default data dir `data/` appears **after the first run** (see section 6). |
+| Runtime (never committed) | `tmp/` (**never committed**: process artifacts — self-check screenshots, archived shots, debug dumps, logs, scratch scripts), `var/` (logs and caches), `dist/` (build output), `node_modules/`, `_env/` (credentials, mode 700, read-only use). The default data dir `data/` appears **after the first run** (see section 6). |
 
 ## 5. Code conventions
 
@@ -119,6 +119,32 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
   another validation library.
 - Comments explain **why** (especially why a workaround exists), not what the code already says.
 
+### 5.1 Where documentation and screenshots live: `docs/` vs `tmp/` (STANDARDS.md section 5.2)
+
+**Rule of thumb**: *final deliverable / documentation (a human reads it) goes to `docs/`; a process
+artifact (only the process needs it) goes to `tmp/`.*
+
+- **`docs/` is final-state, for humans** (developers + users): product docs, dependency list, versioning
+  plan, search report, BRIEF change history, and **one set of key page shots**.
+- **`tmp/` holds process artifacts and is never committed** (it is in `.gitignore`): per-stage acceptance
+  screenshots, regression/self-check screenshot batches, AC-probe intermediate output, debug dumps, scratch
+  scripts, logs, backups. **`git ls-files tmp` must always be `0`** - never `git add` anything under `tmp/`.
+- **Screenshot tiers**:
+  - **key page shots → `docs/shots/`** - exactly one set of 8 (`01-login`, `02-split`, `03-table`,
+    `04-cards`, `05-editor`, `06-detail`, `07-mobile`, `08-dark`), covering
+    login / split / table / card / editor / detail / mobile / dark;
+  - **per-stage process shots → `tmp/shots/stage<N>/`** (written by the `ac-stage<N>.sh` scripts);
+  - anything replaced is **archived (moved) to `tmp/shots-archive/`** - never left behind in `docs/`.
+- **Tool conventions**:
+  - `bash tools/ui-shots.sh` - **default output is `tmp/ui-shots/shots/`** (self-check mode, not
+    committed). Only `bash tools/ui-shots.sh --key` produces the single key set into `docs/shots/`, and it
+    first archives the previous set to `tmp/shots-archive/docs-shots/<timestamp>/` ("one set only").
+  - `bash tools/ac-stage<N>.sh` - process shots default to `tmp/shots/stage<N>/`.
+- **`docs/dev-history/` keeps its documents** (full PROGRESS / VERIFY / past QUESTIONS / design studies)
+  because they are **acceptance evidence**; **only its screenshots move to `tmp/`**.
+- The full text is `/root/greenhouse/STANDARDS.md` section 5.2. **Do not restate these rules elsewhere -
+  point at that section.**
+
 ## 6. Data and migrations
 
 - **Data directory**: `DATA_DIR` (defaults to `<repo>/data`, created on first run). It holds `pm.db`
@@ -137,7 +163,7 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (52 files, **285** cases). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (55 files, **307** cases). How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
@@ -162,9 +188,10 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
   `mouseMoved` -> `mousePressed` -> `mouseReleased`. **Never use JS `.click()`** - it bypasses pointer
   events and will not expose real bugs in drag-and-drop, multi-select, or drag handles.
 - **UI ACs must take and read their own screenshots**: `bash tools/ui-shots.sh` starts and stops its own
-  instance and drives a zero-install headless chromium, writing 53 PNGs to `docs/shots/` plus a
-  post-render DOM dump for the `ant-*` class-name count. Record your per-image reading in the PROGRESS
-  section for that stage.
+  instance and drives a zero-install headless chromium. **Self-check runs write to `tmp/` and are not
+  committed**; only `--key` (release/delivery) writes the single key set of 8 to `docs/shots/`. The run
+  also writes a post-render DOM dump for the `ant-*` class-name count. Record your per-image reading in
+  the PROGRESS section for that stage. See section 5.1.
 - **Capabilities that depend on a secure context must be verified over the LAN IP**:
   `http://192.168.0.228:<port>`. `127.0.0.1` counts as a secure context and will **mask** real bugs that
   only appear over plain HTTP on the LAN (see pitfall 5).
@@ -187,6 +214,9 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
   publishing (pushing to public repos, posting anywhere).
 - Never `rm -rf` a path you are unsure about. `data/`, `tmp/`, `var/`, `dist/`, `node_modules/`, and
   `_env/` are all excluded from git.
+- **`docs/` is final-state only and `tmp/` is never committed** (`STANDARDS.md` section 5.2): keep key page
+  shots in `docs/shots/`, per-stage/self-check screenshots in `tmp/`, and confirm `git ls-files tmp` is
+  empty before every commit. See section 5.1.
 - **`git add` with explicit paths only** (for example `git add AGENTS.md`) - **never `git add -A` or
   `git add .`**: another session's uncommitted changes may be sitting in the working tree, and `-A` would
   sweep them into your commit.
@@ -262,7 +292,8 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
 | `CHANGELOG.md` | Human-readable version history (Keep a Changelog style) | When releasing, or when you need to know what a version contains |
 | `deploy/README.md` | systemd install / verify / roll back, plus troubleshooting (AF_NETLINK and friends) | When touching deployment files or diagnosing a startup failure |
 | `deploy/container.md` | Container shape (delivered by host_manger) | When you need the container form |
-| `docs/shots/` and `docs/dev-history/shots/` | Current UI evidence (53 PNGs) and per-stage historical screenshots | When comparing against a UI AC |
+| `docs/shots/` | **One** set of key page shots (8 PNGs: login / split / table / card / editor / detail / mobile / dark) - the human-facing UI evidence | When you need a current UI reference or compare against a UI AC |
+| `tmp/shots-archive/` (not committed) | Archived screenshots: the old top-level set, per-stage process shots, `docs/dev-history/shots/`, and the design-study shots | When you need historical/process screenshots for an old AC |
 | `QUESTIONS.md` | Template for stopping and asking (past Q&A in `docs/dev-history/QUESTIONS-history.md`) | When the spec does not cover something that blocks delivery (see section 12) |
 
 ## 12. Working agreement for AI agents

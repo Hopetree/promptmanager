@@ -25,7 +25,7 @@ if (!['card', 'folder', 'other'].includes(mode ?? '') || baseUrl === undefined |
   console.error('用法：node tools/ac-stage24-probe.mjs <card|folder|other> <baseUrl> <sid> [...]');
   process.exit(2);
 }
-const shotsDir = mode === 'folder' ? (rest[1] ?? 'docs/shots/stage24') : (rest[0] ?? 'docs/shots/stage24');
+const shotsDir = mode === 'folder' ? (rest[1] ?? 'tmp/shots/stage24') : (rest[0] ?? 'tmp/shots/stage24');
 const folderId = mode === 'folder' ? Number(rest[0]) : null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CHROME = [

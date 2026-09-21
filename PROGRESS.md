@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–29 已全部完成**；已发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83，含全英文返工）与阶段 29（FR-82/FR-83 / AC-84/AC-85，阶段 27 的 5 条视觉细化）自检全过**（见本文件「阶段 27」「阶段 28」「阶段 29」） |
+| 阶段 | **阶段 1–30 已全部完成**；已发布 **v1.0.0** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83，含全英文返工）、阶段 29（FR-82/FR-83 / AC-84/AC-85）与阶段 30（FR-84 / AC-86：`docs/` 只留最终状态、过程截图进 `tmp/`）自检全过**（见本文件「阶段 27」「阶段 28」「阶段 29」「阶段 30」） |
 | 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -51,6 +51,7 @@
 | 27 | FR-77 表格批量操作（复选框/全选/批量收藏·移动·删除）+ FR-78 详情页「文件夹+标签」可改 + FR-79 去「备注」页签 + FR-80 去变量区块 + FR-81 加大 VarsDialog | 本文件「阶段 27」 |
 | 28 | 项目级 `AGENTS.md`（AI 代理操作指南：常用命令 / 结构地图 / 约定 / 红线 / 10 条本项目特有的坑 / 文档地图 / 协作约定；按 STANDARDS §5.1 **全文英文**） | 本文件「阶段 28」 |
 | 29 | FR-82 表格批量 UI 细化（表头半选态可辨 + 与行内尺寸一致 + 工具条间距≥6px）+ FR-83 详情页元信息行细化（层级间距 20≤24 + 长内容换行保护 + 标签 chip 与左栏统一） | 本文件「阶段 29」 |
+| 30 | FR-84 `docs/` 只放最终状态：`docs/shots/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/shots-archive/` + `ui-shots.sh` 默认 `tmp/`·`--key` 发版模式 + 11 个阶段脚本截图落 `tmp/` + `AGENTS.md` §5.1（英文） | 本文件「阶段 30」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -988,6 +989,169 @@ $ git diff --name-only package.json package-lock.json → 空（无新依赖）
 | ③ | 对抗性自审第 2 轮（5 个独立 checker）修 6 条缺陷：体积记账死代码 / 半选 hover 白底白杠 / 删除请求数未量 / 窄面板不断言 / 截图存在性无断言 / 全选与夹具前置条件断言过松 | **`0f75b4d`** `fix(web): 对抗性自审第 2 轮 —— 修 6 条真实缺陷（半选 hover / 体积记账 / 断言过松）` |
 | 收尾 | 本表（commit hash 回填）+ `docs/dev-history/doublecheck-stage29-report.md` 交付记录 —— **docs-only** | 见交付回复（提交无法自引用自身 hash） |
 
+
+## 阶段 30（2026-09-21）：`docs/` 只放「最终状态」，过程产物进 `tmp/`（FR-84 / AC-86）
+
+### 开工前：AC-86 → 检查命令（先落盘，再动手）
+
+> 基线：`npm test` 已跑，**307/307 全绿**（rc=0）—— 绿色基线确认后才开工。
+> 本阶段**只动 `docs/` 的产物布局 + 截图工具约定 + `AGENTS.md`**；**不动代码与接口契约**、**不动部署**。
+
+| AC | 要执行的检查命令 | 判据 |
+| --- | --- | --- |
+| AC-86 ① | `find docs -name '*.png' \| wc -l` | **≤10**（关键展示图一套）；贴改前 → 改后 |
+| AC-86 ② | `find docs -type d -name 'stage*'` | **空**（阶段截图目录已不在 `docs/` 下） |
+| AC-86 ③ | `ls tmp/shots-archive/ \| head` + `git ls-files tmp \| wc -l` | 归档可查；`git ls-files tmp` = **0**（不入库） |
+| AC-86 ④ | `grep -n "OUT_DIR=\|--key\|自证模式\|发版模式" tools/ui-shots.sh` | 默认输出 `tmp/`、发版前才产一套到 `docs/shots/`，注释写明 |
+| AC-86 ⑤ | `sed -n '/^### 5.1 Where documentation/,/^## 6\./p' AGENTS.md` | 英文段落含：`docs/` 定位 + 截图分级 + 工具约定 + `tmp/` 不入库 + 指回 STANDARDS §5.2 |
+| AC-86 ⑥ | `git ls-files docs \| grep -c '\.png$'` | **≤10**；贴改前 → 改后 |
+| AC-86 ⑦ | `npm test` + `bash tools/ci-check.sh` + `git status --porcelain` | 全绿（307）；`git status` 干净 |
+
+### 阶段 30 实施与自检：逐条命令 + 原样输出
+
+#### ⓪ 改前基线（本会话实测；与 BRIEF 记载的口径差异已注明）
+
+```
+$ find docs -name '*.png' | wc -l
+163
+$ git ls-files docs | grep -c '\.png$'
+163
+$ du -sh docs
+18M
+```
+
+明细（改前）：`docs/shots` 顶层 53 + `docs/shots/stage27` 20 + `docs/shots/stage29` 22（含 regression-ac27 13）
++ `docs/dev-history/shots/stage18~25` 53 + `docs/dev-history/design/{a,b,c}/shots` 15 = **163**。
+
+> **口径说明（诚实记录）**：BRIEF §4 FR-84 记的是「png **172** 张 / `git ls-files docs` png **94**」。
+> 本会话实测是 **163 / 163**。差异原因：① 172 含当时**未被 git 跟踪**的 `docs/shots/stage22/23/24` 残留
+> （那批已在**阶段 29 的对抗性自审轮**被我移入 `tmp/`）；② 「94」应是**只数 `docs/shots` 下、不含 `docs/dev-history`** 的口径
+> （本会话实测该口径 = 95，含阶段 29 新增的 `02c-bulk-partial-hover-light.png`）。
+> 两个口径的**改后值都是 8**，不影响 AC-86 的判据。
+
+#### ① `docs/` 收敛为关键页面展示图一套（8 张）
+
+```
+$ find docs -name '*.png' | wc -l
+8
+$ find docs -type d -name 'stage*'
+（空）
+$ git ls-files docs | grep -c '\.png$'
+8
+$ git ls-files docs | grep '\.png$'
+docs/shots/01-login.png
+docs/shots/02-split.png
+docs/shots/03-table.png
+docs/shots/04-cards.png
+docs/shots/05-editor.png
+docs/shots/06-detail.png
+docs/shots/07-mobile.png
+docs/shots/08-dark.png
+```
+
+**一套 8 张的覆盖与来源**（用 `tools/ui-shots.sh --key` 重新生成 —— 阶段 29 刚改过详情页观感，
+重生成可保证是**当前**界面；旧的 53 张整体归档）：
+
+| 新文件 | 覆盖 | 来源（原 `ui-shots.sh` 定义 / 原文件名） | 尺寸 |
+| --- | --- | --- | --- |
+| `01-login.png` | 登录 | `01-login` | 1280×800 |
+| `02-split.png` | 分栏（默认落地；右栏顶部：标题/备注/**元信息行**/页签/正文） | `32-split` | 1280×800 |
+| `03-table.png` | 表格 | `02-list`（点「表格」档） | 1280×800 |
+| `04-cards.png` | 卡片 | `20-use-light` | 1280×800 |
+| `05-editor.png` | 编辑器 | `03-editor` | 1280×800 |
+| `06-detail.png` | 详情面（右栏下半：版本历史 + 底部固定操作条） | 新增 `key-detail`（选**第一条**富夹具，与 `02-split` 互补） | 1280×800 |
+| `07-mobile.png` | 移动端 | `05-mobile-list` | 390×844 |
+| `08-dark.png` | 暗色 | `40-dark-sidebar` | 1280×800 |
+
+**识图（五问：重叠/遮挡 · 硬断词 · 孤标题 · 溢出裁切 · 是否符合既定美学）**：
+`04-cards`（卡片网格 + 左栏文件夹树/标签云 + 复制按钮）**无**重叠/硬断词/孤标题/裁切，与既定设计一致；
+`06-detail`（富夹具「会话交接模板」：标题 → 备注 → **元信息行 `运维` + `#交接 ✕` `#发布 ✕` + `+ 添加标签`** → 两页签 → 渲染正文 → 版本历史 → 操作条）同上；
+`08-dark` 为同视图暗色，chip 为等价低对比底色、无对比度问题。**降级清单：无**。
+
+#### ② 各阶段截图目录 + 归档截图整体移 `tmp/shots-archive/`
+
+```
+$ ls tmp/shots-archive/ | head
+dev-history-design-shots
+dev-history-shots
+docs-shots
+docs-shots-stage27
+docs-shots-stage29
+regenerated
+$ git ls-files tmp | wc -l
+0
+$ du -sh tmp/shots-archive
+24M
+```
+
+| 归档目录 | 内容 | png |
+| --- | --- | --- |
+| `tmp/shots-archive/docs-shots/` | 旧顶层 53 张 + `--key` 第二次运行时归档的旧一套（时间戳子目录 `2026-09-21-115323/`） | 61 |
+| `tmp/shots-archive/docs-shots-stage27/` | 阶段 27 过程截图（原 `docs/shots/stage27`） | 20 |
+| `tmp/shots-archive/docs-shots-stage29/` | 阶段 29 过程截图 + AC-78/79 回归图（原 `docs/shots/stage29`） | 22 |
+| `tmp/shots-archive/dev-history-shots/` | `docs/dev-history/shots/`（stage18~25）整体移 | 53 |
+| `tmp/shots-archive/dev-history-design-shots/` | `docs/dev-history/design/{a,b,c}/shots/`（设计打样截图） | 15 |
+| `tmp/shots-archive/regenerated/` | 阶段 29 自审轮重跑的 stage20~24 残留（`from-ac27` / `from-ac29-r1` / `from-ac29-r2`） | 80 |
+
+**移法**：已跟踪的用 `git mv`（163 个文件，`git status` 显示为 `D` = 删除）；**未跟踪的残留用 `mv`**。
+⚠️ 注意：`git mv` 会把**目标（在 `.gitignore` 的 `tmp/` 下）也 stage 进索引** —— 必须再 `git rm -r --cached <目标>`
+把索引里的 tmp 条目摘掉（文件仍留在磁盘）。**本阶段对每组移动都做了这一步**，所以 `git ls-files tmp` = 0。
+**未使用 `git add -A` / `git add .`**（全部按明确路径 `git add`）。
+
+#### ③ `tools/ui-shots.sh` 约定（默认 `tmp/`；`--key` 才产一套到 `docs/shots/`）
+
+```
+$ grep -n "OUT_DIR=\|--key\|自证模式\|发版模式" tools/ui-shots.sh | head -20
+8:#     - 默认（无参数）= **自证模式**：全套 68 张落 `tmp/ui-shots/shots/`（给过程用，不进 git）；
+9:#     - `--key` = **发版 / 交付模式**：只产一套「关键页面展示图」（8 张，见下方 KEY_SET）到 `docs/shots/`，
+14:#   bash tools/ui-shots.sh                 # 自证模式：全套 → tmp/ui-shots/shots/（默认，不入库）
+15:#   bash tools/ui-shots.sh --key           # 发版模式：8 张关键展示图 → docs/shots/（旧的先归档到 tmp/）
+27:# ---- 参数解析（FR-84 ③）：默认 tmp/（自证）；--key = 发版前的一套关键展示图 → docs/shots/ ----
+32:    --key|key) MODE=key ;;
+37:  if [ "$MODE" = "key" ]; then OUT_DIR='docs/shots'; else OUT_DIR='tmp/ui-shots/shots'; fi
+41:# 发版模式：先把旧的展示图整体归档到 tmp/（"只留一套"），再产新的一套
+52:  echo "  发版模式：只产一套关键页面展示图（8 张）→ $OUT_DIR"
+54:  echo "  自证模式：全套截图 → $OUT_DIR（tmp/ 不入库）"
+```
+
+**"旧的先归档"实测**：第二次 `--key` 运行时打印 `旧展示图已归档：docs/shots/*.png → tmp/shots-archive/docs-shots/2026-09-21-115323/`。
+
+**顺带（由 §5.2 推论要求，超出 FR-84 字面但同源）**：11 个阶段脚本的截图默认目录改为 `tmp/`
+（`ac-stage8.sh` 的 `SHOTS_DIR` + `ac-stage18/19/20/21/22/23/24/25/27/29.sh` 的 `SHOTS`），
+否则下次回归跑又会在 `docs/` 下重建 `stage<N>/`，让 AC-86 ② 失效。
+
+#### ④ `AGENTS.md`（英文）新增 §5.1
+
+见 `AGENTS.md` 的 `### 5.1 Where documentation and screenshots live: docs/ vs tmp/ (STANDARDS.md section 5.2)`：
+含 **`docs/` 定位（final-state, for humans）** · **截图分级（key page shots → `docs/shots/`；per-stage process shots → `tmp/`）** ·
+**工具约定（self-check screenshots default to `tmp/`）** · **`tmp/` is never committed（`git ls-files tmp` 必须为 0）** ·
+并**指回 `/root/greenhouse/STANDARDS.md` section 5.2**（不重复抄规则）。
+顺带把该文件里**已过期的数字**对齐现状（用例 285→**307**、测试文件 52→**55**、最大 chunk 467320→**470985**、
+「53 PNGs → docs/shots」→ 新约定），并把 §4/§9/§11 的 `docs/`、`tmp/` 描述改成与新规范一致。
+
+#### ⑤ 回归（AC-86 ⑦）
+
+```
+$ npm test                       → ℹ tests 307 / pass 307 / fail 0        （rc=0）
+$ bash tools/ci-check.sh         → ✅ 代码质量检查全部通过（6 项）
+   ③ npm test（rc=0）  ℹ tests 307 ℹ pass 307 ℹ fail 0
+   ④b 体积预算（rc=0） 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+$ git status --porcelain         → 空（提交前核对；见收尾 commit）
+```
+
+#### ⑥ 已知遗留（按 BRIEF「不改文档内容」保留原样，在此登记）
+
+1. **文档里的图片链接失效**：`docs/dev-history/PROGRESS.md` 与 `docs/dev-history/design/*/design-notes.md`
+   里指向 `docs/dev-history/shots/...` / `shots/...` 的**图片引用**在截图移走后**不再可解析**。
+   按 FR-84「不改：文档内容本身（… `dev-history` 下的 md）」**未改这些 md**；图已归档到
+   `tmp/shots-archive/dev-history-shots/` 与 `tmp/shots-archive/dev-history-design-shots/`，本地仍可查。
+2. **`docs/versioning.md` 权限是 600**（历史遗留，非本阶段引入）；未改动。
+
+#### ⑦ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | `docs/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/` + `ui-shots.sh` 默认 tmp/·`--key` 发版模式 + 11 个阶段脚本截图落 tmp + `AGENTS.md` §5.1（英文）+ README 对齐 + PROGRESS | 见交付回复 |
 
 ## 归档与当前状态的关系
 

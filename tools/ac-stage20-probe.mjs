@@ -19,7 +19,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const [mode, baseUrl, sid, shotsDir = 'docs/shots/stage20'] = process.argv.slice(2);
+const [mode, baseUrl, sid, shotsDir = 'tmp/shots/stage20'] = process.argv.slice(2);
 if (mode === undefined || baseUrl === undefined || sid === undefined) {
   console.error('用法：node tools/ac-stage20-probe.mjs <detail|password> <baseUrl> <sid> [shotsDir]');
   process.exit(2);

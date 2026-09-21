@@ -19,7 +19,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const [mode, baseUrl, sid, shotsDir = 'docs/shots/stage22'] = process.argv.slice(2);
+const [mode, baseUrl, sid, shotsDir = 'tmp/shots/stage22'] = process.argv.slice(2);
 if ((mode !== 'split' && mode !== 'drag') || baseUrl === undefined || sid === undefined) {
   console.error('用法：node tools/ac-stage22-probe.mjs <split|drag> <baseUrl> <sid> [shotsDir]');
   process.exit(2);

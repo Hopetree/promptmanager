@@ -27,7 +27,7 @@ if (!MODES.includes(mode ?? '') || baseUrl === undefined || sid === undefined) {
   console.error(`用法：node tools/ac-stage29-probe.mjs <${MODES.join('|')}> <baseUrl> <sid> [shotsDir]`);
   process.exit(2);
 }
-const shotsDir = rest[0] ?? 'docs/shots/stage29';
+const shotsDir = rest[0] ?? 'tmp/shots/stage29';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const CHROME = [
   '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',

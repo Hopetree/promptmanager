@@ -1,9 +1,19 @@
 #!/usr/bin/env bash
 # 阶段 8 界面自证（AC-13）：**服务自起自停** + 零安装 headless chromium 截图 + 渲染后 DOM dump（供 AC-21 用）。
 #
+# ⚠️ 输出约定（FR-84 / `/root/greenhouse/STANDARDS.md` §5.2，2026-09-21 用户定）：
+#   `docs/` 只放「**最终状态的、给人看的**」东西 ⇒ `docs/shots/` **只保留一套关键页面展示图（8 张）**；
+#   **过程/自证截图一律落 `tmp/`**（`tmp/` 在 `.gitignore` 里 ⇒ **不入库**，本地可随时查）。
+#   因此：
+#     - 默认（无参数）= **自证模式**：全套 68 张落 `tmp/ui-shots/shots/`（给过程用，不进 git）；
+#     - `--key` = **发版 / 交付模式**：只产一套「关键页面展示图」（8 张，见下方 KEY_SET）到 `docs/shots/`，
+#       且**只留一套** —— 产之前先把 `docs/shots/*.png` 旧图整体归档到 `tmp/shots-archive/docs-shots/`。
+#   判据（一句话）：**"最终交付 / 文档"（给人看）⇒ `docs/`；"过程中的临时产物"（给过程用）⇒ `tmp/`。**
+#
 # 用法：
-#   bash tools/ui-shots.sh                 # 输出到 docs/shots/（最终交付的那一组）
-#   bash tools/ui-shots.sh /tmp/shots-out      # 换输出目录（默认 docs/shots = 当前状态截图）
+#   bash tools/ui-shots.sh                 # 自证模式：全套 → tmp/ui-shots/shots/（默认，不入库）
+#   bash tools/ui-shots.sh --key           # 发版模式：8 张关键展示图 → docs/shots/（旧的先归档到 tmp/）
+#   bash tools/ui-shots.sh <输出目录>       # 显式指定输出目录（阶段脚本传 tmp/shots/stage<N> 之类）
 #
 # 设计口径：
 # - 临时 DATA_DIR + 临时端口占用检查，**不碰生产数据**；跑完删临时目录、杀自己起的进程；
@@ -14,9 +24,35 @@ set -u
 
 cd "$(dirname "$0")/.." || exit 1
 
-OUT_DIR=${1:-docs/shots}
+# ---- 参数解析（FR-84 ③）：默认 tmp/（自证）；--key = 发版前的一套关键展示图 → docs/shots/ ----
+MODE=full
+OUT_DIR=''
+for arg in "$@"; do
+  case "$arg" in
+    --key|key) MODE=key ;;
+    *) OUT_DIR="$arg" ;;
+  esac
+done
+if [ -z "$OUT_DIR" ]; then
+  if [ "$MODE" = "key" ]; then OUT_DIR='docs/shots'; else OUT_DIR='tmp/ui-shots/shots'; fi
+fi
 PORT=${PORT:-auto}
 DUMP_DIR=${DUMP_DIR:-tmp/ui-shots}
+# 发版模式：先把旧的展示图整体归档到 tmp/（"只留一套"），再产新的一套
+if [ "$MODE" = "key" ]; then
+  ARCHIVE='tmp/shots-archive/docs-shots'
+  if ls "$OUT_DIR"/*.png >/dev/null 2>&1; then
+    mkdir -p "$ARCHIVE"
+    # 用日期前缀避免多次归档互相覆盖；归档是**移动**（不入库）
+    STAMP=$(date +%Y-%m-%d-%H%M%S)
+    mkdir -p "$ARCHIVE/$STAMP"
+    mv "$OUT_DIR"/*.png "$ARCHIVE/$STAMP/"
+    echo "  旧展示图已归档：$OUT_DIR/*.png → $ARCHIVE/$STAMP/（$(ls -1 "$ARCHIVE/$STAMP"/*.png | wc -l) 张）"
+  fi
+  echo "  发版模式：只产一套关键页面展示图（8 张）→ $OUT_DIR"
+else
+  echo "  自证模式：全套截图 → $OUT_DIR（tmp/ 不入库）"
+fi
 # 阶段 10B 起：生产实例已占用 8767，因此默认**在台账范围 8765–8770 内自动挑一个空闲端口**
 # （STANDARDS §3.1 只允许这个范围；全被占 → 报错停手，不自行扩范围）。
 pick_port() {
@@ -90,9 +126,13 @@ SID=$(awk '$6 == "pm_sid" { print $7 }' "$JAR" | tail -1)
 [ -n "$SID" ] || die "登录响应里没有 pm_sid cookie"
 echo "SID 长度=${#SID}（不打印明文）"
 
-line "2a. 空态截图（**先于夹具**：库为空时才会出现 72 品牌图形）"
+# chrome 路径两种模式都要用（原先写在空态块里，发版模式下会漏定义 ⇒ 提到条件外）
 CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell（见 BRIEF §6.8）"
+
+# 空态截图只在**自证模式**跑（发版模式只产 8 张关键页面展示图，不含空态）
+if [ "$MODE" = "full" ]; then
+line "2a. 空态截图（**先于夹具**：库为空时才会出现 72 品牌图形）"
 python3 - "$PLAN_EMPTY" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$CHROME" <<'PYPLAN' || die "生成空态计划失败"
 import json
 import sys
@@ -125,6 +165,9 @@ with open(plan_path, 'w', encoding='utf-8') as handle:
 print('PLAN(empty) shots=%d' % len(shots))
 PYPLAN
 node tools/ui-shot.mjs "$PLAN_EMPTY" || die "空态截图失败"
+else
+  echo "  发版模式：跳过空态截图（不在关键展示图清单内）"
+fi
 
 line "3. 造夹具数据（文件夹 / 标签 / prompt / 版本 / 导出文件）"
 python3 - "$BASE" "$SID" "$EXPORT_FIXTURE" <<'PY' || die "夹具数据创建失败"
@@ -231,13 +274,47 @@ PY
 line "4. 生成截图计划并驱动 headless chromium"
 echo "  chrome=$CHROME"
 
-python3 - "$PLAN" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$EXPORT_FIXTURE" "$CHROME" "$AC_PW" <<'PY' || die "生成 plan.json 失败"
+python3 - "$PLAN" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$EXPORT_FIXTURE" "$CHROME" "$AC_PW" "$MODE" <<'PY' || die "生成 plan.json 失败"
 import json
 import sys
 
-plan_path, out_dir, dumps_dir, base, sid, export_fixture, chrome, fixture_pw = sys.argv[1:9]
+plan_path, out_dir, dumps_dir, base, sid, export_fixture, chrome, fixture_pw, mode = sys.argv[1:10]
 
 REPLACE_SENTENCE = '将清空现有全部 prompt / 文件夹 / 标签 / 版本历史'
+
+# FR-84 ①：发版模式下只产这套「关键页面展示图」（源 = 下面 shots 列表里的既有定义，只改文件名）。
+# 覆盖 AC-86 要求的 8 个主题：登录 / 分栏 / 表格 / 卡片 / 编辑器 / 详情面 / 移动端 / 暗色。
+KEY_SET = [
+    ('01-login', '01-login'),            # 登录页
+    ('32-split', '02-split'),            # 分栏（默认落地视图；右栏详情顶部：标题/备注/元信息行/页签/正文）
+    ('02-list', '03-table'),             # 表格视图
+    ('20-use-light', '04-cards'),        # 卡片视图
+    ('03-editor', '05-editor'),          # 编辑器
+    ('key-detail', '06-detail'),         # 详情面（分栏右栏下半：版本历史 + 底部固定操作条）
+    ('05-mobile-list', '07-mobile'),     # 移动端 390×844
+    ('40-dark-sidebar', '08-dark'),      # 暗色
+]
+
+# 关键展示图专用定义（不进自证全套）：详情面取**第一条**（会话交接模板：含变量/Markdown/文件夹/标签），
+# 并把右栏滚到底 —— 与 02-split（右栏顶部）互补，展示版本历史 + 底部固定操作条。
+KEY_EXTRA = {
+    'key-detail': {
+        'name': 'key-detail', 'path': '/', 'width': 1280, 'height': 800, 'auth': True,
+        'storage': {'pm-view-mode': 'split', 'pm-theme': 'light'},
+        'waitFor': '[data-testid=pm-search-input]',
+        'actions': [
+            {'type': 'wait', 'selector': '[data-testid=pm-view-split]'},
+            {'type': 'sleep', 'ms': 900},
+            {'type': 'eval',
+             'expression': '(() => { const it = document.querySelector("[data-testid=pm-split-item]"); if (it) { it.click(); return true; } return false; })()'},
+            {'type': 'sleep', 'ms': 900},
+            {'type': 'eval',
+             'expression': '(() => { const el = document.querySelector("[data-testid=pm-detail-actions]"); if (el) el.scrollIntoView({ block: "end" }); return true; })()'},
+            {'type': 'sleep', 'ms': 600},
+        ],
+        'settleMs': 800,
+    },
+}
 
 shots = [
     # 登录页（方向 B｜apple-minimal 的极简：留白 + 大标题 + 胶囊按钮）
@@ -982,6 +1059,14 @@ shots = [
      'dump': 'password-changed', 'settleMs': 400},
 ]
 
+if mode == 'key':
+    by_name = {shot['name']: shot for shot in shots}
+    by_name.update(KEY_EXTRA)
+    missing = [src for src, _ in KEY_SET if src not in by_name]
+    if missing:
+        raise SystemExit('KEY_SET 引用了不存在的截图定义：%s' % missing)
+    shots = [dict(by_name[src], name=dst) for src, dst in KEY_SET]
+
 plan = {
     'chrome': chrome,
     'baseUrl': base,
@@ -992,7 +1077,7 @@ plan = {
 }
 with open(plan_path, 'w', encoding='utf-8') as handle:
     json.dump(plan, handle, ensure_ascii=False, indent=2)
-print('PLAN shots=%d out=%s dumps=%s' % (len(shots), out_dir, dumps_dir))
+print('PLAN mode=%s shots=%d out=%s dumps=%s' % (mode, len(shots), out_dir, dumps_dir))
 PY
 
 line "4.5 阶段 19 / FR-64 夹具：备注只有尾部换行不同（界面自查 62-version-diff-notes-unchanged 用）"

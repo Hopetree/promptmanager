@@ -231,8 +231,10 @@ node bin/pm.mjs export --out backup.json             # 全量导出
 - **首屏瘦身（阶段 18）**：10 处重组件走 `React.lazy` + 动态 `import()`（编辑器 / Markdown 预览 / 版本 diff /
   导入导出 / 使用统计 / 令牌 / 修改密码 / 关于 / 变量面板 / 变量对话框），并按 vendor（react / antd / rc / misc）分包。
 - **界面自证（AC-13）**：`bash tools/ui-shots.sh` 会**自起自停**一个临时实例（临时 `DATA_DIR`、真实登录 cookie、
-  零安装 headless chromium），产出 53 张截图到 `docs/shots/`，并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；
-  逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
+  零安装 headless chromium）。**自证截图默认落 `tmp/ui-shots/shots/`（不入库）**；只有发版/交付前用
+  `bash tools/ui-shots.sh --key` 产一套**关键页面展示图（8 张）**到 `docs/shots/`（旧的先归档到 `tmp/shots-archive/`），
+  并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
+  规范见 `STANDARDS.md` §5.2（`docs/` 只放最终状态、过程产物进 `tmp/`）。
 
 ## 代码质量检查（本地与 CI 同一套）
 
@@ -284,9 +286,9 @@ bash tools/ac-stage24.sh       # 阶段 24：AC-75（拖拽在全部视图生效
 bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM；另含 AC-47 / AC-51 回归）
 bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82（表格批量 / 详情元信息行 / 两页签 / 去变量区块 / 弹窗尺寸）
 bash tools/ac-stage29.sh       # 阶段 29：AC-84 / AC-85（表格批量 UI 半选态·尺寸·间距 / 详情元信息行间距·换行·chip 统一）
-bash tools/ui-shots.sh` 会**自起自停**一个临时实例（临时 `DATA_DIR`、真实登录 cookie、
-  零安装 headless chromium），产出 53 张截图到 `docs/shots/`，并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；
-  逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
+bash tools/ui-shots.sh         # 界面自证：全套 → tmp/ui-shots/shots/（默认，不入库）；--key = 关键展示图 8 张 → docs/shots/
+# 该脚本会**自起自停**一个临时实例（临时 `DATA_DIR`、真实登录 cookie、零安装 headless chromium），
+# 并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
 
 ## 代码质量检查（本地与 CI 同一套）
 
@@ -339,7 +341,8 @@ bash tools/ac-stage24.sh       # 阶段 24：AC-75（拖拽在全部视图生效
 bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM + 其余四处保持全名）
 bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82
 bash tools/ac-stage29.sh       # 阶段 29：AC-84 / AC-85（表格批量 UI / 详情元信息行 视觉细化）
-bash tools/ui-shots.sh         # 只跑界面自证截图（服务自起自停；可传输出目录）
+bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
+bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # AC-7 的 2000 条中文夹具（直接写库，触发器同步 FTS）
 bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # 部署文件语法
 ```
