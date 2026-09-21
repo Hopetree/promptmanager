@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v41 |
+| 版本 | v42 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -612,6 +612,31 @@
   - **文案说明（用户明确要求）**：**版本面板**里要有可见说明，如「**最多保留最近 10 个版本**」
     （建议放在版本列表的标题行/提示处，`VersionPanel.tsx`）；`README.md` 的"已知限制"或对应小节也**写明这条策略**。
   - **不改**：`GET /api/prompts/:id/versions`、`/diff`、`/versions/:n/rollback` 的**契约与语义**（只是条数 ≤10）；
+- FR-87 **FIX：CI 的 `typecheck:tests` 在干净环境必失败（用户 2026-09-21 报 GitHub CI 红）**——
+  用户原话：「**CI问题，github上面ci报错**」（贴出的 CI 输出：`②b typecheck:tests rc=1 / 38 个 TS 错误`，而 `③ npm test rc=0 / 319 全过`）。
+  - **根因（host_manger 已复现确认）**：`tools/ci-check.sh` 的**步骤顺序**有问题 —— 它的 **②b `typecheck:tests` 跑在 ④ `npm run build` 之前**，
+    而测试文件 `import` 的是**构建产物** `../dist/**` ⇒ **干净环境（CI）里 `dist/` 尚不存在** ⇒ 38 个 `TS2307: Cannot find module '../dist/…'`。
+    本地之所以"看起来正常"，是因为本地已有历史 `dist/`。**复现证据**：`rm -rf dist && npm run typecheck:tests` → **38 个错误**；
+    `npm run build && npm run typecheck:tests` → **0 个错误**。（`npm test` 自身会先 `build`，所以 ③ 一直是绿的。）
+  - **要求**：**调整 `tools/ci-check.sh` 的步骤顺序**，保证 **`typecheck:tests` 在构建产物存在之后运行**（推荐顺序：
+    ① 依赖就绪 → ② **构建** → ③ `typecheck:web` + `typecheck:tests` → ④ `npm test` → ⑤ 体积预算）；
+    若保留现有顺序，则**在 ②b 之前显式构建服务端**（`npm run build:server`）。**两种做法都要在脚本注释里写明"为什么必须先构建"**。
+  - **判据（必须用"干净环境"验）**：**先删掉 `dist/`** 再跑 `bash tools/ci-check.sh` → **全绿**；并让 **GitHub Actions 实跑一次通过**。
+  - **不改**：CI workflow 的触发条件 / Node 版本 / 检查项清单（仍与本地同一套脚本）。
+- FR-88 **登录页简化：去掉默认用户名 + 去掉噪音信息（用户 2026-09-21 提出；其中"去默认 admin"是安全项）**——
+  用户原话：「**登录页面目前很多噪音信息，根本没必要，简化内容，只显示登录信息，最重要的一点，目前默认输入了admin用户，必须去掉，登录页面应该是空白输入，不能暴露账号名**」。
+  - **① 去掉默认用户名（P0，安全）**：现在 `web/src/components/LoginPage.tsx` 的表单有 `initialValues={{ username: 'admin' }}`
+    ⇒ **页面加载即预填 `admin`，暴露了账号名**。**必须删除该预填**，用户名输入框**初始为空**（`value === ''`）；
+    输入框的 `placeholder="admin"` 也要改成**中性占位**（如「用户名」/「请输入用户名」），**不得**再出现 `admin` 字样。
+  - **② 简化内容：只显示"登录信息"**。**保留**：品牌图形（96px mark）、`PromptManager` 标题、**用户名 / 口令 / 登录按钮**（表单本体）。
+    **删除**（噪音）：
+    · `SELF-HOSTED · 单进程单端口`（装饰性技术标签）
+    · 副标题「轻量自托管的 Prompt 管理器，数据只在本机。」
+    · 「口令由本机 CLI 设置，网页不提供注册。」
+    · 「除 `/healthz` 与登录接口外，全部接口未认证一律 401。」
+    （这些技术说明属于「信息克制」原则下**该收进「关于」页**的内容；登录页只留"登录"这一件事。）
+  - **③ 不得回归**：登录功能正常（错误提示、限流提示、`autoComplete`、亮暗主题、移动端可用、品牌图 `data-testid="pm-brand-art-login"` 保留）。
+  - **不改**：登录接口契约与后端逻辑（纯前端展示层）。
     无 schema 变更（不加迁移）。
 
 
@@ -1680,6 +1705,20 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
     ⑨ 回归：`npm test` 全绿（当前 **307**，只增不减）+ `bash tools/ci-check.sh` 全绿；
        版本列表 / diff / 回滚 / 导出导入 的既有 AC 全部复跑通过。
   - 期望：①–⑨ 全过（数据层断言必须**直接查库**，不能只看界面）。
+- **AC-89 CI 在干净环境通过（v42 新增；必须先删 dist）**
+  - 命令：① **模拟 CI 的干净环境**：`rm -rf dist` → `bash tools/ci-check.sh` → 断言 **rc=0 且 6 项全绿**（贴原样输出）；
+    ② 断言顺序正确：贴 `tools/ci-check.sh` 中「构建」与「typecheck:tests」的**行号先后关系**（构建必须在先）；
+    ③ 复现实验对照：`rm -rf dist && npm run typecheck:tests` 的错误数（改前 38 → 改后 0，贴两次数值）；
+    ④ **GitHub Actions 实跑**：推送后 Actions 的 `ci` workflow **通过**（贴 run 的结论截图或日志尾部）。
+  - 期望：①–④ 全过。
+- **AC-90 登录页简化（v42 新增；含"不暴露账号名"）**
+  - 命令：① **无预填**：打开登录页（**未登录态**）→ 断言用户名输入框 `value === ''`（贴 DOM 值）；
+    ② **不出现 admin**：断言登录页**源码与运行时 DOM** 均不含 `admin` 字样（`grep -c` 源码 → 0；贴运行时 `innerText`/`innerHTML` 检索 → 0）；
+    ③ **只剩登录信息**：断言页面含 品牌图（`pm-brand-art-login`）、`PromptManager`、用户名/口令/登录按钮；
+      且**不含**这四条（逐条 `grep` 命中 0）：`SELF-HOSTED`、`数据只在本机`、`网页不提供注册`、`未认证一律 401`；
+    ④ **功能不回归**：真鼠标填用户名+口令 → 登录成功进主界面（贴前后）；错误口令 → 有可读错误提示；亮暗各一张截图；
+      移动端（390×844）不横向溢出（`scrollWidth <= clientWidth + 2`）。
+  - 期望：①–④ 全过。
 
 
 
@@ -1850,6 +1889,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 | **阶段 29** | **阶段 27 的 5 条视觉细化：表格批量 UI（表头 indeterminate + 复选框尺寸一致 + 工具条间距）+ 详情页元信息行（层级间距 + 长内容换行保护 + chip 样式与左栏统一）** | **AC-84、AC-85** + 不得回归（AC-1…AC-83） |
 | **阶段 30**（**非阶段** —— 用户 2026-09-21 **直接交办 dsh**，不走常规派活流程） | **`docs/` 只放最终状态：`docs/shots/` 收敛为关键展示图一套（6–10 张）+ 各阶段截图移 `tmp/shots-archive/` + 改 `ui-shots.sh` 默认输出约定 + 把规范写进 `AGENTS.md`** | **AC-86**（供 dsh 自查；host_manger 验收时按它核） |
 | **阶段 31** | **表格「标签」列加标签间距 + **版本保留策略（每个 prompt 最多保留最近 10 个版本，数据层裁剪 + 版本面板与 README 文案说明）** | **AC-87、AC-88** + 不得回归（AC-1…AC-86） |
+| **阶段 32** | **FIX CI 步骤顺序（`typecheck:tests` 必须在构建之后，干净环境必失败）+ 登录页简化（去掉默认预填 `admin`〔安全〕+ 删除四条噪音信息，只留登录）** | **AC-89、AC-90** + 不得回归（AC-1…AC-88） |
 | **阶段 12** | **导航归位 + 信息克制（用户反馈）**：使用视图只留"用"（顶栏去管理项、左栏只作筛选）、解释性文案下线并收进「设置/关于」、卡片去内部 id、状态条移出使用视图 | **AC-37、AC-38、AC-39、AC-40** + 不得回归（AC-33/33b/34/35/36） |
 | **阶段 11** | **使用优先改造（用户纠偏）**：一键复制（列表/卡片/编辑器/变量面板）× 使用·管理分离（默认使用视图、模式记忆）
   × 快捷（`/`、`Ctrl+K`、`Esc`、双击、键盘选择）× 移动端大按钮 + 复制计入使用记录 | **AC-33、AC-34、AC-35、AC-36** + 不得回归（AC-13/20/21/29/31） |
@@ -1867,6 +1907,11 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v42 2026-09-21（用户两条：CI 报错 + 登录页简化）**：新增 **FR-87**（**FIX `tools/ci-check.sh` 步骤顺序** —— `typecheck:tests` 跑在 `npm run build` 之前，
+  而测试 import 的是 `../dist/**` ⇒ 干净环境（CI）38 个 `TS2307`；本地因已有 `dist/` 而看不出来。判据=**先删 `dist/` 再跑 ci-check 全绿** + GitHub Actions 实跑通过）
+  + **FR-88**（**登录页简化**：① **P0 去掉 `initialValues={{ username: 'admin' }}` 预填与 `placeholder="admin"`**〔不得暴露账号名〕；
+  ② 删除四条噪音〔`SELF-HOSTED · 单进程单端口`、副标题、`口令由本机 CLI 设置…`、`除 /healthz…401`〕，只留 品牌图 + `PromptManager` + 表单）
+  + **AC-89 / AC-90** + 阶段 32。
 - **v41 2026-09-21（用户两条新需求）**：新增 **FR-85**（表格「标签」列的多个标签**加间距**——现状 `tags.map(<Tag>)` 无 gap 导致"拼在一起"；
   要求相邻间隙 ≥4px 且与卡片视图一致）+ **FR-86**（**版本保留策略（数据层）**：每个 prompt 在 `prompt_versions` 里**最多保留最近 10 个版本**，
   超出**真删**；触发时机覆盖**新建 / 更新 / 回滚 / 导入**四处（建议抽公共 `pruneVersions`）；**当前版本必须在保留集内**、**不重编号**；
