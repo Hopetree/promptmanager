@@ -1548,19 +1548,28 @@ $ rm -rf dist && npm run typecheck:tests   # rc=0
 对照（改前实测）：38 个错误（35 个 TS2307 + 3 个级联 TS7006）
 ```
 
-**AC-89 ② 行号先后（原样）**：
+**AC-89 ② 行号先后（原样，取自最终提交树的 `tools/ac-stage32.sh` 输出）**：
 
 ```
 $ grep -n 'npm run build\|npm run typecheck' tools/ci-check.sh
 7:#   ③ 类型检查（`npm run typecheck:web` + `npm run typecheck:tests`）
 16:#   复现对照：`rm -rf dist && npm run typecheck:tests` → **38 个错误**；
 17:#            `npm run build && npm run typecheck:tests` → **0 个错误**。
-59:npm run build >"$LOG_DIR/build.log" 2>&1
-64:npm run typecheck:web >"$LOG_DIR/typecheck-web.log" 2>&1
-66:npm run typecheck:tests >"$LOG_DIR/typecheck-tests.log" 2>&1
-  ✅ ② 构建（第 59 行）< typecheck:tests（第 66 行）
-  ✅ ② 构建（第 59 行）< typecheck:web（第 64 行）
+25:#      `rm -rf dist && npm run typecheck:tests` 也直接是 0 个错误。
+66:npm run build >"$LOG_DIR/build.log" 2>&1
+72:npm run typecheck:web >"$LOG_DIR/typecheck-web.log" 2>&1
+74:npm run typecheck:tests >"$LOG_DIR/typecheck-tests.log" 2>&1
+  ✅ ② 构建（第 66 行）< typecheck:tests（第 74 行）
+  ✅ ② 构建（第 66 行）< typecheck:web（第 72 行）
+  $ grep -n '为什么.*必须.*构建\|TS2307' tools/ci-check.sh | head -4
+  13:#   干净环境（CI 的 checkout 里没有 `dist/`）若先跑 `typecheck:tests`，会得到 **38 个 TS2307**
+  24:#      **任何**调用点（人、CI、别的脚本）都不会再遇到 38 个 TS2307，AC-89 ③ 的字面命令
+  64:# 必须在 ③ 之前：tests 的类型检查依赖 ../dist/**（见文件头"为什么必须先构建"）。
+  ✅ ② 注释写明了「为什么必须先构建」（含 TS2307 与 rm -rf dist 复现） = true
 ```
+
+> 说明：构建/类型检查的**行号随注释增删而变**（加"两层防护"注释前是 59/64/66，最终是 66/72/74），
+> 所以 `tests/stage32-ci-order.test.ts` 断言的是**先后关系**（行号大小）而**不是具体行号** —— 具体行号只作证据粘贴。
 
 **AC-89 ① 干净环境（原样输出，节选）**：
 
