@@ -6,7 +6,8 @@ import { ApiConnectionError, apiError, apiRequest, resolveApiEnv } from '../clie
 import { loadConfig } from '../config.js';
 
 /**
- * MCP server（FR-18 / D-15）：**stdio 传输、只读工具面、经 HTTP API + Bearer 取数**。
+ * MCP server（FR-18 / D-15；FR-93 起**同时供 stdio 与 Streamable HTTP 两种传输复用**）：
+ * **只读工具面、经 HTTP API + Bearer 取数**。
  *
  * 硬约束（AC-26）：
  * - 恰好三个工具：`prompt_search` / `prompt_get` / `prompt_render`，没有任何写操作工具；
@@ -32,44 +33,58 @@ function fail(message: string): ToolResult {
 
 type ApiOutcome<T> = { ok: true; data: T } | { ok: false; result: ToolResult };
 
+/**
+ * 凭据（FR-93 ④）：
+ * - **stdio**：不传 ⇒ 工具调用用进程 env 的 `PM_API_TOKEN`（既有行为，一字不变）；
+ * - **HTTP 传输**：传**本次 HTTP 请求携带的那个 token** ⇒ 内部 API 调用用它，
+ *   于是 usage 归属正确、`X-PM-Channel: mcp` 语义不变。
+ */
+export interface McpCredentials {
+  token?: string;
+}
+
 function missingToken(): ToolResult {
   return fail(
-    '缺少 PM_API_TOKEN：MCP 一律经本服务的 HTTP API 取数（不直连数据库）。' +
-      '请设置 PM_API_URL（如 http://127.0.0.1:8767）与 PM_API_TOKEN 后重试；' +
-      'token 用 `node bin/pm.mjs token create --name mcp` 创建（明文只显示一次）。',
+    '缺少凭据：MCP 一律经本服务的 HTTP API 取数（不直连数据库）。' +
+      'stdio 请设置 PM_API_URL（如 http://127.0.0.1:8767）与 PM_API_TOKEN；' +
+      'HTTP 传输请在请求头带 `Authorization: Bearer <token>`。' +
+      'token 用 `node bin/pm.mjs token create --name mcp` 创建。',
   );
 }
 
-/** 统一的 API 调用：把"缺 token / 连不上 / HTTP 错误 / 404"翻译成工具错误结果。 */
-async function requestJson<T>(
-  method: string,
-  pathName: string,
-  body?: unknown,
-  notFoundMessage?: string,
-): Promise<ApiOutcome<T>> {
-  if (resolveApiEnv().token === undefined) return { ok: false, result: missingToken() };
+/** 统一的 API 调用：把"缺凭据 / 连不上 / HTTP 错误 / 404"翻译成工具错误结果。 */
+function makeRequestJson(credentials: McpCredentials) {
+  return async function requestJson<T>(
+    method: string,
+    pathName: string,
+    body?: unknown,
+    notFoundMessage?: string,
+  ): Promise<ApiOutcome<T>> {
+    const token = credentials.token ?? resolveApiEnv().token;
+    if (token === undefined) return { ok: false, result: missingToken() };
 
-  try {
-    const response = await apiRequest(method, pathName, body, { channel: 'mcp' });
-    if (response.status === 404 && notFoundMessage !== undefined) {
-      return { ok: false, result: fail(notFoundMessage) };
+    try {
+      const response = await apiRequest(method, pathName, body, { channel: 'mcp', token });
+      if (response.status === 404 && notFoundMessage !== undefined) {
+        return { ok: false, result: fail(notFoundMessage) };
+      }
+      if (response.status < 200 || response.status >= 300) {
+        return { ok: false, result: fail(`调用 API 失败：${apiError(response)}`) };
+      }
+      return { ok: true, data: response.json as T };
+    } catch (error) {
+      if (error instanceof ApiConnectionError) {
+        return {
+          ok: false,
+          result: fail(
+            `无法连接 ${error.url}（${error.reason}）—— MCP 只经本服务的 HTTP API 取数，不直连数据库；` +
+              '请确认服务已启动、PM_API_URL 正确。',
+          ),
+        };
+      }
+      return { ok: false, result: fail(`调用 API 失败：${error instanceof Error ? error.message : String(error)}`) };
     }
-    if (response.status < 200 || response.status >= 300) {
-      return { ok: false, result: fail(`调用 API 失败：${apiError(response)}`) };
-    }
-    return { ok: true, data: response.json as T };
-  } catch (error) {
-    if (error instanceof ApiConnectionError) {
-      return {
-        ok: false,
-        result: fail(
-          `无法连接 ${error.url}（${error.reason}）—— MCP 只经本服务的 HTTP API 取数，不直连数据库；` +
-            '请确认服务已启动、PM_API_URL 正确。',
-        ),
-      };
-    }
-    return { ok: false, result: fail(`调用 API 失败：${error instanceof Error ? error.message : String(error)}`) };
-  }
+  };
 }
 
 interface SearchItem {
@@ -82,8 +97,12 @@ interface SearchItem {
   last_used_at: string | null;
 }
 
-/** 组装 MCP server（不连接传输，便于测试）。 */
-export function buildMcpServer(): McpServer {
+/**
+ * 组装 MCP server（不连接传输，便于测试）。**stdio 与 HTTP 两种传输共用这一份实现**（FR-93）。
+ * `credentials.token` 为空 = 用 env（stdio）；非空 = 用该 token 调内部 API（HTTP 传输）。
+ */
+export function buildMcpServer(credentials: McpCredentials = {}): McpServer {
+  const requestJson = makeRequestJson(credentials);
   const server = new McpServer({ name: MCP_SERVER_NAME, version: loadConfig().version });
 
   server.registerTool(

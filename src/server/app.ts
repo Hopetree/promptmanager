@@ -8,6 +8,7 @@ import type { FastifyError, FastifyInstance } from 'fastify';
 import type { AppConfig } from '../config.js';
 import { prepareDatabase, type Db, type QueryEngine } from '../db/index.js';
 import { ConflictError, InvalidBodyError, InvalidImportError, NotFoundError } from '../errors.js';
+import { registerMcpHttpRoutes } from '../mcp/http.js';
 import { registerAuthGate, registerCookieSupport } from './auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerExportRoutes } from './routes/export.js';
@@ -125,8 +126,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerTagRoutes(app);
   registerRenderRoutes(app);
   registerExportRoutes(app);
-  registerTokenRoutes(app);
+  registerTokenRoutes(app, config);
   registerUsageRoutes(app);
+  // FR-93：MCP 的 Streamable HTTP 传输（顶层 `/mcp`，自己做 Bearer 鉴权；不经过 /api/* 闸门）
+  registerMcpHttpRoutes(app);
 
   const indexHtml = path.join(config.webRoot, 'index.html');
   const hasWeb = existsSync(indexHtml);

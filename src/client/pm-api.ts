@@ -35,6 +35,12 @@ export interface ApiRequestOptions {
   /** 'mcp' = 供 MCP server 标记通道（服务端 usage 记为 mcp） */
   channel?: 'token' | 'mcp';
   timeoutMs?: number;
+  /**
+   * **凭据覆盖**（FR-93 ④）：MCP 的 HTTP 传输必须把「本次 HTTP 请求携带的那个 token」透传给内部 API 调用，
+   * 而不是用服务端进程 env 里的 `PM_API_TOKEN` —— 否则 usage 归属会记到错误的 token 上。
+   * 不传 = 沿用 env（stdio 路径的行为一字不变）。
+   */
+  token?: string;
 }
 
 export interface ApiResponse {
@@ -50,7 +56,10 @@ export async function apiRequest(
   options: ApiRequestOptions = {},
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ApiResponse> {
-  const { url, token } = resolveApiEnv(env);
+  const resolved = resolveApiEnv(env);
+  // FR-93 ④：显式传入的 token（HTTP 传输的请求凭据）优先于 env
+  const token = options.token ?? resolved.token;
+  const url = resolved.url;
   const headers: Record<string, string> = { accept: 'application/json' };
   if (body !== undefined) headers['content-type'] = 'application/json';
   if (token !== undefined) headers.authorization = `Bearer ${token}`;

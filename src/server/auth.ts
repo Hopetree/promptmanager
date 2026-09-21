@@ -31,8 +31,11 @@ export async function registerCookieSupport(app: FastifyInstance): Promise<void>
   await app.register(cookie);
 }
 
-/** `Authorization: Bearer <token>` → 明文；不是 Bearer 形态则返回 null。 */
-function bearerPlaintext(request: FastifyRequest): string | null {
+/**
+ * `Authorization: Bearer <token>` → 明文；不是 Bearer 形态则返回 null。
+ * 导出供 MCP 的 HTTP 传输（`src/mcp/http.ts`）复用同一套解析口径（FR-93）。
+ */
+export function bearerPlaintext(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
   if (typeof header !== 'string') return null;
   const match = /^Bearer[ \t]+(.+)$/i.exec(header.trim());
