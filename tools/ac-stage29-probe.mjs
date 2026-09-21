@@ -201,6 +201,19 @@ async function main() {
       // ① 部分选中（真鼠标勾 3 行）
       for (const id of ids.slice(0, 3)) await cdp.realClickOf(ROW_WRAP(id), 300);
       out.ac84_state_partial = await cdp.evaluate(stateOf(HEADER_BOX));
+      // ①（对抗性补强）：半选态是**视觉覆写** —— 只验 class 挡不住"被 antd 运行时 CSS-in-JS 盖回去"，
+      //    因此再量 computed style：半选外框的底色/边框必须与**已勾选行**一致（= 同一主色填充），
+      //    且 ::after 是白色 8×2 横杠（而不是 antd 默认的"小主色方块"）。
+      out.ac84_partial_style = await cdp.evaluate(
+        `JSON.stringify((() => {
+           const box = ${HEADER_BOX}; if (box === null) return null;
+           const cs = getComputedStyle(box); const after = getComputedStyle(box, '::after');
+           return { backgroundColor: cs.backgroundColor, borderTopColor: cs.borderTopColor, afterWidth: after.width, afterHeight: after.height, afterBackground: after.backgroundColor, afterOpacity: after.opacity };
+         })())`,
+      );
+      out.ac84_checked_row_style = await cdp.evaluate(
+        `JSON.stringify((() => { const box = ${ROW_BOX(ids[0])}; if (box === null) return null; const cs = getComputedStyle(box); return { backgroundColor: cs.backgroundColor, borderTopColor: cs.borderTopColor }; })())`,
+      );
       await cdp.shot('02-bulk-partial-light');
 
       // ② 尺寸一致：表头 vs 行内

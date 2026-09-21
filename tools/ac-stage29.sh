@@ -146,6 +146,20 @@ import json,sys
 s=json.loads(sys.argv[1]); print('true' if s['indeterminateClass'] or s['ariaChecked'] == 'mixed' else 'false')
 " "$(b ac84_state_partial)")"
       pass "① 部分选中 DOM 证据：$(b ac84_state_partial)"
+      # ①（对抗性补强）：半选态的**视觉覆写**必须真的生效（否则被 antd 运行时 CSS-in-JS 盖回"白底+小方块"，
+      #   而 class 判据仍会假绿）—— 半选外框底色/边框 == 已勾选行；::after 是白色 8×2 横杠。
+      eq "① 半选态视觉覆写生效（外框底色/边框 == 已勾选行 = 同一主色填充）" "true" "$(python3 -c "
+import json,sys
+p=json.loads(sys.argv[1]); c=json.loads(sys.argv[2])
+print('true' if p['backgroundColor'] == c['backgroundColor'] and p['borderTopColor'] == c['borderTopColor'] else 'false')
+" "$(b ac84_partial_style)" "$(b ac84_checked_row_style)")"
+      pass "① 半选外框 computed：$(b ac84_partial_style)"
+      pass "① 已勾选行 computed：$(b ac84_checked_row_style)"
+      eq "① 半选横杠 = 白色 8×2（不是 antd 默认的小方块）" "true" "$(python3 -c "
+import json,sys
+s=json.loads(sys.argv[1])
+print('true' if s['afterWidth'] == '8px' and s['afterHeight'] == '2px' and s['afterBackground'] == 'rgb(255, 255, 255)' else 'false')
+" "$(b ac84_partial_style)")"
       eq "① 全选：打勾且无 indeterminate" "true" "$(python3 -c "
 import json,sys
 s=json.loads(sys.argv[1]); print('true' if s['checkedClass'] and not s['indeterminateClass'] else 'false')

@@ -823,6 +823,10 @@ $ npm test                      → rc=0   ℹ tests 300 / ℹ pass 300 / ℹ fa
   ✅ ① 未选：indeterminate 与 checked 皆无 = true
   ✅ ① 部分选中：半选态（ant-checkbox-indeterminate 或 aria-checked=mixed） = true
   ✅ ① 部分选中 DOM 证据：{"classes":"ant-checkbox ant-checkbox-indeterminate ant-wave-target css-19u5a7b","indeterminateClass":true,"checkedClass":false,"ariaChecked":null,"inputChecked":false}
+  ✅ ① 半选态视觉覆写生效（外框底色/边框 == 已勾选行 = 同一主色填充） = true
+  ✅ ① 半选外框 computed：{"backgroundColor":"rgb(94, 106, 210)","borderTopColor":"rgb(94, 106, 210)","afterWidth":"8px","afterHeight":"2px","afterBackground":"rgb(255, 255, 255)","afterOpacity":"1"}
+  ✅ ① 已勾选行 computed：{"backgroundColor":"rgb(94, 106, 210)","borderTopColor":"rgb(94, 106, 210)"}
+  ✅ ① 半选横杠 = 白色 8×2（不是 antd 默认的小方块） = true
   ✅ ① 全选：打勾且无 indeterminate = true
   ✅ ① 全选后当页全部勾选 = true
   ✅ ① 再点取消：两者皆无 = true
@@ -917,12 +921,25 @@ $ git diff --name-only package.json package-lock.json → 空（无新依赖）
 **AC-1…AC-83 未回归**：AC-78~AC-82（阶段 27 批量与详情页）与 AC-70~75（拖拽与分栏）由上述脚本复跑全过；
 本阶段**没有**任何"被取代的旧断言"（AC-84/85 是新增判据，旧断言全部继续成立）。
 
-#### ⑥ commit（收尾 commit hash 单独标注）
+#### ⑥ 对抗性自审（delivery-review：假设交付不满足自己的规格，找最强反驳）
+
+逐维度过了一遍，**只找到 1 条真实缺陷，已修**（其余维度如实无异议）：
+
+| 维度 | 反驳 | 结论 |
+| --- | --- | --- |
+| Goal | ①②的机械判据改前就满足 ⇒ 是否"没解决问题"？ | **不是**：用户看到的是 antd 半选**画法**（白底+小方块），本阶段做的是视觉覆写；用户已确认保留该改法。已在 §① 的"诚实说明"里写明，不埋。 |
+| AC 证据 | AC-84 ① 只有 class + 截图 —— 若 antd 运行时 CSS-in-JS 把覆写盖回去，**class 判据仍会假绿** | ✅ **真实缺陷，已修**：给 AC-29 探针加了半选外框的 `getComputedStyle`（含 `::after`）测量与断言 —— 半选外框 `backgroundColor/borderTopColor` 必须**等于已勾选行**（实测两处都是 `rgb(94,106,210)`），`::after` 必须是**白色 8×2**（实测 `8px/2px/rgb(255,255,255)/opacity 1`）。证据已补进 §②。 |
+| Scope / Non-goals | 有没有越界？ | **没有**（`git show --name-only 750464b` 核对）：未碰 `UseView.tsx`（表格标签列不动）、顶层 `docs/shots/*.png` **0 个**、`migrations/` **0 个**、`src/`（后端）**0 个**、`BRIEF.md`/`STANDARDS.md`/`package.json` **均未改**。 |
+| Failure modes | 7 条逐一核 | ①~⑤ 见 §① 的改后数值与 §②/§③ 断言；⑥ 体积 `418,644 ≤ 418,818`（stage18-bundle 用例守）；⑦ `ac-stage23/24` 复跑全过。**① 原先只靠截图，已按上表补成数值断言**。 |
+| Priorities | 有没有为可选目标牺牲硬要求？ | **没有**：AC-84/85 全过、无回归；non-goals 按要求明确不做。 |
+
+#### ⑦ commit（收尾 commit hash 单独标注）
 
 | 单元 | 内容 | commit |
 | --- | --- | --- |
 | ① | FR-82 表格批量 UI（半选态/尺寸/间距）+ FR-83 元信息行（间距/换行/chip）+ 源码级测试 + AC 脚本 + 截图 + 文档 | **`750464b`** `feat(web): 阶段 29 —— 阶段 27 的 5 条视觉细化（FR-82 / FR-83）` |
-| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | `__CLOSING__`（回填本行）；**最后一个 docs-only 收尾提交的 hash 见交付回复**（提交无法自引用自身 hash） |
+| ② | 对抗性自审补强：半选态视觉覆写的 `getComputedStyle` 数值断言（探针 + 脚本 + PROGRESS） | 见交付回复 |
+| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | 见交付回复（提交无法自引用自身 hash） |
 
 
 ## 归档与当前状态的关系
