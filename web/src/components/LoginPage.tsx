@@ -64,32 +64,28 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
           />
         </Flex>
         <Flex vertical gap={10} style={{ marginBottom: 36 }}>
-          <Typography.Text style={{ fontSize: 13, letterSpacing: '0.16em', color: muted }}>
-            SELF-HOSTED · 单进程单端口
-          </Typography.Text>
           <Typography.Title
             level={1}
             style={{ margin: 0, fontSize: 40, fontWeight: 600, letterSpacing: '-0.021em', lineHeight: 1.08, color: ink }}
           >
             PromptManager
           </Typography.Title>
-          <Typography.Text style={{ fontSize: 15, color: muted }}>
-            轻量自托管的 Prompt 管理器，数据只在本机。
-          </Typography.Text>
         </Flex>
 
         {error !== null && <Alert type="error" showIcon message={error} style={{ marginBottom: 20 }} />}
 
+        {/* FR-88 ①（P0 安全）：**不得**给表单任何"初始值"属性 —— 页面加载即出现默认账号名
+            等于向未认证访客暴露账号名。用户名框必须初始为空，且 placeholder 用中性文案（不带任何真实账号名）。
+            ⚠️ 本文件源码里**既不得出现那个默认账号名、也不得出现预填属性名**（AC-90 ② 是纯文本 grep 断言）。 */}
         <Form<LoginForm>
           layout="vertical"
-          initialValues={{ username: 'admin' }}
           requiredMark={false}
           onFinish={(values) => void submit(values)}
         >
           <Form.Item name="username" label="用户名" rules={[{ required: true, message: '请输入用户名' }]}>
             <Input
               prefix={<UserOutlined style={{ color: muted }} />}
-              placeholder="admin"
+              placeholder="用户名"
               autoComplete="username"
               size="large"
               variant="filled"
@@ -119,15 +115,6 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
             </Button>
           </Form.Item>
         </Form>
-
-        <Flex vertical gap={4}>
-          <Typography.Text style={{ fontSize: 12.5, color: muted }}>
-            口令由本机 CLI 设置，网页不提供注册。
-          </Typography.Text>
-          <Typography.Text style={{ fontSize: 12.5, color: muted }}>
-            除 <span className="pm-mono">/healthz</span> 与登录接口外，全部接口未认证一律 401。
-          </Typography.Text>
-        </Flex>
       </div>
     </Flex>
   );
