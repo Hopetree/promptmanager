@@ -52,8 +52,10 @@ docker build -t promptmanager:1.0.1 .
 | `DOCKERHUB_USERNAME` | Docker Hub 用户名（同时也是镜像的命名空间） |
 | `DOCKERHUB_TOKEN` | Docker Hub **Access Token**（建议只给 `Read & Write` 的仓库级 token，不要用账号口令） |
 
-> 未配这两个 secret 时：**推 tag 会失败**（登录步骤拿不到凭据），**推 `main` 仍会成功**（只构建不推送）。
-> 也就是说"镜像能不能构建"这件事，配 secret 之前就能在 `main` 上验证。
+> **前提：先配 `DOCKERHUB_USERNAME`。** 镜像名由它拼出，缺了它镜像名不完整（会变成 `/promptmanager`），
+> 「计算镜像 tag」这一步产出的 tag 不可用。配好**这一个** secret 后，`main` 分支构建即可正常跑通
+> （只构建不推送，**用不到 token**）；`DOCKERHUB_TOKEN` **只在推 tag 时才需要**。
+> 也就是说"镜像能不能构建"这件事，在配 token 之前就能靠 `main` 分支构建验证。
 
 **失败时去哪里看日志**
 

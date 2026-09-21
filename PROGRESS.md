@@ -1878,8 +1878,14 @@ host_manger 在 106 的实测结论（2026-09-21）：
    「从镜像运行」示例也用 `1.0.1`）⇒ 已对齐为「阶段 1–33 / v1.0.1」；`deploy/container.md` §2.1/§3.2 的**示例**命令
    同步为 `promptmanager:1.0.1`。**§9 的实测记录（v1.0.0 / 579MB）是历史事实，一字未改。**
 
-**未做（守边界）**：没改 `Dockerfile`（可选加 OCI `LABEL`，但保持与 106 实测命令**逐字等价**更重要 ——
-OCI 标签改由 `docker/metadata-action` 的 `labels` 输出在**构建时**注入，不动文件）；没加 `linux/arm64`（BRIEF 明确本期不做）；
+**自查纠正的第二处（如实登记）**：我最初在文档里写「`main` 分支构建**不需要任何 secret**」——**这是错的**：
+镜像名 `${{ secrets.DOCKERHUB_USERNAME }}/promptmanager` **本身**就由 `DOCKERHUB_USERNAME` 拼出，缺了它镜像名
+会变成 `/promptmanager`（不完整），「计算镜像 tag」这一步就产不出可用 tag。**正确表述**：
+① `main` 构建**必须先配好 `DOCKERHUB_USERNAME`**（只需这一个，**用不到 token**）；
+② `DOCKERHUB_TOKEN` **只在推 tag 时才需要**。已按此改写 `deploy/container.md` §2.2 与 workflow 里的相应注释。
+（**未**为了"无 secret 也能跑 main"去加硬编码命名空间兜底 —— 那会违反 FR-89「不得硬编码命名空间」。）
+
+**未做（守边界）**：没改 `Dockerfile`（可选加 OCI `LABEL`，但保持与 106 实测命令**逐字等价**更重要 ——OCI 标签改由 `docker/metadata-action` 的 `labels` 输出在**构建时**注入，不动文件）；没加 `linux/arm64`（BRIEF 明确本期不做）；
 没加 `timeout-minutes`/`concurrency`/`provenance` 等未被要求的旋钮（用 action 默认值）；没在仓库里添加任何 secret。
 
 ### ⑥ 回归（原样输出）
