@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v45 |
+| 版本 | v46 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -840,6 +840,42 @@
     旧值 `list` 仍回退到 `split`（AC-45 ⑤）；**桌面档位顺序、默认值与三栏布局一字不变**；
     **不新增第四个档位**；不改 `localStorage` 键名与取值集合（仍是 `split` / `table` / `card`）。
   - **不改**：三个视图自身的实现（除 FR-90 的那一处宽度）、接口、数据模型。
+
+- FR-93 **MCP server 增加 Streamable HTTP 传输，客户端可远程接入（用户 2026-09-21 选 A）**——
+  用户原话：「**我选 A，请实现**」（A = 给 MCP 加 HTTP 传输，让 QwenPaw 用 `url` + `Authorization` 头远程接入，**不再需要本地副本/启动器**）。
+  - **端点**：**`POST /mcp`**（放在 **`/api/` 之外的顶层路径** —— 既有 `registerAuthGate` 只拦 `/api/*`，放顶层可避免与那套 JSON 错误中间件耦合）。
+    若所选 SDK 传输实现需要，可一并暴露 `GET /mcp`（SSE 流）与 `DELETE /mcp`（会话终止）；**但默认用无状态模式**（`sessionIdGenerator: undefined`），
+    **不引入会话存储**（本项目单用户、三个只读工具，无状态最省事、最好验）。
+  - **实现**：用官方 SDK 的 `StreamableHTTPServerTransport`（`@modelcontextprotocol/sdk/server/streamableHttp.js`，依赖里已有 1.30.0），
+    **复用现有 `buildMcpServer()`**（`src/mcp/server.ts`）—— 三个工具与 stdio **必须是同一份代码**，**不得复制粘贴分叉**。
+  - **鉴权（硬）**：**必须 `Authorization: Bearer <API Token>`**（与 `/api/*` 同一套 token、复用 `resolveApiToken`）；
+    **无 token / 无效 token → 401**，且**不得**继续去调内部 API；**不接受** cookie 会话（MCP 客户端不发 cookie）。
+  - **凭据透传（硬）**：**这次 HTTP 请求携带的那个 token，就是这次工具调用的凭据** —— 工具内部对 promptmanager HTTP API 的调用**用它**，
+    而不是服务端 env 里的 `PM_API_TOKEN`；因此 usage 记录的归属正确，`X-PM-Channel: mcp` 语义保持不变。
+  - **不回归**：stdio 入口（`bin/pm-mcp.mjs`）与既有 env 方式（`PM_API_URL` / `PM_API_TOKEN`）**照旧可用**；`/api/*` 的鉴权语义一字不变。
+  - **不泄密**：token 明文**不得**出现在日志 / 错误体 / 响应头里。
+  - **文档（交付物）**：`docs/api.md` 增 `/mcp` 契约（方法 / 必需头 / 401 语义 / 无状态说明 / 示例请求）；
+    `README.md`（**用户文档**）增「远程 MCP 接入」小节（客户端里填 `url` + `Authorization` 头的示例，**不得**出现内部术语）；
+    `AGENTS.md` 加一行英文；`deploy/container.md` 若涉及反代（NPM）需说明路径与 `Authorization` 头透传。
+  - **非目标**：不发布 npm、不加 OAuth/鉴权分级、不加写工具、不做多会话/持久会话、不改三个工具的语义。
+
+- FR-94 **API Token 可随时查看/复制（加密存储；用户 2026-09-21 提出）**——
+  用户原话：「**token 目前只有创建的时候显示一次，我不希望这种效果，我希望可以随时复制获取，安全就行**」。
+  - **目标**：token **可随时查看/复制**，但**明文不落库**。
+  - **方案（D-35 已定）**：**AES-256-GCM 加密存储** —— `api_tokens` 新增 **`token_enc`**（nullable，存 `base64(nonce‖tag‖ciphertext)`）；
+    **保留 `token_hash`（sha256）用于鉴权**（既有语义不变）⇒ **密钥丢失也不影响鉴权**，只是"看不了"。
+  - **密钥**：**`TOKEN_ENC_KEY`（32 字节 hex）env 优先**；缺失时**自动生成并落盘 `<DATA_DIR>/token-enc.key`（600）**（容器里 `/data` 是卷 ⇒ 重建不丢）。
+    **密钥绝不入库、不入仓库、不进日志**。文档写明权衡：**库与密钥分开保管 ⇒ 只有库泄露拿不到 token**；
+    但若把**整个数据目录**一起备份/拷贝，等于钥匙与锁放一起（此时靠备份落点的权限保护）。
+  - **接口**：**`POST /api/tokens/:id/reveal`** → `{ "token": "pm_…" }`；
+    **只允许 cookie 会话**（用 Bearer 调 → **401/403**，避免"token 自己看自己/互相看"）；**旧的**（`token_enc IS NULL`）→ **409 `token_not_revealable`**
+    （**并保持其鉴权可用**）。
+  - **列表**：`GET /api/tokens` 每项新增 **`revealable: boolean`**（**响应里绝不含明文**）。
+  - **UI**：`TokenDrawer` 每条加「**复制**」按钮（`revealable` 才可用）；不可查看的给明确提示（建议撤销后重建）。
+  - **CLI（本机管理路径）**：`pm token reveal <id>`（读同一密钥），供命令行取用。
+  - **迁移**：`migrations/004_token-enc.sql`（加列、幂等）→ `ok: schema at v4`；**存量 token 不迁移明文**（不可恢复，如实提示）。
+  - **不泄密**：明文不得进日志（reveal 成功可记一条**不含值**的日志）。
+  - **非目标**：不做 token 权限分级/scope、不做有效期、不做自动轮换。
 
 ## 5. 技术约束（硬性）
 
@@ -1870,6 +1906,26 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   - ⑥ **回归**：AC-45 的 ③④⑤ 仍过（记忆生效 / 无 `pm-view-list` / 旧值 `list` 回退分栏）；**AC-92（分栏中栏 358）不回归**；
     `npm test` 全绿（**既有断言档位顺序/默认档位的测试必须同步更新为"按断点"**，不得删断言了事）。
 
+- **AC-95 MCP Streamable HTTP 传输（v46 新增；用**真客户端**验）**
+  - ① **真客户端握手**：用**官方客户端**（容器里有 Python `mcp==1.30.0`；TS SDK 也在）对 `http://127.0.0.1:<port>/mcp` 走
+    `initialize → tools/list → tools/call`：三个工具齐全、`prompt_search` / `prompt_get` 返回正确内容（贴原样输出）。
+  - ② **鉴权（负向）**：不带 `Authorization` → **401**；带错 token → **401**；两种情况都**不得**去调内部 API（贴证据）。
+  - ③ **凭据透传**：用 token A 调 `/mcp` 的 `prompt_get` → usage 记录里该次取用归属 token A 且 `channel=mcp`（贴查库或接口输出）。
+  - ④ **stdio 不回归**：`bin/pm-mcp.mjs`（env 方式）仍能握手并调通三个工具。
+  - ⑤ **契约与文档**：`docs/api.md` 有 `/mcp`（方法/必需头/401/无状态）；`README.md` 有"远程 MCP 接入"示例且**不含**内部术语；
+    `AGENTS.md` 有英文一行。
+  - ⑥ **不泄密**：服务日志里搜不到 token 明文（贴 `grep -c`）。
+- **AC-96 Token 可随时查看（v46 新增；含加密与权限）**
+  - ① **迁移**：`npm run migrate` → `ok: schema at v4`；`api_tokens` 有 `token_enc` 列；**存量行 `token_enc IS NULL`**。
+  - ② **新建可查看**：`POST /api/tokens` 建一个 → `POST /api/tokens/:id/reveal`（带**会话 cookie**）返回的明文
+    **与创建响应里的明文逐字相同**；`GET /api/tokens` 里该条 `revealable=true` 且**响应不含明文**。
+  - ③ **旧 token 两态**：`revealable=false` + reveal → **409 `token_not_revealable`**；**但用该旧 token 打 `/api/prompts` 仍 200**（鉴权不受影响）。
+  - ④ **权限**：用 **Bearer**（不是会话）调 reveal → **401/403**（不允许 token 自窥）。
+  - ⑤ **密文落库**：直接查库 `SELECT token_enc FROM api_tokens` → **不含 `pm_` 前缀、不是明文**；**重启服务后仍能 reveal**（密钥持久）。
+  - ⑥ **UI**：`TokenDrawer` 里有「复制」按钮；**真鼠标点击**后剪贴板内容 == reveal 返回的明文（读回断言）；旧 token 显示"不可查看"提示。
+  - ⑦ **密钥缺失/恢复**：临时改名密钥文件（或清空 env）→ reveal 给出**明确错误**（不崩、不泄、鉴权仍可用）；恢复后仍可 reveal。
+  - ⑧ **不泄密**：应用日志与 `GET /api/tokens` 响应里搜不到明文。
+
 ## 9. 已定决策（不要再问）
 
 - **D-1 技术栈**：Node 24 + TypeScript + SQLite 单文件 + React/Vite 前端（**UI 用 Ant Design 组件库**），**单进程单端口**（前端产物同进程托管）。
@@ -1979,6 +2035,12 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   ④ **不覆盖用户已有偏好**；⑤ 旧值 `list` 仍回退 `split`（保持 AC-45 ⑤ 不变）。
   ⚠️ **② 是 host_manger 的推断（用户原话只说"顺序"）—— 若用户只要改顺序，删 ② 即可（`readPref` 的默认值一处）。**
 
+- **D-35（v46）MCP HTTP 传输与 Token 可查看的技术选型** —— 由 host_manger 定（用户只给了目标）：
+  ① **MCP HTTP**：端点 `POST /mcp`（顶层，非 `/api/`）、**无状态**（无 session id）、**Bearer-only 鉴权**、**请求 token 透传给内部 API 调用**、**复用同一份 `buildMcpServer()`**；
+  ② **Token 可查看**：**AES-256-GCM 加密**落库（`token_enc`），**保留 sha256 用于鉴权**；密钥 `TOKEN_ENC_KEY` env 优先、否则自动落 `<DATA_DIR>/token-enc.key`（600）；
+  ③ **reveal 只允许会话 cookie**（Bearer 调 → 401/403）；旧 token → **409 `token_not_revealable`**（鉴权仍可用）；
+  ④ **两条独立**，可分两次提交与分批验收。
+
 ## 10. 边界与停止条件
 
 - 遇到本文件未覆盖、且会影响交付的决策 → 写入 `QUESTIONS.md` 并**停手**，不要猜。
@@ -2030,6 +2092,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 | **阶段 32** | **FIX CI 步骤顺序（`typecheck:tests` 必须在构建之后，干净环境必失败）+ 登录页简化（去掉默认预填 `admin`〔安全〕+ 删除四条噪音信息，只留登录）** | **AC-89、AC-90** + 不得回归（AC-1…AC-88） |
 | **阶段 33** | **GitHub Actions：构建容器镜像并推送到 Docker Hub**（`docker.yml`：tag `v*` 构建并推送 `1.0.x`/`1.0`/`latest`；`main` 只构建不推送；凭据只走 GitHub Secrets；平台 `linux/amd64`） | **AC-91**（① 静态断言 ② 与 106 一致性 ③ 等价构建 ④ **实跑待用户配 secrets 后由 host_manger 触发**）+ 不得回归（AC-1…AC-90） |
 | **阶段 34** | **分栏视图手机端中栏撑满（FR-90，一处响应式宽度）+ README 重写为"用户文档"并给 Docker/源码两种部署方式（FR-91：开发者内容迁到 `docs/development.md`、接口迁到 `docs/api.md`，顺带消除 README 重复两节 = backlog R-5）+ **FR-92 移动端档位顺序改为「卡片 / 表格 / 分栏」且默认落在卡片**（桌面顺序与默认一字不变、不覆盖已有偏好）** | **AC-92、AC-93、AC-94** + 不得回归（AC-1…AC-91） |
+| **阶段 35** | **MCP server 增加 Streamable HTTP 传输（FR-93：`POST /mcp`、无状态、Bearer-only、请求 token 透传、复用同一份 buildMcpServer）** + **API Token 可随时查看/复制（FR-94：AES-256-GCM 落库 + reveal 仅会话 + 旧 token 409）** | **AC-95、AC-96** + 不得回归（AC-1…AC-94） |
 | **阶段 12** | **导航归位 + 信息克制（用户反馈）**：使用视图只留"用"（顶栏去管理项、左栏只作筛选）、解释性文案下线并收进「设置/关于」、卡片去内部 id、状态条移出使用视图 | **AC-37、AC-38、AC-39、AC-40** + 不得回归（AC-33/33b/34/35/36） |
 | **阶段 11** | **使用优先改造（用户纠偏）**：一键复制（列表/卡片/编辑器/变量面板）× 使用·管理分离（默认使用视图、模式记忆）
   × 快捷（`/`、`Ctrl+K`、`Esc`、双击、键盘选择）× 移动端大按钮 + 复制计入使用记录 | **AC-33、AC-34、AC-35、AC-36** + 不得回归（AC-13/20/21/29/31） |
@@ -2047,6 +2110,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v46 2026-09-21（用户：MCP 加 HTTP 传输 + token 可随时查看）**：新增 **FR-93**（`POST /mcp` Streamable HTTP、**无状态**、**Bearer-only**、**请求 token 透传**、复用同一份 `buildMcpServer()`、stdio 不回归、文档同步）+ **FR-94**（**AES-256-GCM** 落 `token_enc`、保留 sha256 鉴权、`POST /api/tokens/:id/reveal` **仅会话**、旧 token **409**、UI「复制」、CLI `token reveal`、迁移 004 → schema v4）+ **AC-95 / AC-96** + **D-35** + **阶段 35**。
 - **v45 2026-09-21（用户新增：移动端档位顺序）**：新增 **FR-92**（移动端 <768px 档位开关顺序改为 `卡片 / 表格 / 分栏`、**首次进入默认落 `卡片`**；桌面顺序与默认一字不变；**不覆盖已有本地偏好**；旧值 `list` 仍回退 `split`） + **AC-94**（按断点分别断言顺序与默认档位 + 三档可切 + 回归）+ **D-34**（② 默认档位是 host_manger 的推断，可否决） + **AC-45 ① ② 按断点修正**（原断言写死桌面顺序）；**并入阶段 34**（尚未派发）。
 - **v44 2026-09-21（用户两条新需求：分栏手机端全屏 + README 用户化）**：新增 **FR-90**（分栏中栏在 <768px 必须撑满可用宽度 358；实测根因 = `SplitView.tsx` 中栏 `flex: 0 0 clamp(276px, 31.3%, 350px)` 与移动端无关 ⇒ 390 宽时被 clamp 下限抬到 276、右侧空 82；同宽度下卡片/表格视图都是 358；桌面三档 clamp 与 FR-71 比值不得回归）+ **FR-91**（README 改为用户文档：是什么/能做什么/两种部署方式〔Docker 与源码，都要能照着跑通〕/怎么用/备份升级/FAQ/已知限制/文档索引；开发者信息迁 `docs/development.md`、接口迁 `docs/api.md`；README 不得出现 AC-/FR-/阶段号等内部术语；顺带消除重复两节 = backlog R-5）+ **AC-92 / AC-93** + **D-33**（文档归属）+ **阶段 34**。
 - **v43 2026-09-21（用户新需求：GitHub Actions 构建镜像推送到 Docker Hub）**：新增 **FR-89**（新增 `.github/workflows/docker.yml`：tag `v*` 构建并推送 `<semver>`/`<major.minor>`/`latest`、`main` 只构建不推送、`workflow_dispatch` 手动补跑；凭据**只**从 GitHub Secrets 取、任何 step 不得回显 secret、不硬编码命名空间；平台 `linux/amd64`；文档补「从镜像运行」与「镜像发布」） + **AC-91**（① 静态断言 ② 与 106 一致性 ③ 等价构建 ④ 端到端实跑〔**待用户配 secrets**〕）+ **D-32**（镜像坐标与 tag 方案）+ **阶段 33**。
