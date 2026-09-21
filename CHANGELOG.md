@@ -8,6 +8,20 @@
 
 - （无）
 
+## [1.0.2] — 2026-09-21
+
+**发布版**：新增**容器镜像发布**（GitHub Actions 构建并推送到 Docker Hub）。**运行时行为与 `1.0.1` 完全一致**
+（无代码、接口、数据模型变化；本版本的作用是让镜像有一个可引用的版本号，并让 `latest` 指向当前稳定版）。
+
+### 新增（Added）
+
+- **镜像发布流水线**：新增 `.github/workflows/docker.yml` —— 推 `v*` tag 时构建 `linux/amd64` 镜像并推送到 Docker Hub
+  （产出 `<semver>` + `<major.minor>` + `latest` 三个 tag）；`main` 分支推送**只构建、不推送**（尽早发现 Dockerfile 被改坏）；
+  也支持手动 `workflow_dispatch`。凭据**只**从 GitHub Secrets 取（`DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`），
+  任何 step 都不回显 secret；镜像名**不硬编码**命名空间。与质量检查 `ci.yml` 相互独立。
+- **文档**：`README.md` 增「从镜像运行」（`docker pull` + `docker run` + 首次设口令 + 自检，含 `TRUST_PROXY`/`PUBLIC_ORIGIN` 的使用条件）；
+  `deploy/container.md` 增「镜像发布（Docker Hub）」（触发方式、tag 规则、需要配置哪两个 secret、失败看哪里）。
+
 ## [1.0.1] — 2026-09-21
 
 **修复版**：CI 在干净环境必失败 + 登录页不再暴露账号名、去掉噪音信息。tag `v1.0.1`（阶段 32）。
