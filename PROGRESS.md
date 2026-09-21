@@ -7,9 +7,9 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–32 已全部完成**；已发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83）、阶段 29（FR-82/FR-83 / AC-84/AC-85）、阶段 30（FR-84 / AC-86）、阶段 31（FR-85/FR-86 / AC-87/AC-88）与阶段 32（FR-87/FR-88 / AC-89/AC-90：CI 干净环境 + 登录页简化）自检全过**（见本文件「阶段 27」～「阶段 32」） |
-| 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
+| 阶段 | **阶段 1–33 已全部完成**；已发布 **v1.0.1** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–32 自检全过**（见本文件对应小节）；**阶段 33（FR-89 / AC-91：GitHub Actions 构建镜像并推送 Docker Hub）① ② ③ 已过，④ 端到端实跑待用户配 secrets 后由 host_manger 触发** |
+| 版本 | **`1.0.1`**（`package.json` 单一来源，`/healthz` 同源；阶段 32 修复 CI 与登录页后由 host_manger 发版） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
 
@@ -54,6 +54,7 @@
 | 30 | FR-84 `docs/` 只放最终状态：`docs/shots/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/shots-archive/` + `ui-shots.sh` 默认 `tmp/`·`--key` 发版模式 + 11 个阶段脚本截图落 `tmp/` + `AGENTS.md` §5.1（英文） | 本文件「阶段 30」 |
 | 31 | FR-85 表格「标签」列加 4px 间距（与卡片视图同档、多标签换行不溢出）+ FR-86 版本保留策略（数据层：每 prompt 最多保留最近 10 个版本、超出的真删；抽 `pruneVersions` 覆盖 新建/更新/回滚/批量/导入 五类写入点；版本面板 + README 文案） | 本文件「阶段 31」 |
 | 32 | FR-87 FIX CI 干净环境必失败（`typecheck:tests` 跑在构建前 ⇒ 38 个 TS2307；调 ci-check 顺序 + `typecheck:tests` 自带 `build:server` 前置）+ FR-88 登录页简化（**P0 去掉默认账号名预填与 `placeholder="admin"`** + 删四条噪音，只留登录信息） | 本文件「阶段 32」 |
+| 33 | FR-89 GitHub Actions 构建容器镜像并推送 Docker Hub（新增 `.github/workflows/docker.yml`：tag `v*` → `1.0.1`/`1.0`/`latest`，`main` 只构建不推送；凭据只走 Secrets；平台 `linux/amd64`）+ README「从镜像运行」+ `deploy/container.md`「镜像发布」 | 本文件「阶段 33」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -1747,6 +1748,163 @@ AC-3 / AC-4（`tools/ac-stage2.sh` 覆盖，未跑：本阶段未改认证与接
 **纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
 `git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动部署（`/opt/promptmanager`、systemd、
 8767、**106 生产**）；临时 worktree 已 `git worktree remove --force` 清理。
+
+## 阶段 33（2026-09-21）：GitHub Actions 构建镜像并推送 Docker Hub（FR-89；AC-91）
+
+> **一句话**：新增 `.github/workflows/docker.yml` —— 推 `v*` tag 时构建 `linux/amd64` 镜像并推送
+> `<DOCKERHUB_USERNAME>/promptmanager`（tag = `1.0.1`/`1.0`/`latest`），`main` 分支**只构建不推送**；
+> 凭据只从 GitHub Secrets 取、任何 step 不回显；`ci.yml` 一字未改。
+
+### 开工前：AC-91 → 检查命令（先落盘，再动手）
+
+| AC | 命令（可执行） | 期望 |
+| --- | --- | --- |
+| AC-91 ① | `bash tools/ac-stage33.sh`（内部用 `python3` + `pyyaml` **真解析** workflow） | 触发条件 / permissions / 5 个 action 的 pin / 镜像名与登录凭据引用 全部成立；**负向**：无 `echo`+`secrets`、无 `set -x`、无明文 token/用户名、无 `pull_request_target` |
+| AC-91 ② | 同上脚本的「对照表」段 + `grep -n 'type=\|platforms\|context\|file:' .github/workflows/docker.yml` | `context=.`、`file=Dockerfile`、无 `target`、`linux/amd64`；tag 方案 = `1.0.1`/`1.0`/`latest` |
+| AC-91 ③ | 记录 host_manger 在 106 的实测（本机**无 Docker**） | `docker build -t promptmanager:1.0.1 .` → 36 秒 / 959MB |
+| AC-91 ④ | 端到端实跑 | **待用户配 secrets 后由 host_manger 触发**（本阶段**不标完成**） |
+
+**开工前基线**：`npm test` = **329/329 rc=0** → 收尾仍 **329/329**（本阶段**只加 workflow 与文档**，不加代码）。
+
+### ① AC-91 ① 原样输出（`bash tools/ac-stage33.sh`，rc=0，失败项 0）
+
+```
+=== AC-91 ①：YAML 静态断言（真解析） ===
+  ✅ .github/workflows/docker.yml 存在（74 行）
+  $ python3 -c "import yaml; d=yaml.safe_load(open('.github/workflows/docker.yml'))"   # 真解析
+    ok   push.tags == ['v*']（实际 ['v*']）
+    ok   push.branches == ['main']（实际 ['main']）
+    ok   workflow_dispatch 存在（手动补跑）
+    ok   未挂 pull_request / pull_request_target
+    ok   permissions == contents: read（实际 {'contents': 'read'}）
+    ok   五个 action 的 uses 顺序与 pin 完全符合（实际 ['actions/checkout@v4', 'docker/setup-buildx-action@v3', 'docker/login-action@v3', 'docker/metadata-action@v5', 'docker/build-push-action@v6']）
+    ok   每个 uses 都 pin 到 @v<数字>（无 @main / 无浮动引用）
+    ok   镜像名 = secrets.DOCKERHUB_USERNAME/promptmanager（实际 ${{ secrets.DOCKERHUB_USERNAME }}/promptmanager）
+    ok   登录口令 = secrets.DOCKERHUB_TOKEN
+    ok   登录用户名 = secrets.DOCKERHUB_USERNAME
+    ok   login 只带 username/password（实际 ['password', 'username']）
+    ok   context == '.'（实际 '.'）
+    ok   file == 'Dockerfile'（实际 'Dockerfile'）
+    ok   未指定自定义 target（与 106 的等价命令一致）
+    ok   platforms == linux/amd64（实际 'linux/amd64'）
+    ok   push 只在 tag v* 时为真（main 只构建不推送）
+    ok   全文不含 pull_request_target
+    ok   非注释行里不含 set -x（未打开 shell 命令追踪）
+    ok   没有任何 echo + secrets 的行（实际 []）
+    ok   没有形如 token 的长串（实际 []）
+    ok   不含 Docker Hub PAT 前缀 dckr_
+    ok   非注释行里恰好 3 处 secrets 引用（login.username / login.password / images；实际 3）
+  PROBLEMS=0
+  ✅ ① 静态断言失败项数 = 0
+```
+
+> ⚠️ **一处自查返工（如实登记）**：首版静态断言把**注释里**的 `set -x` 与 `${{ secrets.* }}` 也数了进去 ⇒ 2 项假红。
+> 修法：负向断言改为**只扫非注释行**（"注释里描述这条规则"不是违规），但**像 token 的长串与 `dckr_` 前缀仍扫全文**
+> （把值写进注释同样是泄露）；同时把 workflow 注释里的字面量 `set -x` 改写成中文描述，让人肉 grep 也干净。
+
+### ② AC-91 ② 与 106 现行构建的一致性（原样输出）
+
+```
+$ grep -n 'type=\|flavor\|platforms\|context\|file:' .github/workflows/docker.yml
+57:          flavor: |
+60:            type=semver,pattern={{version}}
+61:            type=semver,pattern={{major}}.{{minor}}
+62:            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+63:            type=ref,event=branch
+68:          context: .
+69:          file: Dockerfile
+70:          platforms: linux/amd64
+  ✅ ② tag 规则 4 条（semver / major.minor / raw latest / ref branch） = 4
+  refs/tags/v1.0.1 -> 1.0.1,1.0,latest
+  refs/heads/main -> main
+  ✅ ② 推 v1.0.1 产出 1.0.1 + 1.0 + latest = refs/tags/v1.0.1 -> 1.0.1,1.0,latest
+  ✅ ② main 分支只算本地 tag（且 push=false ⇒ 不推送） = refs/heads/main -> main
+    对照表（workflow 参数 ↔ 106 现行命令）：
+      context      = .            ↔  docker build -t promptmanager:1.0.1 .   （末尾的 . 就是 context）
+      file         = Dockerfile   ↔  默认 ./Dockerfile（未指定 -f）
+      target       = （未指定）    ↔  未指定 --target
+      platforms    = linux/amd64  ↔  106 是 x86_64 本机原生构建
+      tag          = 1.0.1/1.0/latest ↔  106 现行命令只打了 promptmanager:1.0.1（同一份产物，多打两个别名）
+```
+
+- **tag 手算说明**：`docker/metadata-action` 是 **Docker action，本机跑不了**（228 无 Docker），所以上表的
+  `1.0.1/1.0/latest` 是按 workflow 里**声明的 4 条规则手算**的结果（脚本里注明"不是跑 action"）。
+  为让产出**可预期**，显式设了 `flavor: latest=false` 并自己给 `raw,value=latest` —— 否则 action 的
+  `latest=auto` 也会加一个 `latest`，出现两个来源。
+- **`type=ref,event=branch` 的用途（登记）**：分支构建（`main` / 手动在分支上触发）本来算不出任何 tag，
+  加这条后得到 `main`（**永不推送**，`push: false`），便于在 run 日志里看出构建产物。它**不影响**发版 tag 方案。
+
+### ③ AC-91 ③ 等价构建实测（**由 host_manger 在 106 执行**；本机无 Docker）
+
+```
+$ command -v docker || echo '本机无 docker'
+本机无 docker
+host_manger 在 106 的实测结论（2026-09-21）：
+  $ docker build -t promptmanager:1.0.1 .
+  → 构建成功，耗时 36 秒，镜像 959MB
+结论：Dockerfile 在 106 上可构建；workflow 的 build 参数与上述命令等价（见 ② 对照表）。
+```
+
+> **证据归属说明（不冒领）**：本机（228）**没有 Docker**，所以"镜像能构建"这条证据**不是 dsh 产生的** ——
+> 它是 host_manger 在 106 上的实测；dsh 只断言 workflow 参数与之等价（context/file/无 target/平台）。
+
+### ④ AC-91 ④ 端到端实跑：**未完成，如实标注**
+
+**状态：待用户在 GitHub 仓库配好 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 后，由 host_manger 触发验证。**
+
+- dsh **做不了**的原因：仓库私有（未认证 API 对 `repo`/`actions` 都返回 404）、本机无 `gh` CLI、`_env/` 为空、
+  **没有任何 Docker Hub 凭据**（BRIEF 明示"别去找、别去猜"）；且"推 tag / 触发 workflow"属 host_manger。
+- **本阶段不把它写成已完成**（BRIEF AC-91 ④ 明确要求如此）。
+- host_manger 的验收步骤：Actions 绿 → `docker pull <ns>/promptmanager:<ver>` 能拉下 →
+  在 106 上 `docker run` 起容器 → `/healthz` 的 `version` 正确。
+
+### ⑤ 交付物与落盘对账
+
+| 交付物 | 落盘位置 | 要点 |
+| --- | --- | --- |
+| 新 workflow | `.github/workflows/docker.yml`（74 行） | 触发 3 种 / `permissions: contents: read` / 5 个官方 action pin 大版本 / 镜像名走 secret / 仅 `linux/amd64` / `push` 只在 tag `v*` |
+| AC 自检脚本 | `tools/ac-stage33.sh` | `python3` + `pyyaml` 真解析 + 负向安全断言 + 106 对照表 + ④ 状态记录（≈1 秒，不需要 Docker/网络） |
+| README「从镜像运行」节 | `README.md`（`## 怎么跑` 之后新增 `### 从镜像运行（Docker / Docker Hub）`） | `docker pull` + `docker run` 完整命令（`-v <宿主>:/data`、端口 8767、资源限额）+ `TRUST_PROXY`/`PUBLIC_ORIGIN` **仅反代形态**说明 + uid 1000 属主提醒 |
+| `deploy/container.md`「镜像发布（Docker Hub）」节 | `deploy/container.md` §2.2 | 触发方式 / tag 规则 / **两个 secret 只写名字** / 失败看日志 / 安全约定 / 与手工构建等价 |
+| `ci.yml` | **未改**（`git log -1 -- .github/workflows/ci.yml` 仍是 `8efd440` 初始提交） | 检查项仍是 `npm ci` + `bash tools/ci-check.sh` |
+
+**两处顺带修正（如实登记，均为"文件自相矛盾"级别的旧文案）**：
+
+1. `README.md` 原写「**即将新增容器化部署**（…本仓库暂不含容器文件）」—— 与事实矛盾（仓库里 `Dockerfile` /
+   `docker-compose.yml` / `deploy/container.md` 早已存在）。已改写为「systemd / 容器**两条路径**」并指向新章节。
+2. `deploy/container.md` §1 原写「镜像约 300MB」—— 与该文件 §9 自己的实测（579MB @v1.0.0）以及 host_manger 在 106
+   的 959MB @v1.0.1 都矛盾。已改为「约 0.6–1 GB（实测 …，见 §9）」。
+3. **版本号陈旧**：`README.md` 三处仍写「阶段 1–31 / 已发布 v1.0.0」（仓库实际已是 **v1.0.1**，阶段 33 新增的
+   「从镜像运行」示例也用 `1.0.1`）⇒ 已对齐为「阶段 1–33 / v1.0.1」；`deploy/container.md` §2.1/§3.2 的**示例**命令
+   同步为 `promptmanager:1.0.1`。**§9 的实测记录（v1.0.0 / 579MB）是历史事实，一字未改。**
+
+**未做（守边界）**：没改 `Dockerfile`（可选加 OCI `LABEL`，但保持与 106 实测命令**逐字等价**更重要 ——
+OCI 标签改由 `docker/metadata-action` 的 `labels` 输出在**构建时**注入，不动文件）；没加 `linux/arm64`（BRIEF 明确本期不做）；
+没加 `timeout-minutes`/`concurrency`/`provenance` 等未被要求的旋钮（用 action 默认值）；没在仓库里添加任何 secret。
+
+### ⑥ 回归（原样输出）
+
+```
+### npm test（本阶段前 / 收尾）
+ℹ tests 329 / pass 329 / fail 0        →        ℹ tests 329 / pass 329 / fail 0
+### bash tools/ci-check.sh（**先删 dist** 跑一次）rc=0
+  ① 依赖已安装 rc=0 ✅ ｜ ② npm run build rc=0 ✅ ｜ ③a typecheck:web rc=0 ✅ ｜ ③b typecheck:tests rc=0 ✅
+  ④ npm test rc=0 ✅ ℹ tests 329 ℹ pass 329 ℹ fail 0 ｜ ⑤ 体积预算 rc=0 ✅ 最大 chunk 470985 B
+  ✅ 代码质量检查全部通过（6 项）
+### bash tools/ac-stage33.sh  rc=0（AC-91 ① ② ③ 全过；④ 标注待配 secrets）
+```
+
+### ⑦ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | `docker.yml` + `tools/ac-stage33.sh`（含首版假红的修正） | 见下方交付回复 |
+| ② | 文档：README「从镜像运行」+ `deploy/container.md` §2.2 + 两处旧文案修正 | 同上 |
+| ③ | 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
+`git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` 检查项；未动部署
+（`/opt/promptmanager`、systemd、8767、**106 生产**）；**未在仓库添加任何 secret**、**未触发任何真实 workflow**。
 
 ## 归档与当前状态的关系
 

@@ -12,7 +12,7 @@
   版本历史（diff + 回滚）、模板变量填值、Markdown 预览（服务端渲染 + XSS 净化 + 高亮）、JSON 导入导出、带认证的管理后台、
   **拖拽排序（自定义顺序）**、API Token / MCP（agent 取用）、使用记录。
 
-> **当前进度：阶段 1–31 已全部完成，已发布 v1.0.0**（P0 + 后续演进全部交付；实际部署仍单独立项）。
+> **当前进度：阶段 1–33 已全部完成，已发布 v1.0.1**（P0 + 后续演进全部交付；实际部署仍单独立项）。
 > 服务端：认证（cookie + **API Token / Bearer 双通道**）、prompt 增删改查、列表筛选分页、**中文全文检索**、
 > 文件夹树（筛选**含全部子目录**，与侧栏计数同口径）与标签、**版本列表 + unified diff + 回滚**、
 > **模板变量提取与渲染**、**Markdown 渲染（XSS 净化 + 高亮）**、**JSON 全量导出 / 导入**、
@@ -51,7 +51,7 @@ npm start              # 启动服务（默认 0.0.0.0:8767）
 ```bash
 # 临时换端口/数据目录（不动生产文件）
 DATA_DIR=$(mktemp -d) PORT=8767 npm start
-curl -s http://127.0.0.1:8767/healthz        # {"status":"ok","version":"1.0.0"}（无需认证）
+curl -s http://127.0.0.1:8767/healthz        # {"status":"ok","version":"1.0.1"}（无需认证）
 
 # 认证：除 /healthz 与 /api/login 外，所有 /api/* 未认证一律 401
 curl -s -c /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
@@ -190,12 +190,48 @@ printf '%s\n' '你的强口令' | node bin/pm.mjs user set-password --username a
 node bin/pm.mjs export --out backup.json             # 全量导出
 ```
 
-**部署**：本项目跑在 228 上，当前部署形态是 **systemd**（非容器）。
-交付物在 `deploy/`：`promptmanager.service`（非 root、`EnvironmentFile`、`Restart=always`、
-不开与 V8 JIT 冲突的内存写执行加固）+ `promptmanager.env.example`（口令类值留空）+ `deploy/README.md`（安装/验证/回滚三步）。
-语法自检：`systemd-analyze verify deploy/promptmanager.service`（退出码 0）。
-**即将新增容器化部署**（`Dockerfile` + `docker-compose.yml`，由 **host_manger** 交付；本仓库暂不含容器文件）。
+**部署**：两条路径**互不影响**，按部署机条件选一条 ——
+- **systemd**（228 上的当前形态）：`deploy/promptmanager.service`（非 root、`EnvironmentFile`、`Restart=always`、
+  不开与 V8 JIT 冲突的内存写执行加固）+ `promptmanager.env.example`（口令类值留空）+ `deploy/README.md`（安装/验证/回滚三步）。
+  语法自检：`systemd-analyze verify deploy/promptmanager.service`（退出码 0）。
+- **容器**：`Dockerfile`（多阶段：builder 编译原生模块 → `node:24-slim` 运行、非 root）+ `docker-compose.yml` +
+  `deploy/container.md`（构建 / 运行 / 备份 / 升级回滚 / 实测踩坑）。**从镜像运行**见下节。
+
 **交付 ≠ 已部署**：实际安装/开机自启/反代只在用户明确要求时由 host_manger 执行。
+
+### 从镜像运行（Docker / Docker Hub）
+
+镜像由 GitHub Actions 在推 `v*` tag 时构建并推送到 Docker Hub（配置见 `.github/workflows/docker.yml`，
+说明见 `deploy/container.md` §「镜像发布（Docker Hub）」）。镜像坐标：**`<你的命名空间>/promptmanager`**。
+
+```bash
+# ① 拉取（tag 用具体版本，如 1.0.1；也可用 1.0 或 latest）
+docker pull <命名空间>/promptmanager:1.0.1
+
+# ② 运行（数据落在宿主目录，容器重建不丢；端口 8767 与 systemd 形态一致）
+mkdir -p /data/promptmanager
+docker run -d --name promptmanager \
+  --restart unless-stopped \
+  -p 8767:8767 \
+  -e HOST=0.0.0.0 -e PORT=8767 -e DATA_DIR=/data -e TZ=Asia/Shanghai \
+  -v /data/promptmanager:/data \
+  --memory 512m --cpus 1.0 \
+  <命名空间>/promptmanager:1.0.1
+
+# ③ 首次设置管理员口令（口令只从 stdin 进库，不进环境变量、不进镜像）
+printf '%s\n' '你的强口令' | docker exec -i promptmanager node bin/pm.mjs user set-password --username admin
+
+# ④ 自检
+curl -s http://127.0.0.1:8767/healthz     # {"status":"ok","version":"1.0.1"}
+```
+
+> **`TRUST_PROXY` / `PUBLIC_ORIGIN` 只在"前面有反向代理"时才需要**：
+> 公网 HTTPS 形态由反代终结 TLS，此时加 `-e TRUST_PROXY=1 -e PUBLIC_ORIGIN=https://prompt.example.com`
+> （前者让来源 IP 取 `X-Forwarded-For`，后者给会话 cookie 加 `Secure`）。
+> **内网直连（HTTP）形态两者都留空** —— 设了 `PUBLIC_ORIGIN` 反而会让 cookie 带 `Secure`、HTTP 下登录不上。
+>
+> 数据卷属主：容器内是 `node`（uid **1000**），宿主目录需可写（`chown 1000:1000 /data/promptmanager`），
+> 否则容器写不进数据目录。细节与实测记录见 `deploy/container.md`。
 
 ## 界面（前端）
 
@@ -376,7 +412,7 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 
 ## 已知限制
 
-- **阶段边界**：阶段 1–31 已全部交付（P0 + 后续演进）；v1.0.0。
+- **阶段边界**：阶段 1–33 已全部交付（P0 + 后续演进）；v1.0.1。
 - **前端已知限制**：
   ① **没有 URL 路由/深链**——列表 ↔ 编辑器是应用内视图状态（覆盖式浮层 + `Tabs`），刷新会回到列表、不能用浏览器前进/后退；
   ② 未做**快捷键面板**（表格**批量操作**已在阶段 27 交付：首列复选框 + 表头全选 + 批量收藏/移动/删除 + 二次确认；

@@ -9,19 +9,70 @@
 | --- | --- |
 | Docker | ≥ 20.10（建议 24+）；Compose **v2**（`docker compose` 子命令形式） |
 | 架构 | x86_64（镜像基于 `node:24-slim`） |
-| 磁盘 | 镜像约 300MB + 数据目录（SQLite 单文件，随 prompt 量增长） |
+| 磁盘 | 镜像 **约 0.6–1 GB**（实测 579MB @v1.0.0 / 959MB @v1.0.1，见 §9；随 Node 基础镜像与依赖变化）+ 数据目录（SQLite 单文件，随 prompt 量增长） |
 | 网络 | **构建时**需能拉 `node:24-slim`；**运行时不需要外网**（不引 CDN、不发遥测、不调外部 API） |
 
 ## 2. 构建
 
+### 2.1 本地构建（从源码）
+
 ```bash
-docker build -t promptmanager:1.0.0 .
+docker build -t promptmanager:1.0.1 .
 ```
 
 多阶段构建：builder 装全量依赖并跑 `npm run build`（`tsc` + `vite`）；runtime 只带**生产依赖**与 `dist/`。
 
 > ⚠️ **不要换成 alpine 基础镜像**：`better-sqlite3` 是**原生模块**，官方预编译二进制面向 glibc；
 > alpine 的 musl 需要现场编译（要装整条工具链，镜像更大更脆）。
+
+### 2.2 镜像发布（Docker Hub，GitHub Actions）
+
+镜像由 **GitHub Actions** 构建并推送到 Docker Hub，配置在 **`.github/workflows/docker.yml`**
+（**与质量检查 `ci.yml` 相互独立**，互不影响）。
+
+**触发方式**
+
+| 触发 | 行为 |
+| --- | --- |
+| push tag `v*`（如 `v1.0.1`） | **构建并推送**（发版主路径） |
+| push branch `main` | **只构建、不推送**（尽早发现 Dockerfile 被改坏；**不需要 secret 也能跑**） |
+| 手动 `workflow_dispatch` | 按当前 ref 决定：tag 上 = 推送；分支上 = 只构建 |
+
+**镜像坐标与 tag 规则**
+
+- 镜像名：**`<DOCKERHUB_USERNAME>/promptmanager`** —— 命名空间**不写死在仓库里**，从 GitHub Secrets 取。
+- 推 `v1.0.1` ⇒ 产出 **`1.0.1`** + **`1.0`** + **`latest`**（同一份镜像的三个别名）。
+- 平台：**仅 `linux/amd64`**（与生产 106 一致）。**arm64 本期不做**（需要 QEMU/多平台，构建代价翻倍）。
+
+**需要在 GitHub 仓库配置的 2 个 Secret**（`Settings → Secrets and variables → Actions → New repository secret`；
+**只写名字，值由你在 Docker Hub 侧生成/保管，绝不进仓库、不进镜像**）：
+
+| Secret 名 | 值是什么 |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | Docker Hub 用户名（同时也是镜像的命名空间） |
+| `DOCKERHUB_TOKEN` | Docker Hub **Access Token**（建议只给 `Read & Write` 的仓库级 token，不要用账号口令） |
+
+> 未配这两个 secret 时：**推 tag 会失败**（登录步骤拿不到凭据），**推 `main` 仍会成功**（只构建不推送）。
+> 也就是说"镜像能不能构建"这件事，配 secret 之前就能在 `main` 上验证。
+
+**失败时去哪里看日志**
+
+1. GitHub 仓库页 → **Actions** → 左侧选 **`docker`** workflow → 点那次 run → 展开失败的 step（`登录 Docker Hub` /
+   `构建并推送` 是最常见的两处）；
+2. 常见原因：secret 名字拼错或未配（`登录 Docker Hub` 失败）、Docker Hub token 权限不足或过期、
+   `Dockerfile` 被改坏（`构建并推送` 失败 —— 这类错误在 `main` 分支构建上就会提前暴露）。
+
+**安全约定（硬性）**
+
+- 凭据**只**出现在 `docker/login-action` 的 `with` 里；**任何 step 都不回显 secret**（无回显、不打开 shell 命令追踪）；
+- 仓库里**不出现**任何用户名/token 明文（命名空间走 secret）；
+- workflow 权限最小化：`permissions: contents: read`（Docker Hub 与 `GITHUB_TOKEN` 无关，**不需要** `packages: write`）。
+
+**与"本机/106 上手工构建"的关系**
+
+workflow 的构建参数与 `docker build -t promptmanager:<ver> .` **等价**：`context=.`、`file=Dockerfile`、
+无自定义 `target`、平台 `linux/amd64`（见 `docs/dev-history/PROGRESS.md` 阶段 33 的对照表与实测记录）。
+本地没有 Docker 的机器（如 228）**不需要**为了发版装 Docker —— 交给 Actions 即可。
 
 ## 3. 运行
 
@@ -37,7 +88,7 @@ docker compose ps            # 等 healthcheck 变 healthy
 ### 3.2 用 docker run
 
 ```bash
-docker run -d --name promptmanager   --restart unless-stopped   -p 8767:8767   -e HOST=0.0.0.0 -e PORT=8767 -e DATA_DIR=/data -e TZ=Asia/Shanghai   -v /data/promptmanager:/data   --memory 512m --cpus 1.0   promptmanager:1.0.0
+docker run -d --name promptmanager   --restart unless-stopped   -p 8767:8767   -e HOST=0.0.0.0 -e PORT=8767 -e DATA_DIR=/data -e TZ=Asia/Shanghai   -v /data/promptmanager:/data   --memory 512m --cpus 1.0   promptmanager:1.0.1
 ```
 
 ## 4. 首次设置管理员口令（**关键一步**）
