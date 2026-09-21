@@ -320,7 +320,25 @@ export default function UseView({
         </Flex>
       ),
     },
-    { title: '标签', key: 'tags', width: 128, render: (_v, prompt) => prompt.tags.map((tag) => <Tag key={tag}>{tag}</Tag>) },
+    {
+      title: '标签',
+      key: 'tags',
+      width: 128,
+      // FR-85：antd 6 的 `Tag` **没有** v5 那条默认的 `margin-inline-end: 8px`，所以多个 `<Tag>` 直接相邻时
+      // 间距为 0 —— 视觉上"拼在一起"（用户 2026-09-21 反馈的根因）。
+      // 修法：外面套一层 `Flex gap={4} wrap`（与卡片视图同一档间隙），并给每个 Tag 显式 `marginInlineEnd: 0`
+      // 以免将来 antd 把默认 margin 加回来时与 gap 叠加成 12px（两种版本下都恒等于 4px）。
+      // `wrap` + `minWidth: 0` 保证多标签在本列内换行，不撑破列宽（AC-87 ③ 量像素）。
+      render: (_v, prompt) => (
+        <Flex gap={4} wrap style={{ minWidth: 0 }} data-testid="pm-table-tag-cell">
+          {prompt.tags.map((tag) => (
+            <Tag key={tag} style={{ marginInlineEnd: 0 }}>
+              {tag}
+            </Tag>
+          ))}
+        </Flex>
+      ),
+    },
     {
       title: '文件夹',
       key: 'folder',
