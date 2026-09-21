@@ -15,7 +15,7 @@
     "start": "node dist/server/index.js",
     "migrate": "npm run build:server && node bin/pm.mjs migrate",
     "test": "npm run build && npm run typecheck:tests && node --test \"tests/**/*.test.ts\"",
-    "typecheck:tests": "tsc -p tsconfig.tests.json"
+    "typecheck:tests": "npm run build:server && tsc -p tsconfig.tests.json"
   },
   "dependencies": {
     "@ant-design/icons": "6.3.4",
