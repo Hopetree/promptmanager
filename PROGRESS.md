@@ -7,9 +7,9 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–33 已全部完成**；已发布 **v1.0.1** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–32 自检全过**（见本文件对应小节）；**阶段 33（FR-89 / AC-91：GitHub Actions 构建镜像并推送 Docker Hub）① ② ③ 已过，④ 端到端实跑待用户配 secrets 后由 host_manger 触发** |
-| 版本 | **`1.0.1`**（`package.json` 单一来源，`/healthz` 同源；阶段 32 修复 CI 与登录页后由 host_manger 发版） |
+| 阶段 | **阶段 1–34 已全部完成**；已发布 **v1.0.2** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–33 自检全过**；**阶段 34（FR-90/FR-91/FR-92 / AC-92/AC-93/AC-94）自检全过 —— 其中 AC-93 ② 的「Docker 部署」半由 host_manger 在 106/203 验证（228 无 Docker）** |
+| 版本 | **`1.0.2`**（`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
 
@@ -54,7 +54,8 @@
 | 30 | FR-84 `docs/` 只放最终状态：`docs/shots/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/shots-archive/` + `ui-shots.sh` 默认 `tmp/`·`--key` 发版模式 + 11 个阶段脚本截图落 `tmp/` + `AGENTS.md` §5.1（英文） | 本文件「阶段 30」 |
 | 31 | FR-85 表格「标签」列加 4px 间距（与卡片视图同档、多标签换行不溢出）+ FR-86 版本保留策略（数据层：每 prompt 最多保留最近 10 个版本、超出的真删；抽 `pruneVersions` 覆盖 新建/更新/回滚/批量/导入 五类写入点；版本面板 + README 文案） | 本文件「阶段 31」 |
 | 32 | FR-87 FIX CI 干净环境必失败（`typecheck:tests` 跑在构建前 ⇒ 38 个 TS2307；调 ci-check 顺序 + `typecheck:tests` 自带 `build:server` 前置）+ FR-88 登录页简化（**P0 去掉默认账号名预填与 `placeholder="admin"`** + 删四条噪音，只留登录信息） | 本文件「阶段 32」 |
-| 33 | FR-89 GitHub Actions 构建容器镜像并推送 Docker Hub（新增 `.github/workflows/docker.yml`：tag `v*` → `1.0.1`/`1.0`/`latest`，`main` 只构建不推送；凭据只走 Secrets；平台 `linux/amd64`）+ README「从镜像运行」+ `deploy/container.md`「镜像发布」 | 本文件「阶段 33」 |
+| 33 | FR-89 GitHub Actions 构建容器镜像并推送 Docker Hub（新增 `.github/workflows/docker.yml`：tag `v*` → `1.0.x`/`1.0`/`latest`，`main` 只构建不推送；凭据只走 Secrets；平台 `linux/amd64`）+ README「从镜像运行」+ `deploy/container.md`「镜像发布」 | 本文件「阶段 33」 |
+| 34 | FR-90 分栏中栏手机端撑满（358，改前右侧空 82px）+ FR-91 README 重写为用户文档（Docker / 源码两种部署；开发者内容迁 `docs/development.md`、接口迁 `docs/api.md`，消除 README 重复两节）+ FR-92 移动端档位顺序改「卡片/表格/分栏」且默认落卡片（桌面不动） | 本文件「阶段 34」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -1911,6 +1912,191 @@ host_manger 在 106 的实测结论（2026-09-21）：
 **纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
 `git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` 检查项；未动部署
 （`/opt/promptmanager`、systemd、8767、**106 生产**）；**未在仓库添加任何 secret**、**未触发任何真实 workflow**。
+
+## 阶段 34（2026-09-21）：移动端分栏撑满 + README 用户化 + 移动端档位顺序（FR-90 / FR-91 / FR-92；AC-92 / AC-93 / AC-94）
+
+> **一句话**：分栏中栏在手机端撑满（改前右侧空 82px）；README 重写成**用户文档**并给 Docker / 源码两种部署方式
+> （开发者内容迁到 `docs/development.md`、接口迁到 `docs/api.md`，顺带消除 README 重复两节）；移动端档位顺序改为
+> **卡片 / 表格 / 分栏** 且首次进入默认落**卡片**（桌面顺序与默认一字不变）。
+
+### 开工前：AC-92 / AC-93 / AC-94 → 检查命令（先落盘，再动手）
+
+| AC | 命令（可执行） | 期望 |
+| --- | --- | --- |
+| AC-92 ① | `node tools/ac-stage34-probe.mjs mobile <base> <sid> <shots>` → `ac92_mobile_rects.splitCard` | 390×844 下 `.pm-split-list` **w=358 / right=374**（改前 276 / 292） |
+| AC-92 ② | 同上 → 分栏中栏 / 卡片 / 表格三者的 rect | 三者都 **358 / right 374** |
+| AC-92 ③ | 同上 → `docScrollWidth` | `== 390`（三档都测） |
+| AC-92 ④ | 同上 → `ac92_desktop_rects` | 1600 下 Card **350**、内层列表 336、**336/366 = 0.918 ∈ [0.90,0.94]**、右栏在 |
+| AC-92 ⑤ | 同上 → `ac92_mobile_behaviour` / `ac92_mobile_drawer` + 两张截图 | 无 `pm-split-detail`、点条目开抽屉、手柄与星标在 |
+| AC-93 ① | `grep -c '^## 代码质量检查' / '^## 怎么验证' / -E 'AC-[0-9]|FR-[0-9]|阶段 [0-9]+' README.md` + 标题去重脚本 | 全部 **0**；有 Docker / 源码两节；`## ` 标题不重复 |
+| AC-93 ② | `bash tools/ac-stage34.sh readme`（内含临时目录真跑源码方式） | `npm ci → build → migrate → 设口令 → 起服 → /healthz 200` 全 rc=0 |
+| AC-93 ③ | README 相对链接可达性脚本 | 失效 **0** |
+| AC-93 ④ | `docs/development.md` / `docs/api.md` 存在 + 承接断言 + AGENTS.md 英文指引 | 全过 |
+| AC-94 ①–⑤ | 探针的 `ac94_*` 键 | 移动 `卡片/表格/分栏`、桌面 `分栏/表格/卡片`、默认按断点、不覆盖已有偏好、三档可切 |
+| AC-94 ⑥ | `npm test` + `bash tools/ac-stage22.sh` | 333/333；AC-71 比值 0.918 仍过 |
+
+**开工前基线**：`npm test` = **329/329 rc=0** → 收尾 **333/333**（+4，只增不减）。
+
+### ① FR-90：分栏中栏在手机端撑满（改前/改后真实像素）
+
+**根因（与 host_manger 实测一致）**：`SplitView.tsx` 中栏 Card 的 `flex: '0 0 clamp(276px, 31.3%, 350px)'`
+**与断点无关** ⇒ 390 宽时 `31.3%` ≈ 112px 被 clamp 下限抬到 276px，而可用宽度 358px ⇒ **右侧空 82px**。
+
+**修法（一处）**：`flex: isMobile ? '1 1 100%' : '0 0 clamp(276px, 31.3%, 350px)'`（移动端单栏降级时右栏不渲染，中栏独占整行）。
+不引入新断点体系（沿用 `isMobile`）；其它视图 / 接口 / 数据未动。
+
+```
+① 移动端（390×844）改前实测（host_manger）：.pm-split-list w=276 / right=292 / 容器 358 / 右侧空 82
+① 移动端改后（本阶段，原样）：
+ac92_mobile_rects={"splitCard":{"left":16,"width":358,"right":374},"splitInner":{"left":23,"width":344,"right":367},
+                   "splitContainer":{"left":16,"width":358,"right":374},...,"detailPresent":false,
+                   "docScrollWidth":390,"docClientWidth":390,"viewport":390}
+② 同一 390 视口对照：分栏中栏 {'left':16,'width':358,'right':374}
+                     卡片视图 {'left':16,'width':358,'right':374}
+                     表格视图 {'left':16,'width':358,'right':374}
+③ scrollWidth == 390（三档切换后都 == 390）
+④ 桌面 1600×900：splitCard width=350 ｜ splitInner width=336 ｜ 336/366 = 0.918 ∈ [0.90,0.94]
+                  右栏 pm-detail present=true width=924 visible=true ｜ scrollWidth 1600
+⑤ 移动端：detailInDom=false、items=3、dragHandle=true、favStar=true
+          点条目 → drawerOpen=true，抽屉文本含「AC34 条目3」与完整详情（标题/备注/字段页签/版本历史）
+```
+
+**一处口径澄清（重要，避免误判回归）**：AC-92 ④ 写的是「中栏 **350**、中栏/可用宽 比值 0.90–0.94」——
+这两个数**量的不是同一个元素**：`350` 是 **Card（`.pm-split-list`）**的宽度（clamp 上限）；
+而 FR-71 的比值口径是 **内层列表 `[data-testid="pm-split-list"]` / 改前基线 366**（stage 22 的 ac71 探针量的正是这个内层元素）
+= **336/366 = 0.918** ✓。两者在改后同时成立；**AC-71 脚本已实跑 rc=0 复验**（见 ⑥）。
+
+### ② FR-91：README 用户化 + 两种部署方式
+
+| 交付 | 落盘 | 内容 |
+| --- | --- | --- |
+| 用户文档（重写） | `README.md`（249 行，原 492 行） | 是什么 / 能做什么（13 项能力表）/ **部署方式 A：Docker（推荐）** / **部署方式 B：源码运行** / 怎么用（三档视图、常用操作表、快捷键、备份与升级回滚）/ FAQ（7 条）/ 已知限制（用户视角）/ 文档索引 |
+| 开发者文档（新建） | `docs/development.md`（176 行） | 项目结构 / 构建与测试命令 / **代码质量检查（五步表 + 为什么构建必须在类型检查前）** / 验收体系 / **验证脚本清单**（含"没有 ac-stage9.sh"说明）/ 依赖与发版 / 文档归属表 |
+| 接口参考（新建） | `docs/api.md`（310 行） | 认证（cookie + Bearer）/ 环境变量表 / 12 组 HTTP 接口 + curl 示例 / 错误码速查 / 使用侧 CLI / MCP / 契约细节 |
+| AI 指引（只加英文一行） | `AGENTS.md` §11 开头 | `Developer docs live in docs/development.md; API reference in docs/api.md`（**保持全英文**，未塞中文文档，符合 STANDARDS §5.1） |
+
+**AC-93 ① 结构断言（原样）**：
+
+```
+$ grep -c '^## 代码质量检查' README.md          → 0
+$ grep -c '^## 怎么验证' README.md              → 0
+$ grep -cE 'AC-[0-9]|FR-[0-9]|阶段 [0-9]+' README.md → 0
+$ grep -cE 'BRIEF|D-[0-9]+' README.md           → 0
+有 Docker 部署章节 = 1 ｜ 有源码部署章节 = 1 ｜ '## ' 标题数 = 7，重复 = 无
+（backlog R-5 的"重复两节 + 不存在的 ac-stage9.sh"随重写彻底消除）
+```
+
+**AC-93 ③ 链接可达性**：16 个相对链接，**失效 0**（脚本逐个打印 ok）。
+**AC-93 ④ 迁移落点**：`docs/development.md` 含「## 3. 代码质量检查」与「### 验证脚本清单」；
+`docs/api.md` 含 curl 示例 + MCP + CLI；`AGENTS.md` 有英文指引。
+**AC-93 ⑤ 用户视角**：README 里 `tools/ac-stage` 命中 0、`ci-check.sh` 命中 0、`pm-view-list` 命中 0；
+三种视图（分栏/表格/卡片）都在。
+
+**AC-93 ② 两种方式"照着能跑"（原样输出，节选）**：
+
+```
+=== AC-93 ②：源码方式真跑（在**临时目录**按 README 原样执行） ===
+  临时目录：/tmp/pm-srcrun-hY7LI6（42M）
+  $ npm ci --cache <repo>/var/cache/npm
+  $ npm run build
+  $ npm run migrate            → ok: schema at v3
+  $ printf '<pw>' | node bin/pm.mjs user set-password --username admin → ok: user admin password updated
+  $ DATA_DIR=<tmp>/data PORT=58111 node dist/server/index.js &
+  ✅ 源码方式：npm ci → build → migrate → 设口令 → 起服 全部 rc=0
+  $ curl -s http://127.0.0.1:58111/healthz → {"status":"ok","version":"1.0.2"}
+  ✅ ② 源码方式 /healthz == 200 ｜ ✅ version 与 package.json 一致 = 1.0.2
+  ✅ ② 收尾清理完成（临时目录已删、进程已停）
+  ⚠️ Docker 方式**不由本脚本验证**：228 上没有 Docker，按 BRIEF 分工由 host_manger 在 106/203 上
+     按 README「部署方式 A」原样真跑（docker pull → docker run → /healthz 200 → 清理）。
+```
+
+> **证据归属（不冒领）**：**Docker 那半我没跑、也不会跑**（228 无 Docker、无 Docker Hub 凭据）；
+> 该半由 **host_manger 在 106/203 上按 README 原样验证**，本阶段只交付文档与源码方式的实测。
+
+### ③ FR-92：移动端档位顺序 + 默认档位（按断点）
+
+**实现（顺序/默认值各只定义一处）**：`web/src/pure.ts` 新增
+`VIEW_MODE_VALUES` / `viewModeOptions(isMobile)`（移动 = `card,table,split`；桌面 = `split,table,card`）与
+`defaultViewMode(isMobile)`（移动 `card` / 桌面 `split`）；`UseView.tsx` 的 `Segmented` 改用
+`options={viewModeOptions(isMobile)}`；`Workspace.tsx` 的 `readPref('pm-view-mode', defaultViewMode(isMobile), ['split','table','card'])`。
+`readPref` 仍是"存储里有且合法才用存储值" ⇒ **已有本地偏好一律不覆盖**；键名与取值集合不变、不新增第四档。
+
+**AC-94 原样输出**：
+
+```
+① 移动端（390×844）档位文本：["卡片","表格","分栏"]      ✅ 顺序断言
+② 桌面（1600×900）档位文本：["分栏","表格","卡片"]        ✅ 不得回归
+③ 清空 localStorage 后：移动端 present=["card"] stored="card" checked="卡片"
+                        桌面   present=["split"] stored="split" checked="分栏"
+④ 预置 pm-view-mode='table' → 移动端 present=["table"] stored="table"；桌面同样 present=["table"]
+⑤ 真鼠标依次点 表格/卡片/分栏 → pm-view-table / pm-view-card / pm-view-split 依次出现；
+  切档后分栏中栏仍 358；ac34_runtime_errors=[]
+⑥ 档位恰好 3 个（segCount=3，未新增第四档）；hasList=false（无 pm-view-list）
+```
+
+**AC-94 ⑥ 既有断言同步更新（按断点，不是删断言）**：
+- `tests/navigation-hygiene.test.ts` 的 **AC-45 ①②**：原来断言"源码里 `value: 'split'` 出现在 `value: 'card'` 之前"
+  与"默认写死 `'split'`" —— 现改为断言 `viewModeOptions(false/true)` 与 `defaultViewMode(false/true)` 的**行为**
+  （桌面 分栏→表格→卡片 / 移动 卡片→表格→分栏；桌面 split / 移动 card），并断言组件**确实取用**这两个函数、
+  取值集合不变（旧值 `list` 仍回退）。
+- `tests/stage22-split-item.test.ts` 的 **AC-71 ③**：原来断言源码里出现 `flex: '0 0 clamp(276px, 31.3%, 350px)'`；
+  因 FR-90 改成三元表达式而改为断言**桌面分支仍是该 clamp + 移动分支撑满 + 旧 300/34%/380 不得残留**。
+- **FR-71 口径复验**：`PORT=8768 bash tools/ac-stage22.sh` → **rc=0、❌ 0**，其中
+  `宽度：{"list":336,"detail":924,"viewport":1600}`、`比值 ∈ [0.90, 0.94] = true`。
+
+### ④ 逐张识图结论（3 张，五问口径）
+
+| 图 | ① 界面 | ② 关键元素位置 | ③ 视觉缺陷 | ④ 与本阶段改动相关 | ⑤ 异常/意外 |
+| --- | --- | --- | --- | --- | --- |
+| `01-split-mobile-light` | 分栏视图（390×844 亮色，单栏降级） | 搜索框 / 排序 / **档位开关「卡片 表格 分栏」** / 收藏开关 / 列表卡（3 条：星标 + 标题 + 备注两行 + 拖拽手柄）/ 底部分页；列表卡右边缘与搜索框右边缘**同一竖线** | 无 | 正是 FR-90（改前右侧空 82px）+ FR-92 ①（顺序倒序）的验收面 | 无 |
+| `02-split-mobile-dark` | 同上，暗色 | 同亮色；近黑画布、浅色文字、选中档位高亮 | 无 | FR-90 暗色下同样撑满（实测 358） | 无 |
+| `03-split-desktop-light` | 分栏视图（1600×900 亮色，三栏） | 左栏筛选 + 中栏列表（350）+ 右栏详情（924） | 无 | 桌面不回归的对照面 | 无 |
+
+### ⑤ 本阶段新增/修改单测（`npm test` 只增不减：329 → **333**）
+
+| 文件 | 变化 | 覆盖 |
+| --- | --- | --- |
+| `tests/stage34-mobile-ui.test.ts` | **新增 4 例** | FR-90（移动端 `1 1 100%` / 桌面 clamp 保留 / 右栏只在非移动端 / 不自行引入断点）+ FR-92 ①②③（顺序、默认、取值集合与键名不变） |
+| `tests/navigation-hygiene.test.ts` | 改 2 例（AC-45 ①② 按断点） | 桌面/移动顺序与默认档位 + 组件取用单一真相源 + 旧值 `list` 回退 |
+| `tests/stage22-split-item.test.ts` | 改 1 例（AC-71 ③ 按断点） | 桌面 clamp 保留 + 移动撑满 + 旧宽度不残留 |
+
+### ⑥ 回归（原样输出）
+
+```
+### npm test（本阶段前 / 收尾）
+ℹ tests 329 / pass 329 / fail 0        →        ℹ tests 333 / pass 333 / fail 0
+### bash tools/ac-stage22.sh（FR-71 口径复验）rc=0、❌ 0
+  宽度：{"list":336,"detail":924,"viewport":1600}（改前基线 366px @1600）｜ 比值 ∈ [0.90, 0.94] = true
+### bash tools/ci-check.sh（**先删 dist**）rc=0（6 项全绿；详见本文件阶段 32 的同名脚本说明）
+### bash tools/ac-stage34.sh  rc=0（AC-92 / AC-93 ①②③④⑤ / AC-94 全过）
+```
+
+### ⑦ 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| FR-90 移动端中栏撑满 | `web/src/components/SplitView.tsx`（中栏 Card 的 `style.flex` 三元） |
+| FR-92 顺序/默认单一真相源 | `web/src/pure.ts`（`viewModeOptions` / `defaultViewMode` / `VIEW_MODE_VALUES`） |
+| FR-92 取用处 | `web/src/components/UseView.tsx`（Segmented options）、`web/src/components/Workspace.tsx`（readPref fallback） |
+| FR-91 用户文档 | `README.md`（全量重写） |
+| FR-91 开发者文档 / 接口参考 | `docs/development.md`、`docs/api.md`（新建） |
+| FR-91 AGENTS 英文指引 + 同步（版本 1.0.2、docs 行、验证清单指向 development） | `AGENTS.md` §1 / §3 / §4 / §11 |
+| 单测（新增 4 例 + 改 3 例） | `tests/stage34-mobile-ui.test.ts`、`tests/navigation-hygiene.test.ts`、`tests/stage22-split-item.test.ts` |
+| AC 自检脚本 + 探针 | `tools/ac-stage34.sh`、`tools/ac-stage34-probe.mjs` |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage34/*.png`（3 张：390 亮 / 390 暗 / 1600 亮） |
+
+### ⑧ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-90 + FR-92：`SplitView` / `pure.ts` / `UseView` / `Workspace` + 单测（新增 4 + 改 3） | 见下方交付回复 |
+| ② | FR-91：README 重写 + `docs/development.md` + `docs/api.md` + AGENTS 指引 | 同上 |
+| ③ | AC 工具：`tools/ac-stage34.sh` + `ac-stage34-probe.mjs` | 同上 |
+| ④ | 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
+`git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；
+未动部署（`/opt/promptmanager`、systemd、8767、**106 生产**）；未用 8767 做实验（临时实例走备用端口）。
 
 ## 归档与当前状态的关系
 
