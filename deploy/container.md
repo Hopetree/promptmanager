@@ -147,6 +147,21 @@ docker compose down && docker compose up -d
 | 口令 | `node bin/pm.mjs user set-password` | 同上，在容器内执行 |
 | 反代相关 | 同一套环境变量（`TRUST_PROXY` / `PUBLIC_ORIGIN` / `CORS_ORIGINS`） | 同 |
 
+## 7.1 反向代理：别漏了 `/mcp` 与 `Authorization` 头
+
+服务有两个对外面：`/api/*` + 前端页面（浏览器用），以及**顶层的 `POST /mcp`**（AI 客户端远程接入 MCP）。
+反代配置里要**把 `/mcp` 一并转发**到本服务，并且**透传 `Authorization` 头**（MCP 端点是 Bearer-only 的；
+NPM / nginx 默认就会透传该头，但如果你在反代上加了"统一鉴权 / 剥离敏感头"之类的规则，务必给它放行）。
+
+```nginx
+# nginx 片段：两条都要
+location /mcp { proxy_pass http://127.0.0.1:8767; proxy_set_header Authorization $http_authorization; }
+location /    { proxy_pass http://127.0.0.1:8767; }
+```
+
+反代形态下服务端建议设 `TRUST_PROXY=1` + `PUBLIC_ORIGIN=https://<你的域名>`（见 `deploy/README.md` §2.7）。
+MCP 端点本身**无状态**（不建会话、不做 SSE 长连），所以不需要为它开 `proxy_buffering off` 之类的长连接设置。
+
 ## 8. 已知限制
 
 - 镜像**不含** `tests/`、`tools/`、`docs/`（见 `.dockerignore`）—— 生产镜像只带运行所需；

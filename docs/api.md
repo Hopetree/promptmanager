@@ -187,8 +187,25 @@ curl -s -b /tmp/pm-jar -X DELETE http://127.0.0.1:8767/api/tokens/1     # 撤销
 curl -s -H "Authorization: Bearer pm_…" http://127.0.0.1:8767/api/prompts   # 与 cookie 并存的第二条通道
 ```
 
-明文 = `pm_` + 32 字节随机（base64url），**只在创建响应里出现一次**；库里只存 `sha256` hex(64)；
-可列出（不含明文）与撤销；记录 `last_used_at`；单用户下不做 scope 分层。
+明文 = `pm_` + 32 字节随机（base64url）。库里存两样东西：
+
+| 列 | 用途 |
+| --- | --- |
+| `token_hash`（sha256 hex） | **鉴权唯一依据**（每次请求比对；撤销后立即失效） |
+| `token_enc`（AES-256-GCM 密文，`base64(nonce‖tag‖ciphertext)`） | **仅供"随时查看/复制"**；密钥不进库 |
+
+```bash
+# 查看明文（FR-94）：**只允许 cookie 会话**（用 Bearer 调 → 403 session_required，避免 token 互相窥视）
+curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # → {"token":"pm_…"}
+```
+
+- 列表里每条带 **`revealable: boolean`**（= 库里存了密文，能再查看）；**响应里绝不含明文**。
+- 迁移前创建的**旧 token** `revealable=false`，reveal → **409 `token_not_revealable`**（原明文从未落库、不可恢复）
+  —— **它的鉴权照样可用**，建议撤销后重建。
+- **加密密钥**：env `TOKEN_ENC_KEY`（32 字节 hex）优先；缺失时自动生成到 `<DATA_DIR>/token-enc.key`（600）。
+  **密钥丢失不影响鉴权**，只是"看不了"；此时 reveal → **500 `token_enc_key_unavailable`**（附可读说明）。
+  ⚠️ 权衡：库与密钥分开保管 ⇒ 只有库泄露拿不到 token；但把**整个数据目录**一起备份 = 钥匙与锁放一起（靠备份落点权限保护）。
+- 可列出（不含明文）与撤销；记录 `last_used_at`；单用户下不做 scope 分层。
 
 ### 3.10 使用记录
 
@@ -230,6 +247,9 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `401` | 未认证（除 `/healthz`、`/api/login` 外的全部 `/api/*`） |
 | `404` | prompt / 版本 / 令牌不存在（含"回滚到已被裁剪掉的版本"） |
 | `409 folder_not_empty` | 删除仍有子目录或仍有 prompt 归属的文件夹 |
+| `403 session_required` | 用 Bearer 调 `POST /api/tokens/:id/reveal`（只允许浏览器会话） |
+| `409 token_not_revealable` | 该 token 是迁移前创建的（没有密文），明文不可恢复 |
+| `500 token_enc_key_unavailable` | 加密密钥缺失/不匹配（**鉴权不受影响**，恢复密钥后可再查看） |
 | `429` | 登录失败达阈值（含封锁期内口令正确）；带 `Retry-After` |
 
 ---
@@ -264,8 +284,36 @@ node bin/pm.mjs export --out backup.json         # 全量导出（无需起服�
 
 ## 5. MCP server（给 agent 取用）
 
-`bin/pm-mcp.mjs` 走 **stdio**（由客户端拉起），**不监听任何端口**；工具面**恰好三个只读工具**：
-`prompt_search` / `prompt_get` / `prompt_render`，**没有任何写操作**；数据只经本服务的 HTTP API + Bearer，不直连数据库。
+工具面**恰好三个只读工具**：`prompt_search` / `prompt_get` / `prompt_render`，**没有任何写操作**；
+数据只经本服务的 HTTP API + Bearer，**不直连数据库**。**两种传输共用同一份工具实现**：
+
+### 5.1 Streamable HTTP（远程接入，推荐）
+
+| 项 | 值 |
+| --- | --- |
+| 方法 / 路径 | **`POST /mcp`**（**顶层路径**，不在 `/api/` 下） |
+| 必需头 | `Authorization: Bearer <API Token>`（与 `/api/*` 同一套 token）；`Content-Type: application/json` |
+| 协议 | MCP **Streamable HTTP**，**无状态**（不生成/不校验 session id，不保留会话与消息历史）；POST 以 `application/json` 直接回 |
+| 鉴权失败 | 无 token / 无效 / 已撤销 → **401 `{"error":"unauthorized"}`**，且**不会去调内部 API**；**不接受 cookie 会话** |
+| 其它方法 | `GET /mcp`（SSE 流）与 `DELETE /mcp`（会话终止）在无状态模式下无意义 → **405 `method_not_allowed`** |
+| 凭据透传 | **本次请求携带的 token 就是这次工具调用的凭据**（内部 `/api/*` 调用用它，而非服务端 env 的 `PM_API_TOKEN`）⇒ usage 归属正确、通道记为 `mcp` |
+
+```bash
+# 示例：一次 tools/call（无状态，直接 POST JSON-RPC）
+curl -s -X POST http://127.0.0.1:8767/mcp \
+  -H 'Authorization: Bearer pm_…' -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+
+# 用官方 Python 客户端（推荐：客户端里只填 url + Authorization 头）
+#   url = http://<主机>:8767/mcp   headers = {"Authorization": "Bearer pm_…"}
+```
+
+> 反代形态：把 `/mcp` 一并转发到本服务，并**透传 `Authorization` 头**（见 `../deploy/container.md`）。
+
+### 5.2 stdio（本地子进程）
+
+`bin/pm-mcp.mjs` 走 **stdio**（由客户端拉起），**不监听任何端口**，凭据取 env `PM_API_URL` / `PM_API_TOKEN`。
 
 ```bash
 # 直接拉起（stdio；stdout 是 JSON-RPC 通道，诊断在 stderr）

@@ -5,7 +5,7 @@
 > and `/root/greenhouse/STANDARDS.md` (**highest precedence**; it wins on any conflict).
 >
 > This file covers **how to work in this repo** and nothing else. Every command below was actually executed
-> on 2026-09-21 and re-verified in stage 32 (test counts, bundle size, screenshot conventions); every path
+> on 2026-09-21 and re-verified in stage 35 (test counts, bundle size, screenshot conventions); every path
 > was checked with `test -e`. Where a topic is already documented elsewhere, this file **points to it
 > instead of duplicating it**, so there is exactly one source of truth.
 >
@@ -30,6 +30,15 @@
 - Listen address, port, auth model, and the environment-variable table live in the "how to run" section of
   `README.md`. Default is `0.0.0.0:8767`; every `/api/*` route except `/healthz` and `/api/login` returns
   401 when unauthenticated.
+- **MCP is served over two transports from one tool implementation** (`src/mcp/server.ts`): stdio
+  (`bin/pm-mcp.mjs`, env credentials) and **Streamable HTTP** at the top-level `POST /mcp`
+  (`src/mcp/http.ts`) which is **stateless** and **Bearer-only** (`Authorization: Bearer <API token>`),
+  and passes the request token through to the internal `/api/*` calls. `/mcp` is *not* under `/api/*`,
+  so it does its own auth - do not rely on the `/api/*` gate for it.
+- **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
+  authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
+  exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)
+  or `pm token reveal <id>`. Losing the key never breaks auth - it only makes tokens unreadable.
 
 ## 2. Five-minute quickstart (fresh session)
 
@@ -37,7 +46,7 @@
 cd /root/greenhouse/projects/promptmanager
 npm ci --cache var/cache/npm     # WARNING: /root/.npm is read-only in this sandbox; keep the cache in-repo (see section 3 and pitfall 3)
 npm run build                    # tsc -> dist/server, vite -> dist/web
-npm test                         # expect: tests 329 / pass 329 / fail 0 (~15s)
+npm test                         # expect: tests 348 / pass 348 / fail 0 (~18s)
 
 # Start a throwaway instance (never touches production data, never takes port 8767)
 AC=$(mktemp -d)
@@ -56,12 +65,12 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 | Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` = 470985 B (no `larger than 500 kB` warning). |
 | Server build only | `npm run build:server` | rc=0. The CLI and `node --test` both load from `dist/**` (pitfall 8). |
 | Web build only | `npm run build:web` | rc=0. |
-| Full test suite | `npm test` | rc=0; `tests 329` / `pass 329` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
+| Full test suite | `npm test` | rc=0; `tests 348` / `pass 348` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
 | One test file | `npm run build && node --test tests/health.test.ts` | rc=0; `tests 3` / `pass 3` / `fail 0`. **Build first**: tests import from `../dist/**`, and some cases need `dist/web`. |
 | One test case | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0; `tests 1` / `pass 1` / `fail 0`. |
 | Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). **`typecheck:tests` runs `build:server` first**, because the tests type-check against `../dist/**` (pitfall 11). |
-| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (**deps / build / 2x typecheck / npm test / 500 KB chunk budget** - the build comes *before* the type checks, see pitfall 11). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 329 ... fail 0` and max chunk `470985 B`. |
-| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v3`**. A second run prints the same and also exits 0. |
+| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (**deps / build / 2x typecheck / npm test / 500 KB chunk budget** - the build comes *before* the type checks, see pitfall 11). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 348 ... fail 0` and max chunk `470985 B`. |
+| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v4`**. A second run prints the same and also exits 0. |
 | Set the admin password | `printf '%s\n' '<strong-password>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0; prints **`ok: user admin password updated`** (password is read from stdin and never echoed). |
 | Start (default 8767) | `npm start` | rc=0; logs `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=...)`. Verified with `PORT=8765`; **8767 is currently occupied by the test environment**. |
 | **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"1.0.2"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
@@ -86,8 +95,8 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
 | `src/mcp/` | MCP tool surface (`server.ts`, three read-only tools). |
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
-| `migrations/` | `001_init.sql`, `002_tokens-and-usage.sql`, `003_prompt-sort-order.sql`. |
-| `tests/` | `node:test` cases (59 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
+| `migrations/` | `001_init.sql`, `002_tokens-and-usage.sql`, `003_prompt-sort-order.sql`, `004_token-enc.sql`. |
+| `tests/` | `node:test` cases (62 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
 | `tools/` | `ci-check.sh` (the local = CI quality gate), `ui-shots.sh` + `ui-shot.mjs` (UI evidence), `ac-stage<N>.sh` + `ac-stage<N>-probe.mjs` (per-stage AC self-checks), `seed-prompts.mjs`, `search-zh-poc.mjs`, `mcp-client-smoke.py`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans** (developers + users): `api.md` (HTTP/CLI/MCP reference), `development.md` (build/test/structure/acceptance), `dependencies.md` (deps + licenses + CVEs), `versioning.md`, `search-zh.md`, `brief-changelog.md`, `shots/` (**one** set of key page shots, 8 PNGs), `dev-history/` (process archive kept as acceptance evidence: full PROGRESS/VERIFY, past QUESTIONS, design studies — **documents only; its screenshots live in `tmp/`**). See section 5.1. |
@@ -150,9 +159,9 @@ artifact (only the process needs it) goes to `tmp/`.*
 - **Data directory**: `DATA_DIR` (defaults to `<repo>/data`, created on first run). It holds `pm.db`
   (SQLite, WAL) and `media/`. In production it is `/var/lib/promptmanager` (the unit's `StateDirectory`).
 - **Migrations**: `migrations/NNN_*.sql`, applied in order by `src/db/migrate.ts`, with applied versions
-  recorded in `schema_migrations`. There are 3 files today, hence the output `ok: schema at v3`.
+  recorded in `schema_migrations`. There are 4 files today, hence the output `ok: schema at v4`.
   **The server also runs migrations on startup**, so every migration must be **idempotent**.
-- **Adding a migration**: create `004_xxx.sql`; **never edit the already-applied `001`-`003`**. Keep it pure
+- **Adding a migration**: create `005_xxx.sql`; **never edit the already-applied `001`-`004`**. Keep it pure
   SQL and safe to run twice. Verify with `DATA_DIR=$(mktemp -d) npm run migrate` (expect `ok: schema at vN`).
 - `schema_version` (the **export file format**, currently 1) is **decoupled** from the project version
   `MAJOR.MINOR.PATCH`. For the rules, tag conventions, and the release procedure, read
@@ -171,7 +180,7 @@ artifact (only the process needs it) goes to `tmp/`.*
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (59 files, **329** cases). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (62 files, **348** cases). How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared

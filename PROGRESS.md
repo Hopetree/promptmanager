@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–34 已全部完成**；已发布 **v1.0.2** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–33 自检全过**；**阶段 34（FR-90/FR-91/FR-92 / AC-92/AC-93/AC-94）自检全过 —— 其中 AC-93 ② 的「Docker 部署」半由 host_manger 在 106/203 验证（228 无 Docker）** |
+| 阶段 | **阶段 1–35 已全部完成**；已发布 **v1.0.2** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–34 自检全过**；**阶段 35（FR-93/FR-94 / AC-95/AC-96：MCP Streamable HTTP 远程接入 + Token 加密可查看）自检全过**（见本文件「阶段 35」） |
 | 版本 | **`1.0.2`**（`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -56,6 +56,7 @@
 | 32 | FR-87 FIX CI 干净环境必失败（`typecheck:tests` 跑在构建前 ⇒ 38 个 TS2307；调 ci-check 顺序 + `typecheck:tests` 自带 `build:server` 前置）+ FR-88 登录页简化（**P0 去掉默认账号名预填与 `placeholder="admin"`** + 删四条噪音，只留登录信息） | 本文件「阶段 32」 |
 | 33 | FR-89 GitHub Actions 构建容器镜像并推送 Docker Hub（新增 `.github/workflows/docker.yml`：tag `v*` → `1.0.x`/`1.0`/`latest`，`main` 只构建不推送；凭据只走 Secrets；平台 `linux/amd64`）+ README「从镜像运行」+ `deploy/container.md`「镜像发布」 | 本文件「阶段 33」 |
 | 34 | FR-90 分栏中栏手机端撑满（358，改前右侧空 82px）+ FR-91 README 重写为用户文档（Docker / 源码两种部署；开发者内容迁 `docs/development.md`、接口迁 `docs/api.md`，消除 README 重复两节）+ FR-92 移动端档位顺序改「卡片/表格/分栏」且默认落卡片（桌面不动） | 本文件「阶段 34」 |
+| 35 | FR-93 MCP 增加 Streamable HTTP 传输（`POST /mcp` 顶层、无状态、Bearer-only、**请求 token 透传**、与 stdio 共用同一份 `buildMcpServer`）+ FR-94 API Token 可随时查看（AES-256-GCM 落 `token_enc`、迁移 004 → schema v4、reveal 仅会话、旧 token 409、UI 复制按钮 + CLI `token reveal`） | 本文件「阶段 35」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -2102,6 +2103,156 @@ $ grep -cE 'BRIEF|D-[0-9]+' README.md           → 0
 **纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
 `git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；
 未动部署（`/opt/promptmanager`、systemd、8767、**106 生产**）；未用 8767 做实验（临时实例走备用端口）。
+
+## 阶段 35（2026-09-21）：MCP 远程接入（Streamable HTTP）+ Token 可随时查看（FR-93 / FR-94；AC-95 / AC-96）
+
+> **一句话**：MCP 除 stdio 外多了**远程 HTTP 传输**（客户端只填 `url` + `Authorization` 头即可接入；无状态、Bearer-only、
+> 请求 token 透传给内部 API）；API Token 明文**加密落库**（AES-256-GCM），可在界面/CLI **随时查看复制**。
+> 两条需求**相互独立**，分两批提交与验收。
+
+### 开工前：AC-95 / AC-96 → 检查命令（先落盘，再动手）
+
+| AC | 命令（可执行） | 期望 |
+| --- | --- | --- |
+| AC-95 ① | `.venv/bin/python tools/mcp-http-smoke.py <base>/mcp <token> <id>`（官方 Python `mcp` 1.30.0） | `initialize → tools/list → tools/call` 全通，三工具齐全、内容正确 |
+| AC-95 ② | `curl -X POST <base>/mcp`（无 / 错 token） | 都是 **401**；且 `usage_events` 计数不变（没去调内部 API） |
+| AC-95 ③ | 服务端 env **不设** `PM_API_TOKEN`，用 token A 调 `/mcp` | 调通；`token A.last_used_at` 非空、**token B 仍为 NULL**；`usage_events.channel='mcp'` |
+| AC-95 ④ | `PM_API_URL=<base> PM_API_TOKEN=<A> .venv/bin/python tools/mcp-client-smoke.py` | stdio 方式握手 + 三工具仍通 |
+| AC-95 ⑤ | `grep` docs/api.md / README.md / AGENTS.md / deploy/container.md | `/mcp` 契约、「远程 MCP 接入」、英文一行、反代透传说明齐备 |
+| AC-95 ⑥ | `grep -c '<token>' <server.log>` | **0**（明文不进日志） |
+| AC-96 ① | `npm run migrate` + `pragma_table_info('api_tokens')` | `ok: schema at v4`；有 `token_enc`；存量行 NULL |
+| AC-96 ②③④ | reveal（会话）/ 旧令牌 / Bearer | 明文逐字相同；旧令牌 **409** 但鉴权仍 200；Bearer → **403** |
+| AC-96 ⑤⑦ | `SELECT token_enc` + 密钥文件权限 + 重启 + 移走密钥 | 密文不以 `pm_` 开头、非明文；密钥 600；重启仍可看；缺密钥 → 明确错误且鉴权可用 |
+| AC-96 ⑥⑧ | `node tools/ac-stage35-probe.mjs tokens …`（真鼠标 + 剪贴板） | 剪贴板 == reveal 明文；旧令牌有「不可查看」提示；日志/列表无明文 |
+
+**开工前基线**：`npm test` = **333/333 rc=0** → 收尾 **348/348**（+15，只增不减）。
+
+### ① FR-93：MCP 的 Streamable HTTP 传输（`POST /mcp`）
+
+| 落盘 | 作用 |
+| --- | --- |
+| `src/mcp/http.ts`（新） | `registerMcpHttpRoutes(app)`：**顶层 `POST /mcp`**；自己做 **Bearer-only** 鉴权（`resolveApiToken`，无/错 → 401 且**不触碰内部 API**）；**无状态**（`sessionIdGenerator: undefined`）；`GET`/`DELETE /mcp` → **405**（无状态下没有会话/SSE 流可言） |
+| `src/mcp/server.ts` | `buildMcpServer(credentials)`：**stdio 与 HTTP 共用**这一份工具定义；`credentials.token` 经 `makeRequestJson` 绑定到工具闭包 ⇒ HTTP 用请求 token、stdio 用 env（行为不变） |
+| `src/client/pm-api.ts` | `ApiRequestOptions.token`：显式凭据优先于 env（**透传**的最小改动点） |
+| `src/server/auth.ts` | 导出 `bearerPlaintext`，MCP 与 `/api/*` 用**同一套** Bearer 解析口径 |
+| `src/server/app.ts` | 注册 `/mcp`（在 `/api/*` 闸门之外，故自己鉴权） |
+
+**AC-95 ①③④ 原样输出（真客户端）**：
+
+```
+$ .venv/bin/python tools/mcp-http-smoke.py http://127.0.0.1:8765/mcp <token A> 1
+server_name=promptmanager ｜ server_version=1.0.2
+tool_names=prompt_search,prompt_get,prompt_render ｜ tool_count=3
+search_isError=False ｜ search_text={ "total": 1, "items": [ { "id": 1, "title": "AC35 MCP 夹具", ... } ] }
+get_isError=False     ｜ get_text={ "id": 1, "user_prompt": "你好 {{姓名}}", ..., "variables": [ "姓名" ] }
+render_isError=False  ｜ render_text={ "user_prompt": "你好 世界", "system_prompt": "", "missing": [] }
+  ✅ ① 真客户端退出码 = 0 ｜ ✅ ① 工具面恰好三个只读工具 ｜ ✅ ① search/get/render 全对
+  ✅ ② 无 Authorization → 401 = 401 ｜ ✅ ② 错 token → 401 = 401
+  ✅ ② 两次 401 都没去调内部 API（usage_events 未增加） = 2
+  ✅ ③ token A 被标记使用（last_used_at 非空） = 1
+  ✅ ③ token B 一次都没被用过（证明没有回退到 env/别的凭据） = 0
+  ✅ ③ usage 记到 mcp 通道（prompt_get + prompt_render ≥2 条） = true
+  ✅ ④ stdio 握手与三工具调用退出码 = 0（bin/pm-mcp.mjs + env 方式不回归）
+```
+
+> **凭据透传怎么证的（可复核）**：AC 脚本启动服务时**故意不设 `PM_API_TOKEN`**（只设 `PM_API_URL`）——
+> 若工具回退到 env，就会返回"缺少凭据"错误；实测调通 ⇒ 用的是**请求头里那个 token**。
+> 再加一条判别：只有 token A 的 `last_used_at` 被更新，**token B 一次都没被用过**。
+> ⚠️ 如实说明口径：`usage_events` 只有 `channel`（`mcp`）**没有 token_id 列**，所以"归属 token A"是用
+> "env 无凭据 + 只有 A 被标记使用"两条**间接**证据确定的（未为此加 schema 列 —— 那超出本阶段两条 FR 的范围）。
+
+### ② FR-94：Token 可随时查看（AES-256-GCM）
+
+| 落盘 | 作用 |
+| --- | --- |
+| `migrations/004_token-enc.sql`（新） | `ALTER TABLE api_tokens ADD COLUMN token_enc TEXT`（幂等由 `schema_migrations` 保证）→ **schema v4** |
+| `src/services/token-crypto.ts`（新） | AES-256-GCM 加解密；密钥 **env `TOKEN_ENC_KEY`（32 字节 hex）优先**，否则自动生成 `<DATA_DIR>/token-enc.key`（**600**）；密钥缺失/不匹配 → `TokenEncKeyUnavailableError`（明确错误，不崩不泄） |
+| `src/services/tokens.ts` | `createToken(..., cipher)` 加密落库（密钥不可用时**不阻断创建**，退化为"不可查看"）；`revealToken()`；`TokenSummary.revealable` |
+| `src/server/routes/tokens.ts` | `POST /api/tokens/:id/reveal`：**只允许 cookie 会话**（Bearer → 403 `session_required`）；旧令牌 → 409 `token_not_revealable`；密钥问题 → 500 `token_enc_key_unavailable`；成功只记"被查看"（**不含值**） |
+| `src/server/cli.ts` | `pm token reveal <id>`（本机管理路径，读同一密钥；设了 `PM_API_URL` 时明确拒绝并说明 HTTP 面只允许会话） |
+| `web/src/components/TokenDrawer.tsx` | 每条加「**复制**」按钮（`revealable` 才可用，现取现写剪贴板）；旧令牌显示「不可查看（旧令牌，请撤销后重建）」；Alert/模态文案同步；抽屉 **720 → 880** |
+| `web/src/{api,types}.ts` | `api.revealToken(id)`；`TokenSummary.revealable` |
+
+**AC-96 原样输出（节选）**：
+
+```
+$ DATA_DIR=<tmp> npm run migrate            → ok: schema at v4 ｜ pragma_table_info 有 token_enc
+$ curl -b <jar> -X POST .../api/tokens/1/reveal   → {"token":"pm_…"}（与创建响应**逐字相同**）
+$ curl -s -b <jar> .../api/tokens  → items: [(1,'AC35 token A',true),(2,'AC35 token B',true),(3,'AC35 旧令牌',false)]
+$ curl -b <jar> -X POST .../api/tokens/3/reveal   → 409 {"error":"token_not_revealable"}
+$ curl -H 'Authorization: Bearer <旧令牌>' .../api/prompts → 200（旧令牌鉴权**不受影响**）
+$ curl -H 'Authorization: Bearer <token A>' -X POST .../api/tokens/1/reveal → 403 session_required
+$ sqlite3 pm.db "SELECT id, substr(token_enc,1,20), length(token_enc), substr(token_enc,1,3)='pm_' FROM api_tokens;"
+  1|zB1u/+RR/KpvJzOkcNsN|100|0      ← 密文不以 pm_ 开头、长度 100（= base64(12+16+46)）
+  2|bULl5tn+0DctG/VGvYQb|100|0
+  3||                               ← 旧令牌 token_enc 为 NULL
+$ ls -l <DATA_DIR>/token-enc.key    → -rw-------（600）
+$ （重启服务后）reveal → 仍与创建明文逐字相同
+$ （临时移走密钥）reveal → 500 token_enc_key_unavailable（错误体不含明文）；Bearer 打 /api/prompts 仍 200
+$ （恢复密钥）reveal → 成功
+$ DATA_DIR=<tmp> node bin/pm.mjs token reveal 1 → stdout 就是明文（stderr 提示行不含明文）
+```
+
+**AC-96 ⑥ UI（真鼠标 + 剪贴板读回，原样）**：
+
+```
+  ✅ ⑥ 「复制」按钮存在 = true
+  ✅ ⑥ 真鼠标点击后剪贴板内容 == reveal 返回的明文 = true
+  ✅ ⑥ 剪贴板（脱敏）：pm_8W8…qKqI ｜ 期望（脱敏）：pm_8W8…qKqI
+  ✅ ⑥ 旧令牌显示「不可查看」提示 = true ｜ 文案：不可查看（旧令牌，请撤销后重建）
+  ✅ ⑥ 令牌表三行（token A / token B / 旧令牌） = 3 ｜ ✅ 页面运行时异常 = []
+  ✅ ⑧ 应用日志里 token A/B 明文出现次数 = 0 / 0 ｜ ✅ ⑧ reveal 成功有日志（≥1）且不含值
+```
+
+**一处自查返工（如实登记）**：首版断言用 `token_enc LIKE '%pm_%'` 判"密文不是明文"⇒ **假红** ——
+base64 字符集含 `p`/`m`/`_`，密文**偶然出现**子串 `pm_` 完全正常（实测 id=1 的密文里就有）。
+判据应为「**不以 `pm_` 前缀开头**」+「≠ 明文」+「长度符合 base64」。已按此改脚本与单测（单测里同样的弱断言一并修掉）。
+
+**识图（1 张，五问口径）**：`01-token-drawer-copy`（令牌抽屉，亮色）——① 界面：`⋯更多 → API 令牌` 抽屉；
+② 关键元素：说明 Alert（"明文加密保存在本机（可随时点「复制」再取）"）+ 创建表单 + 3 行表（名称/状态/创建时间/最近使用/**令牌**/操作），
+第一行「复制」刚被真鼠标点击、顶部有「已复制到剪贴板」提示，第三行是「不可查看（旧令牌，请撤销后重建）」；
+③ 视觉缺陷：**首次识图发现名称列被挤成 "A..."**（新增「令牌」列后 720px 不够）⇒ 已把抽屉加宽到 **880** 并给名称列 `width: 200`，
+重跑探针确认三个名称完整显示；④ 与本阶段改动相关：复制按钮 / 不可查看提示 / 文案；⑤ 异常：无。
+
+### ③ 回归（原样输出）
+
+```
+### npm test（本阶段前 / 收尾）
+ℹ tests 333 / pass 333 / fail 0    →    ℹ tests 348 / pass 348 / fail 0（+15：MCP HTTP 5 例 + Token reveal 10 例）
+### 既有断言同步更新（不删断言）
+- tests/migrate.test.ts / tests/migrate-prompt-order.test.ts / tests/cli-user.test.ts：schema 版本断言 3 → **4**（迁移 004 的必然结果）
+### bash tools/ci-check.sh（**先删 dist**）rc=0，6 项全绿（④ npm test 348/348；最大 chunk 470985 B）
+### bash tools/ac-stage35.sh  rc=0（AC-95 / AC-96 全部通过）
+```
+
+### ④ 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| MCP HTTP 传输 | `src/mcp/http.ts`（新）、`src/server/app.ts`（注册）、`src/server/auth.ts`（导出 `bearerPlaintext`） |
+| 工具实现复用 + 凭据透传 | `src/mcp/server.ts`（`buildMcpServer(credentials)` / `makeRequestJson`）、`src/client/pm-api.ts`（`ApiRequestOptions.token`） |
+| Token 加密 | `migrations/004_token-enc.sql`（新）、`src/db/schema.ts`、`src/services/token-crypto.ts`（新） |
+| reveal 接口 + 列表 revealable | `src/services/tokens.ts`、`src/server/routes/tokens.ts` |
+| CLI `token reveal` | `src/server/cli.ts`（`openCliDatabase` 顺带返回 `config`） |
+| UI 复制按钮 + 不可查看提示 + 抽屉加宽 | `web/src/components/TokenDrawer.tsx`、`web/src/{api,types}.ts` |
+| 单测（15 例新增 + 3 处既有断言更新） | `tests/stage35-mcp-http.test.ts`、`tests/stage35-token-reveal.test.ts`、`tests/{migrate,migrate-prompt-order,cli-user}.test.ts` |
+| AC 工具 | `tools/ac-stage35.sh`、`tools/ac-stage35-probe.mjs`、`tools/mcp-http-smoke.py`（真客户端） |
+| 文档 | `docs/api.md`（§5.1 HTTP 传输 + reveal/revealable + 错误码）、`README.md`（「远程 MCP 接入」+ 令牌 FAQ/限制）、`AGENTS.md`（英文两段）、`deploy/container.md`（§7.1 反代 `/mcp` + Authorization 透传） |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage35/01-token-drawer-copy.png` |
+
+### ⑤ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-93：`src/mcp/http.ts` + `buildMcpServer(credentials)` + 凭据透传 + 5 例单测 | 见下方交付回复 |
+| ② | FR-94：迁移 004 + `token-crypto` + reveal 接口/CLI/UI + 10 例单测 + 3 处版本断言更新 | 同上 |
+| ③ | 文档：`docs/api.md` / `README.md` / `AGENTS.md` / `deploy/container.md` | 同上 |
+| ④ | AC 工具：`tools/ac-stage35.sh` + `ac-stage35-probe.mjs` + `mcp-http-smoke.py` | 同上 |
+| ⑤ | 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` **只用明确路径**；commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；未动部署（`/opt/promptmanager`、systemd、8767、**106 生产**、**Docker Hub**）；
+**所有 token 明文只在本机临时实例里出现**，PROGRESS/回复里一律**脱敏**（只给前后缀）；未把任何凭据写进仓库。
 
 ## 归档与当前状态的关系
 
