@@ -1834,6 +1834,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
     **负向断言**：`grep -c '^## 代码质量检查'` = **0**、`grep -c '^## 怎么验证'` = **0**、`grep -cE 'AC-[0-9]|FR-[0-9]|阶段 [0-9]+'` = **0**；
     **任意 `## ` 标题不得重复**（脚本断言）。
   - ② **两种方式"照着能跑"（必须真跑，贴命令与输出）**：
+    ⚠️ **执行方分工（228 上没有 Docker，不要试图在本机跑 Docker）**：**源码方式由实现方在 228 的临时目录真跑**；**Docker 方式由 host_manger 在 106/203 上按 README 原样真跑**（实现方只需在 PROGRESS 里写明「该半由 host_manger 验证」，**不得伪造**）。
     **Docker 方式**：按 README 原样 `docker pull` + `docker run`（临时端口 + 临时数据目录）→ `/healthz` 200 且版本正确 → 收尾清理；
     **源码方式**：在**临时目录**按 README 原样（`npm ci` → `npm run build` → `npm run migrate` → 设口令 → 起服）→ `/healthz` 200 → 收尾清理。
     ⚠️ **不得**用 8767 / 106 生产实例做实验；也**不得**改动它们的配置。
