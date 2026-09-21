@@ -1001,3 +1001,98 @@ git：全部 `git add <明确路径>` + commit 前核暂存区；提交边界 2/
    ⇒ **教训：跑"交付物文档里的命令"要逐条照抄（含注释里的前提）；失败先怀疑自己漏前提，别先怀疑交付物。**
    （我先查了文档才下结论 —— 这一步做对了，避免了把"我的操作错误"写成"它的文档缺陷"。）
 2. 我的负向断言正则第一次误报（截断式 `\S+`）——**写检查也要严谨**，已修正后重跑。
+
+---
+
+# 阶段 34 验收（FR-90 分栏手机端撑满 + FR-91 README 用户化 + FR-92 移动端档位顺序）— 结论：**过**
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`a44858f`**（收尾）—— 交付 `b3a23e8`（FR-90 + FR-92 实现 + 3 个测试文件）/ `ef8d0da`（FR-91：README 重写 + `docs/development.md` + `docs/api.md` + AGENTS.md 英文指引）/ `b37210e`（AC 工具 `ac-stage34.sh` + 探针）/ `d93931c`（PROGRESS 阶段 34）/ `a44858f`（补记 AC-91 ④ 状态） |
+| 规格 | BRIEF **v45**（FR-90 / FR-91 / FR-92；AC-92 / AC-93 / AC-94〔+ AC-45 ①② 按断点修正〕；D-33 / D-34；阶段 34） |
+| 验收方 | host_manger（**独立探针量数 + 自己出界面证据 + 亲自在 106 按 README 跑 Docker 路径**） |
+| 结论 | **过** |
+
+## 1. AC-92 分栏中栏在手机端撑满（**我自己量**，独立探针）
+
+```
+移动端 390×844（split）：
+  .pm-split-list  w=358 / left=16 / right=374   ← 与容器同宽，ratio = 1.000
+  容器 pm-view-split w=358 / left=16 / right=374
+  detailCard(右栏) = false（单栏降级保留）｜ docScrollWidth = 390（无横向溢出）
+  **改前（我上午同一方法实测）：w=276 / right=292 ⇒ 右侧空 82px**
+同视口三档对照（我量的）：分栏 358/374 ｜ 卡片 358/374 ｜ 表格 358/374  ← 三者一致 ✅
+
+桌面 1600×900（split）：
+  .pm-split-list w=350 / left=264 / right=614   ← **与我改前实测值逐字相同（350 / 264 / 614）⇒ 零回归**
+  右栏 pm-split-detail 存在 ✅ ｜ docScrollWidth = 1600
+```
+
+**我自己的界面证据（3 张，390×844，我逐张看过）**：`m2-split-light` 里**列表卡的右边缘与搜索框右边缘在同一条竖线上**（改前右侧空 82px）、档位显示「卡片 表格 分栏」且分栏高亮；`m3-split-dark` 同样撑满；`m1-default-card` 是**清空偏好后的落地**（= 卡片，见 §2）。三张均无溢出、无错位。
+
+## 2. AC-94 移动端档位顺序与默认档位（**我自己跑**）
+
+| 判据 | 移动 390×844 | 桌面 1600×900 |
+| --- | --- | --- |
+| ①/② 档位文本顺序 | **`["卡片","表格","分栏"]`** ✅ | **`["分栏","表格","卡片"]`** ✅（不得回归 → 未回归） |
+| ③ 清空 `localStorage` 后默认 | 视图 `pm-view-card`、`stored='card'` ✅ | 视图 `pm-view-split`、`stored='split'` ✅ |
+| ④ 预置 `pm-view-mode='table'` | 视图 `pm-view-table`、`stored='table'`（**不被覆盖**）✅ | 同左 ✅ |
+| ⑤ 真鼠标依次点三档 | `pm-view-card` → `pm-view-table` → `pm-view-split`；`scrollWidth` 恒 **390** ✅ | — |
+
+⇒ 用户要的"移动端顺序 = 卡片/表格/分栏"**已生效**，且**桌面一字未变**、**已有偏好不被覆盖**。
+
+## 3. AC-93 README 用户化 + 两种部署方式（**我自己跑 + Docker 半我亲自实跑**）
+
+**① 结构（我跑）**：README **249 行**（原 492）；`## 代码质量检查` = **0**、`## 怎么验证` = **0**、
+`AC-[0-9]|FR-[0-9]|阶段 [0-9]+` = **0**、`ac-stage9` = **0**；`## ` 标题**无重复**；
+`## 部署方式 A：Docker（推荐）` 与 `## 部署方式 B：源码运行` **都在**。⇒ **backlog R-5（重复两节）彻底消除**。
+
+**③ 链接（我跑）**：16 个相对链接，**失效 0**。
+
+**④ 迁移落点（我核）**：`docs/development.md`（176 行：项目结构 / 构建与测试 / 代码质量检查 / 验收体系 / 依赖与发版 / 文档归属）、
+`docs/api.md`（310 行：认证 / 环境变量 / 12 组 HTTP 接口 + **31 处 curl** / CLI / MCP）；
+`AGENTS.md` 有**英文**指引（`Developer docs live in docs/development.md …`）且**中文字符数 = 0**（`STANDARDS §5.1` 合规）。
+
+**② Docker 方式 —— 我在 106 上按 README 原样跑（这是 BRIEF 分给我的那半）**：
+
+```
+① docker pull hopetree/promptmanager:1.0.2        → **失败**（106 到 Docker Hub 不通：hub.docker.com/registry-1.docker.io 超时）
+   ⇒ 改用本机既有的多站脚本 bash /root/docker-pull-mirror.sh hopetree/promptmanager:1.0.2 → OK（dockerproxy.net）
+② docker run -d --name pm-readme-test -p 127.0.0.1:18767:8767 -e HOST/PORT/DATA_DIR/TZ -v /tmp/hm-readme/data:/data
+     --memory 512m --cpus 1.0 hopetree/promptmanager:1.0.2     （**只改 名字/端口/数据目录 以免碰生产**）
+③ printf '<临时口令>' | docker exec -i pm-readme-test node bin/pm.mjs user set-password --username admin → ok
+④ curl /healthz → {"status":"ok","version":"1.0.2"} ✅ ｜ POST /api/login → **200** ✅ ｜ 数据目录自动初始化 ✅
+   收尾：临时容器与临时数据已删；**生产容器 promptmanager(1.0.2) 未受影响**
+```
+
+**② 源码方式（实现方实跑，我核对落盘）**：临时目录 `npm ci → build → migrate（ok: schema at v3）→ 设口令 → 起服 → /healthz 200`，
+收尾清理；**它如实声明"Docker 半不由我验证"**（不冒领）✅。
+
+## 4. 过程审查 — 干净（窗口 20:35–21:30）
+
+```
+工具调用 99 次（bash 52 / edit 18 / read 18 / write 6 / read_image 2）；跑测试与 AC **25 次**
+git：全部 `git add <明确路径>` + **每次 commit 前核 `git diff --cached --name-only`**；提交边界 5 / 4 / 2 / 1 / 1 文件
+**未触碰部署 / 系统 / 别的机器**（无 /opt、无 systemctl、无 8767、无 106、无 ssh）✅
+未改 BRIEF / STANDARDS / ci.yml / docker.yml ✅ ｜ 三端一致 a44858f ｜ 工作区干净
+```
+
+## 5. 回复对账 + **一处我自己的规格措辞缺陷（已修）**
+
+- 它的收尾结论逐条都能在落盘位置找到；**结构性例外只有收尾 commit hash**（已记在本文件上方）。
+- ⚠️ **我的失误：AC-92 ④ 措辞把两个不同元素混成一个判据**（写成"中栏 350、中栏/可用宽 比值 0.90–0.94"）——
+  实际 **350 是 `.pm-split-list`（Card，clamp 上限）**，而 FR-71 的比值口径是 **内层 `[data-testid="pm-split-list"]` 336 / 改前基线 366 = 0.918**。
+  **实现方主动澄清了这一点**（PROGRESS 阶段 34 ① 的「口径澄清」段），并复跑 `ac-stage22.sh` 得 `rc=0`。
+  ⇒ 我已在 BRIEF v45 里**修正 AC-92 ④ 的措辞**（一个判据只量一个元素）。**教训值得写进技能：AC 里别把"元素宽度"与"比值"混写。**
+- 无「只存在于会话、未落盘」的结论。
+
+## 6. 缺口与观察（不阻塞）
+
+1. **README 未提「国内网络拉 Docker Hub 需要镜像站/代理」** —— 我在 106 上**按原样跑 `docker pull` 确实失败**。
+   对自部署用户（尤其国内）这是必然会踩的坑 → 登记 backlog **R-8**（建议在「部署方式 A」或 FAQ 加一行）。
+2. 桌面 1600 下中栏 350 / 内层 336 —— 与阶段 22 / 31 口径一致（我逐字对照了改前值）。
+
+## 7. 验收方自省
+
+- **派活前把"改前值"量死（276/292）**，实现方交付后我能量到同一个数（358/374）⇒ 本轮**零返工**，这条做法值得继续。
+- 但我的 **AC 措辞**给了实现方一个含糊判据（见 §5）——**"判据要能一眼看出量的是哪个元素"**。
