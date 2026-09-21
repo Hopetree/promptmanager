@@ -169,6 +169,8 @@ export const api = {
   revokeToken: (id: number) => request<void>('DELETE', `/api/tokens/${String(id)}`),
   /** FR-94：查看 token 明文（**只允许会话 cookie**；Bearer 调会被 403）。 */
   revealToken: (id: number) => request<{ token: string }>('POST', `/api/tokens/${String(id)}/reveal`),
+  /** FR-96：**硬删除**已撤销的 token（未撤销 → 409；真删行、审计一并消失）。 */
+  deleteTokenPermanently: (id: number) => request<void>('DELETE', `/api/tokens/${String(id)}/permanent`),
 };
 
 /** 统一的用户可读错误文案（401 单独判，用于把用户踢回登录页）。 */

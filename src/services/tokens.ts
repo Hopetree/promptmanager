@@ -107,6 +107,27 @@ export async function revokeToken(qe: QueryEngine, id: number): Promise<void> {
 }
 
 /**
+ * FR-96：**硬删除**（真删行，审计记录一并消失）—— 只允许**已撤销**的行。
+ *
+ * 为什么要求"先撤销"：撤销是"立即失效但留痕"，删除是"连痕都不留"。
+ * 若允许直接删有效凭据，一次误点就会**无声地**让一个正在被 CLI/agent 使用的 token 消失；
+ * 强制两步（撤销 → 删除）让"失效"与"抹除"各占一次明确操作。
+ *
+ * - 不存在 → `NotFoundError`（404）；
+ * - 仍有效（`revoked_at IS NULL`）→ `ConflictError('token_not_revoked')`（409）。
+ */
+export async function deleteTokenPermanently(qe: QueryEngine, id: number): Promise<void> {
+  const row = await qe
+    .selectFrom('api_tokens')
+    .select(['id', 'revoked_at'])
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (row === undefined) throw new NotFoundError();
+  if (row.revoked_at === null) throw new ConflictError('token_not_revoked');
+  await qe.deleteFrom('api_tokens').where('id', '=', id).execute();
+}
+
+/**
  * Bearer 校验：命中且未撤销 → 记录 last_used_at 并返回摘要；否则 null。
  * 撤销后**立即失效**（每次请求都查库，不做缓存）。
  */

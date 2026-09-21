@@ -1,6 +1,12 @@
 import type { FastifyInstance } from 'fastify';
 import type { AppConfig } from '../../config.js';
-import { createToken, listTokens, revealToken, revokeToken } from '../../services/tokens.js';
+import {
+  createToken,
+  deleteTokenPermanently,
+  listTokens,
+  revealToken,
+  revokeToken,
+} from '../../services/tokens.js';
 import { TokenEncKeyUnavailableError, loadTokenCipher, type TokenCipher } from '../../services/token-crypto.js';
 import { parsePositiveId } from '../params.js';
 
@@ -17,6 +23,8 @@ const createTokenSchema = {
  * - `POST /api/tokens`   创建 → 201，明文在这一个响应里返回；FR-94 起**同时加密落库**以便日后查看
  * - `POST /api/tokens/:id/reveal` 查看明文（FR-94）→ 200 `{token}`；**只允许 cookie 会话**；存量行 → 409
  * - `DELETE /api/tokens/:id` 撤销 → 204（立即失效；重复撤销幂等，不存在 → 404）
+ * - `DELETE /api/tokens/:id/permanent` **硬删除**（FR-96）→ 204；**只允许已撤销的行**（未撤销 → 409
+ *   `token_not_revoked`，不存在 → 404）；**真删行、审计记录一并消失**（与"撤销留痕"语义不同）
  * 认证沿用闸门：cookie 会话或既有 Bearer token 都可以（单用户，不做 scope 分层）——**reveal 除外**（见下）。
  */
 export function registerTokenRoutes(app: FastifyInstance, config: AppConfig): void {
@@ -71,6 +79,13 @@ export function registerTokenRoutes(app: FastifyInstance, config: AppConfig): vo
   app.delete('/api/tokens/:id', async (request, reply) => {
     const id = parsePositiveId((request.params as { id?: string }).id);
     await revokeToken(app.qe, id);
+    return reply.code(204).send();
+  });
+
+  /** FR-96：硬删除（只允许已撤销）。未撤销 → 409；不存在 → 404。 */
+  app.delete('/api/tokens/:id/permanent', async (request, reply) => {
+    const id = parsePositiveId((request.params as { id?: string }).id);
+    await deleteTokenPermanently(app.qe, id);
     return reply.code(204).send();
   });
 }
