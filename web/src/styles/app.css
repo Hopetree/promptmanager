@@ -267,6 +267,17 @@
   transform: translate(-50%, -50%) scale(1);
 }
 
+/* FR-82 ①（对抗性自审第 2 轮补）：**hover 态**必须一并覆盖。
+   antd 对半选态单独注入了 hover 规则
+   `.ant-checkbox-indeterminate:not(.ant-checkbox-disabled):hover { background: colorBgContainer; border-color: colorPrimary }`
+   （specificity 0,3,0）—— 亮色下 colorBgContainer 是白底，而上面的横杠也是白色 ⇒ 鼠标悬浮时半选变成"白底白杠"，
+   正是本条要修的"看不出半选"。这里用更高优先级（0,4,0）把 hover 的底/边钉回主色。
+   注：AC-84 ① 的探针在量之前鼠标停在行上、不会触发表头 hover，所以只验 class / 静态 computed 会漏掉这一态。 */
+.pm-table-dense .ant-checkbox-indeterminate:not(.ant-checkbox-disabled):hover {
+  background-color: var(--pm-primary);
+  border-color: var(--pm-primary);
+}
+
 /* FR-82 ②：批量工具条与表头行之间留出间距（原先紧贴，视觉拥挤；AC-84 ③ 要求 ≥6px，这里给 8px）。 */
 .pm-bulk-toolbar {
   margin-bottom: 8px;
@@ -297,6 +308,14 @@
 .pm-detail-meta .ant-tag.pm-tag-chip .ant-tag-close-icon {
   margin-inline-start: 6px;
   font-size: 10px;
+  color: var(--pm-ink-subtle);
+}
+
+/* FR-83 ⑤（对抗性自审第 2 轮补）：详情 chip **本体不可点**（只有 ✕ 可点），
+   因此要中和左栏那条 `.pm-tag-chip:hover`（0,2,0）—— 否则鼠标移上去底色/文字会变，
+   与"不可点"的语义矛盾，也和左栏（可点、hover 变深是刻意的）表现不一致。 */
+.pm-detail-meta .ant-tag.pm-tag-chip:hover {
+  background: var(--pm-surface-2);
   color: var(--pm-ink-subtle);
 }
 

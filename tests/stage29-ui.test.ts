@@ -31,6 +31,15 @@ test('AC-84 ①：表头复选框半选态被显式重绘（主色底 + 白色�
   const dash = rule('.pm-table-dense .ant-checkbox-indeterminate::after');
   assert.ok(/background-color:\s*#fff/.test(dash), '半选横杠为白色（与已勾选态同一视觉体系）');
   assert.ok(/height:\s*2px/.test(dash) && /width:\s*8px/.test(dash), '横杠尺寸 8×2');
+  // 对抗性自审第 2 轮：antd 对半选态单独注入了 hover（亮色下 `colorBgContainer` = 白底），
+  // 若不覆盖，悬浮时就是"白底 + 白杠" ⇒ 又看不出半选。必须有一条更高优先级的 hover 规则把底/边钉回主色。
+  const hover = rule('.pm-table-dense .ant-checkbox-indeterminate:not(.ant-checkbox-disabled):hover {');
+  assert.ok(/background-color:\s*var\(--pm-primary\)/.test(hover), 'hover 态底色必须仍是主色（否则白底白杠）');
+  assert.ok(/border-color:\s*var\(--pm-primary\)/.test(hover), 'hover 态边框必须仍是主色');
+  assert.ok(
+    /\.pm-table-dense\s+\.ant-checkbox-indeterminate/.test(css),
+    'hover 规则必须带 .pm-table-dense 前缀（否则与 antd 同优先级、被运行时 CSS-in-JS 盖过）',
+  );
 });
 
 test('AC-84 ②：表头与行内复选框都走 antd Checkbox（同一尺寸来源），未做任何尺寸覆写', () => {
@@ -94,6 +103,11 @@ test('AC-85 ⑤：详情页标签 chip 与左栏「胶囊云」用同一套视�
   }
   // 优先级：静态样式表必须压过 antd 运行时注入的 .ant-tag（同优先级会被盖过 ⇒ 必须带前缀）
   assert.ok(/\.pm-detail-meta\s+\.ant-tag\.pm-tag-chip/.test(css), '选择器必须带 .pm-detail-meta 前缀提高优先级');
+  // 对抗性自审第 2 轮：详情 chip 本体**不可点**（只有 ✕ 可点），必须中和左栏那条 `.pm-tag-chip:hover`，
+  // 否则悬浮时底色/文字变化与"不可点"的语义矛盾。
+  const hover = rule('.pm-detail-meta .ant-tag.pm-tag-chip:hover {');
+  assert.ok(/background:\s*var\(--pm-surface-2\)/.test(hover), '详情 chip hover 不得变色（不可点）');
+  assert.ok(/color:\s*var\(--pm-ink-subtle\)/.test(hover), '详情 chip hover 文字色不得变');
 });
 
 test('AC-85：不改功能语义（元信息行仍在标题+备注之下、字段页签之上；改文件夹/增删标签仍走 onMetaChange）', () => {

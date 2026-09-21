@@ -380,10 +380,13 @@ async function main() {
       // 再确认
       await cdp.realClick('[data-testid="pm-bulk-delete"]', 800);
       await cdp.waitFor(`!!document.querySelector('.ant-modal-confirm')`, '批量删除确认弹窗（二次）');
+      // 阶段 29 补：批量**删除**也要量"一次操作 1 个请求"（此前只量了收藏/移动）
+      const delRequestsBefore = cdp.bulkRequests;
       await cdp.realClickOf(
         `[...document.querySelectorAll('.ant-modal-confirm button')].find((el) => el.innerText.replace(/\\s/g, '').includes('删除'))`,
         1800,
       );
+      out.ac78_delete_requests = String(cdp.bulkRequests - delRequestsBefore);
       const totalAfterConfirm = Number(JSON.parse(await cdp.evaluate(fetchJson('/api/prompts?limit=200'))).total);
       out.ac78_total_after_confirm = String(totalAfterConfirm);
       out.ac78_deleted_404 = await cdp.evaluate(

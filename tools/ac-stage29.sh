@@ -7,7 +7,10 @@
 #
 # 服务**自起自停**（临时 DATA_DIR + 备用端口）；不碰 8767 测试环境。
 # 用法：bash tools/ac-stage29.sh [all|bulk|meta]
+# 注：`set -o pipefail` —— probe 通过 `| tee` 输出，缺了它 probe 崩溃会被 tee 的 0 退出码掩盖
+#     （对抗性自审第 2 轮的发现：截图/探针失败原本不会让脚本变红）。
 set -u
+set -o pipefail
 
 cd "$(dirname "$0")/.." || exit 1
 ONLY=${1:-all}
@@ -160,14 +163,25 @@ import json,sys
 s=json.loads(sys.argv[1])
 print('true' if s['afterWidth'] == '8px' and s['afterHeight'] == '2px' and s['afterBackground'] == 'rgb(255, 255, 255)' else 'false')
 " "$(b ac84_partial_style)")"
+      # ①（对抗性自审第 2 轮补）：hover 态 —— antd 的半选 hover 会把底变成白底，若不覆盖就"白底白杠"。
+      pass "① 半选 hover 态 computed：$(b ac84_partial_hover_style)"
+      eq "① hover 时半选仍可辨（底色不是白、且 == 已勾选行；横杠仍白）" "true" "$(python3 -c "
+import json,sys
+h=json.loads(sys.argv[1]); c=json.loads(sys.argv[2])
+ok = h['backgroundColor'] != 'rgb(255, 255, 255)'
+ok = ok and h['backgroundColor'] == c['backgroundColor'] and h['borderTopColor'] == c['borderTopColor']
+ok = ok and h['afterBackground'] == 'rgb(255, 255, 255)'
+print('true' if ok else 'false')
+" "$(b ac84_partial_hover_style)" "$(b ac84_checked_row_style)")"
       eq "① 全选：打勾且无 indeterminate" "true" "$(python3 -c "
 import json,sys
 s=json.loads(sys.argv[1]); print('true' if s['checkedClass'] and not s['indeterminateClass'] else 'false')
 " "$(b ac84_state_all)")"
-      eq "① 全选后当页全部勾选" "true" "$(python3 -c "
-import json,sys
-n=json.loads(sys.argv[1]); print('true' if n >= 6 else 'false')
-" "$(b ac84_checked_after_all)")"
+      eq "① 全选后当页**全部**勾选（勾选数 == 当页行数）" "true" "$(python3 -c "
+import sys
+print('true' if int(sys.argv[1]) == int(sys.argv[2]) and int(sys.argv[2]) > 0 else 'false')
+" "$(b ac84_checked_after_all)" "$(b ac84_page_row_count)")"
+      pass "① 勾选数 / 当页行数：$(b ac84_checked_after_all) / $(b ac84_page_row_count)"
       eq "① 再点取消：两者皆无" "true" "$(python3 -c "
 import json,sys
 s=json.loads(sys.argv[1]); print('true' if (not s['indeterminateClass']) and (not s['checkedClass']) else 'false')
@@ -207,6 +221,7 @@ print('true' if a == t and c == t else 'false')
 import re,sys
 t=re.sub(r'\s','',sys.argv[1]); print('true' if '2条' in t and '不可恢复' in t else 'false')
 " "$(r ac78_delete_confirm_text)")"
+      eq "④ 批量删除只发 1 个请求" "1" "$(r ac78_delete_requests)"
       eq "④ 先取消不删 / 再确认删 2" "true" "$(python3 -c "
 import sys
 b=int(sys.argv[1]); c=int(sys.argv[2]); f=int(sys.argv[3]); print('true' if b == c and f == b - 2 else 'false')
@@ -246,6 +261,19 @@ import json,sys
 s=json.loads(sys.argv[1]); print('true' if s['docScrollWidth'] <= s['docClientWidth'] + 2 else 'false')
 " "$(m ac85_meta_long)")"
       eq "② 长内容夹具确实含 5 个标签" "5" "$(python3 -c "import json,sys; print(json.loads(sys.argv[1])['tagCount'])" "$(m ac85_meta_long)")"
+      eq "② 长文件夹名确实 ≥20 字（夹具前置条件）" "true" "$(python3 -c "
+import sys
+print('true' if len(sys.argv[1]) >= 20 else 'false')
+" "$LONG_FOLDER")"
+      pass "② 窄面板（1100px）元信息行：$(m ac85_meta_long_narrow)"
+      eq "② 窄面板下同样不溢出、添加入口仍在面板内" "true" "$(python3 -c "
+import json,sys
+s=json.loads(sys.argv[1])
+ok = s['scrollWidth'] <= s['clientWidth'] + 2
+ok = ok and s['addRight'] is not None and s['addRight'] <= s['panelRight'] + 1
+ok = ok and s['docScrollWidth'] <= s['docClientWidth'] + 2
+print('true' if ok else 'false')
+" "$(m ac85_meta_long_narrow)")"
       pass "③ chip 样式对比：$(m ac85_chip_style)"
       eq "③ 详情 chip 与左栏同名 chip 样式一致（backgroundColor / border / borderRadius）" "true" "$(python3 -c "
 import json,sys
@@ -294,6 +322,8 @@ print('true' if ok else 'false')
 
     line "截图（$SHOTS）"
     ls -l "$SHOTS" | sed 's/^/  /'
+    # 对抗性自审第 2 轮补：截图**存在性**必须由断言守住（此前只有 `ls -l`，缺图不会变红）
+    eq "⑤ 截图齐备（本阶段 9 张 + AC-78/79 回归 13 张 = 22）" 22 "$(find "$SHOTS" -name '*.png' | wc -l)"
   fi
 fi
 

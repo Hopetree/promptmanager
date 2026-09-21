@@ -808,6 +808,8 @@ $ npm test                      → rc=0   ℹ tests 300 / ℹ pass 300 / ℹ fa
 | --- | --- | --- | --- | --- |
 | ① | 半选态看不出 / 像实心方块 | `.ant-checkbox-indeterminate` **本来就有**（机械判据已满足），但 antd 6 的画法是「**白底 + 灰边 + 中间一个小主色方块**」（`node_modules/antd/es/checkbox/style/index.js` 的 `&-indeterminate`）⇒ 读起来就是"实心方块"、视觉上比已勾选的 16×16 小 | 覆写为「**主色底 + 白色 8×2 横杠**」，外框仍是 16×16，与已勾选态同尺寸；**只覆盖视觉**，组件仍是 antd `Checkbox` | `web/src/styles/app.css`（`.pm-table-dense .ant-checkbox-indeterminate`） |
 | ② | 表头复选框比行内小 | 表头 `16×16` / 行内 `16×16`（**差 0px**，机械判据本来就过） | 不变（规则里**不写 width/height**，只改底色与横杠） | 同上 + `tests/stage29-ui.test.ts` 的"未做尺寸覆写"断言 |
+| ①'' | **（对抗性自审第 2 轮发现）hover 时半选又"看不出"** | antd 给半选态单独注入了 hover：`.ant-checkbox-indeterminate:not(.ant-checkbox-disabled):hover{background:colorBgContainer}`（specificity 0,3,0）；亮色下 `colorBgContainer` 是**白底**，而横杠也是白色 ⇒ **鼠标悬浮在表头复选框上时变成"白底白杠"**。AC-84 ① 的探针量之前鼠标停在行上、不触发表头 hover，**只验静态会漏掉这一态** | 补一条更高优先级（0,4,0）的 hover 规则把底/边钉回主色；真鼠标悬浮实测 `backgroundColor=rgb(94,106,210)`（非白）、`::after` 仍白 | `web/src/styles/app.css`（`.pm-table-dense .ant-checkbox-indeterminate:not(.ant-checkbox-disabled):hover`）+ 探针 `hoverOf()` + 截图 `02c-bulk-partial-hover-light` |
+| ⑤'' | **（对抗性自审第 2 轮发现）详情 chip 有"可点"错觉** | 左栏基类 `.pm-tag-chip:hover`（0,2,0）会作用到详情 chip 上 ⇒ 悬浮时底色/文字变化，但详情 chip 本体**不可点**（只有 ✕ 可点） | 补 `.pm-detail-meta .ant-tag.pm-tag-chip:hover` 中和（保持 `surface-2` / `ink-subtle`） | 同上 + `tests/stage29-ui.test.ts` |
 | ③ | 工具条贴表头 | `toolbar.bottom=144`，`headerRow.top=144` ⇒ **0px** | `toolbar.bottom=144`，`headerRow.top=152` ⇒ **8px**（≥6） | `app.css`（`.pm-bulk-toolbar { margin-bottom: 8px }`） |
 | ④ | 元信息行贴备注、离页签远 | `notesToMeta=16`、`metaToFields=16`（**相等** ⇒ 读起来像备注的第二行） | `notesToMeta=**20**`、`metaToFields=**24**`（20≥12 且 20≤24，层级对称） | `PromptDetail.tsx`（元信息行 `marginTop:4 / marginBottom:8`，父容器 `gap=16`） |
 | ⑤ | 长内容把「+ 添加标签」顶出 | 1600px 下已不溢出（`scrollWidth=clientWidth=924`、`addRight=1408≤panelRight=1567`）—— AC-79 ⑥ 只测窄屏、未测长内容，**这次补上窄面板证据** | 1600px：`924=924`、`addRight=1462≤1567`；**1100px 窄面板**：`688=688`、`addRight=968≤1067`（新增 `minWidth:0` + `flex:1 1 auto` + 文件夹 `maxWidth:220`） | `PromptDetail.tsx`（元信息行 / 标签块 / 添加控件 / 文件夹下拉的 flex 约束） |
@@ -827,8 +829,11 @@ $ npm test                      → rc=0   ℹ tests 300 / ℹ pass 300 / ℹ fa
   ✅ ① 半选外框 computed：{"backgroundColor":"rgb(94, 106, 210)","borderTopColor":"rgb(94, 106, 210)","afterWidth":"8px","afterHeight":"2px","afterBackground":"rgb(255, 255, 255)","afterOpacity":"1"}
   ✅ ① 已勾选行 computed：{"backgroundColor":"rgb(94, 106, 210)","borderTopColor":"rgb(94, 106, 210)"}
   ✅ ① 半选横杠 = 白色 8×2（不是 antd 默认的小方块） = true
+  ✅ ① 半选 hover 态 computed：{"backgroundColor":"rgb(94, 106, 210)","borderTopColor":"rgb(94, 106, 210)","afterBackground":"rgb(255, 255, 255)"}
+  ✅ ① hover 时半选仍可辨（底色不是白、且 == 已勾选行；横杠仍白） = true
   ✅ ① 全选：打勾且无 indeterminate = true
-  ✅ ① 全选后当页全部勾选 = true
+  ✅ ① 全选后当页**全部**勾选（勾选数 == 当页行数） = true
+  ✅ ① 勾选数 / 当页行数：16 / 16
   ✅ ① 再点取消：两者皆无 = true
   ✅ ① 取消后 0 行勾选 = 0
   ✅ ② 表头与行内复选框尺寸差 ≤1px（宽/高） = true
@@ -845,6 +850,7 @@ $ npm test                      → rc=0   ℹ tests 300 / ℹ pass 300 / ℹ fa
   ✅ ④ 批量移动只发 1 个请求 = 1
   ✅ ④ 批量移动：2 条 folder_id = 目标目录 = true
   ✅ ④ 二次确认文本含条数与「不可恢复」 = true
+  ✅ ④ 批量删除只发 1 个请求 = 1
   ✅ ④ 先取消不删 / 再确认删 2 = true
   ✅ ④ 表头全选 → 当页全部选中 = true
   ✅ ④ 行内操作 / 行拖拽手柄 / 分页 / 排序 / 搜索仍在 = true
@@ -863,6 +869,9 @@ ac85_spacing={"notesBottom":185,"metaTop":205,"metaBottom":231,"fieldsTop":255,"
   ✅ ② 「+ 添加标签」仍在面板可视区内（right ≤ 面板 right+1） = true
   ✅ ② 页面整体无横向溢出 = true
   ✅ ② 长内容夹具确实含 5 个标签 = 5
+  ✅ ② 长文件夹名确实 ≥20 字（夹具前置条件） = true
+  ✅ ② 窄面板（1100px）元信息行：{"scrollWidth":688,"clientWidth":688,"metaRight":1067,"addRight":968,"panelRight":1067,"docScrollWidth":1100,"docClientWidth":1100}
+  ✅ ② 窄面板下同样不溢出、添加入口仍在面板内 = true
   ✅ ③ chip 样式对比：{"name":"#AC29乙","detail":{"backgroundColor":"rgb(246, 247, 249)","border":"1px solid rgba(0, 0, 0, 0)","borderTopWidth":"1px","borderTopStyle":"solid","borderTopColor":"rgba(0, 0, 0, 0)","borderRadius":"13px","color":"rgb(107, 114, 128)","height":"26px"},"sidebar":{"backgroundColor":"rgb(246, 247, 249)","border":"1px solid rgba(0, 0, 0, 0)","borderTopWidth":"1px","borderTopStyle":"solid","borderTopColor":"rgba(0, 0, 0, 0)","borderRadius":"13px","color":"rgb(107, 114, 128)","height":"26px"}}
   ✅ ③ 详情 chip 与左栏同名 chip 样式一致（backgroundColor / border / borderRadius） = true
   ✅ 页面运行时异常（meta-ui） = []
@@ -915,31 +924,69 @@ $ ls migrations/*.sql | wc -l    → 3（无 schema 变更）
 $ git diff --name-only package.json package-lock.json → 空（无新依赖）
 ```
 
-**体积记账**：`tests/stage18-bundle.test.ts` 追加 `STAGE29_ACCOUNTED_DELTA = 166`（阶段 27 收尾 418,478 B → 本阶段 418,644 B，同 `node_modules` 实测），
-预算 = 399,175 + 2,560 + 15,954 + 963 + 166 = **418,818 B**，实测 418,644 B ≤ 预算 ✓。
+**体积记账**（**已按对抗性自审第 2 轮修正**）：`tests/stage18-bundle.test.ts` 的 `STAGE29_ACCOUNTED_DELTA = 166` 起初**只声明、未参与求和**（死代码）⇒ 真实预算仍是 418,652 B、只剩 8 B 余量，而文档却写 418,818 B。
+现已把该项**加进 AC-61 ⑤ 的求和**（测试名同步改为「阶段 18 / 22 / 27 / 29」）。当前实测：总 gzip **418,671 B** ≤ **实际生效**预算 399,175+2,560+15,954+963+166 = **418,818 B**（余量 147 B）✓。
+
+**回归原样输出（关键断言行，第 2 轮复跑；`ac-stage29.sh` 另含 `⑤ 截图齐备 = 22`）**：
+
+```
+# tools/ac-stage27.sh（AC-78~82）
+  ✅ 不存在 id → 400 = 400 ／ ✅ 空 ids → 400 = 400 ／ ✅ 目标文件夹不存在 → 400 = 400
+  ✅ AC-78 / AC-79 / AC-80 / AC-81 / AC-82 全部通过        （rc=0）
+# tools/ac-stage22.sh（AC-70/71）
+  ✅ 无横向滚动 = true
+  ✅ 宽度：{"list":336,"detail":924,"viewport":1600}（改前基线 366px @1600）
+  ✅ 备注区两行截断 = 2 ／ ✅ 空备注条目与有备注条目等高 = 80
+  ✅ AC-70 / AC-71 全部通过                                 （rc=0）
+# tools/ac-stage23.sh（AC-72/73/74）
+  ✅ folder_id=A 的 total = 3 ／ ✅ folder_id=B 的 total = 2 ／ ✅ folder_id=C 的 total = 1
+  ✅ folder_id=A&tag=T → 1 = 1 ／ ✅ folder_id=A&q=乙乙乙 → 1 = 1 ／ ✅ folder_id=abc → 400 = 400
+  ✅ AC-72 / AC-73 / AC-74 全部通过                          （rc=0）
+# tools/ac-stage24.sh（AC-75）
+  ✅ 全部视图顺序（拖前）：[4,3,1,2] →（拖后）：[3,1,4,2] ／ ✅ 恰好 1 次 PATCH /api/prompts/order = 1
+  ✅ 槽位保持（A 组只换槽位 / 其他不变 / 无重复 / 不顶到最前） = true
+  ✅ AC-75 全部通过                                          （rc=0）
+```
 
 **AC-1…AC-83 未回归**：AC-78~AC-82（阶段 27 批量与详情页）与 AC-70~75（拖拽与分栏）由上述脚本复跑全过；
 本阶段**没有**任何"被取代的旧断言"（AC-84/85 是新增判据，旧断言全部继续成立）。
+`tests/stage18-bundle.test.ts` 的断言行**未放宽**（只新增一项求和项），`ac-stage27/22/23/24.sh` **未改动**。
 
 #### ⑥ 对抗性自审（delivery-review：假设交付不满足自己的规格，找最强反驳）
 
-逐维度过了一遍，**只找到 1 条真实缺陷，已修**（其余维度如实无异议）：
+**第 1 轮（人工，按 `delivery-review` 技能）**：逐维度找反驳，**1 条真实缺陷，已修**（其余维度如实无异议）：
 
 | 维度 | 反驳 | 结论 |
 | --- | --- | --- |
 | Goal | ①②的机械判据改前就满足 ⇒ 是否"没解决问题"？ | **不是**：用户看到的是 antd 半选**画法**（白底+小方块），本阶段做的是视觉覆写；用户已确认保留该改法。已在 §① 的"诚实说明"里写明，不埋。 |
 | AC 证据 | AC-84 ① 只有 class + 截图 —— 若 antd 运行时 CSS-in-JS 把覆写盖回去，**class 判据仍会假绿** | ✅ **真实缺陷，已修**：给 AC-29 探针加了半选外框的 `getComputedStyle`（含 `::after`）测量与断言 —— 半选外框 `backgroundColor/borderTopColor` 必须**等于已勾选行**（实测两处都是 `rgb(94,106,210)`），`::after` 必须是**白色 8×2**（实测 `8px/2px/rgb(255,255,255)/opacity 1`）。证据已补进 §②。 |
 | Scope / Non-goals | 有没有越界？ | **没有**（`git show --name-only 750464b` 核对）：未碰 `UseView.tsx`（表格标签列不动）、顶层 `docs/shots/*.png` **0 个**、`migrations/` **0 个**、`src/`（后端）**0 个**、`BRIEF.md`/`STANDARDS.md`/`package.json` **均未改**。 |
-| Failure modes | 7 条逐一核 | ①~⑤ 见 §① 的改后数值与 §②/§③ 断言；⑥ 体积 `418,644 ≤ 418,818`（stage18-bundle 用例守）；⑦ `ac-stage23/24` 复跑全过。**① 原先只靠截图，已按上表补成数值断言**。 |
+| Failure modes | 7 条逐一核 | ①~⑤ 见 §① 的改后数值与 §②/§③ 断言；⑥ 体积见 §⑤；⑦ `ac-stage23/24` 复跑全过。**① 原先只靠截图，已按上表补成数值断言**。 |
 | Priorities | 有没有为可选目标牺牲硬要求？ | **没有**：AC-84/85 全过、无回归；non-goals 按要求明确不做。 |
+
+**第 2 轮（`doublecheck_report` 的 verify 未执行 ⇒ 改用 `workflow` 起 5 个独立只读 checker，一维度一个）**：
+`goal` / `acceptance` / `scope` / `priorities` 四维 **pass**；`failure-modes` 维 **fail**，共报出 **6 条真实缺陷，全部已修**：
+
+| # | 缺陷（checker 证据） | 修复 | 复验 |
+| --- | --- | --- | --- |
+| 1 | **`STAGE29_ACCOUNTED_DELTA` 是死代码**：`tests/stage18-bundle.test.ts:50` 声明了但 `:96` 的求和里没有它（测试名也仍写"阶段 18/22/27"）⇒ 真实预算是 418,652 B、只剩 8 B 余量，而 PROGRESS/commit/spec 都写 418,818 B —— **自报的记账是错的** | 把该项加进 AC-61 ⑤ 求和 + 测试名加"阶段 29" | `npm test` 307/307 rc=0；测试名已含"阶段 29"；实测 418,671 ≤ **实际生效** 418,818（余量 147） |
+| 2 | **半选 hover 态没覆盖**：antd 的 `.ant-checkbox-indeterminate:not(.ant-checkbox-disabled):hover{background:colorBgContainer}`（0,3,0）压过我的（0,2,0）⇒ 亮色下悬浮时"白底白杠"，**正是本条要修的问题**；AC-84 ① 只验静态会漏 | 补 0,4,0 的 hover 规则钉回主色；探针加真鼠标 `hoverOf()` 测量 + 截图 | `ac84_partial_hover_style.backgroundColor=rgb(94,106,210)`（非白）✓；截图 `02c-bulk-partial-hover-light` 识图确认蓝底白杠 |
+| 3 | **AC-84 ④ 的"1 个请求"只量了收藏/移动，没量删除** | 共享探针加 `ac78_delete_requests`；`ac-stage29.sh` 断言 = 1 | ✅ 批量删除只发 1 个请求 = 1 |
+| 4 | **窄面板（1100px）测量只打印不断言** ⇒ 窄宽溢出回归不会变红 | `ac-stage29.sh` 增加窄面板断言（含整体 `docScrollWidth`） | ✅ 窄面板下同样不溢出、添加入口仍在面板内 = true |
+| 5 | **截图存在性无断言**（只有 `ls -l`；probe 经 `tee` 后崩溃被 0 退出码掩盖） | 脚本加 `set -o pipefail`；新增"截图齐备 = 22"断言 | ✅ ⑤ 截图齐备 = 22 |
+| 6 | **AC-84 ① 全选只断言 `>=6`**（当页可能更多）；**AC-85 ② 未断言"长文件夹名 ≥20 字"前置条件** | 全选改为"勾选数 == 当页行数"；夹具长度加断言 | ✅ 勾选数/当页行数 = 16/16；✅ 长文件夹名 ≥20 字 = true |
+
+> 另据第 2 轮 scope 维度的提示，把未跟踪的 `docs/dev-history/doublecheck-stage29-report.md`（交付记录）**纳入提交**，不留游离文件。
+> 修复后已重跑：`npm test` 307/307、`ci-check` 6/6、`ac-stage29.sh` rc=0、`ac-stage27/22/23/24.sh` 全 rc=0。
 
 #### ⑦ commit（收尾 commit hash 单独标注）
 
 | 单元 | 内容 | commit |
 | --- | --- | --- |
 | ① | FR-82 表格批量 UI（半选态/尺寸/间距）+ FR-83 元信息行（间距/换行/chip）+ 源码级测试 + AC 脚本 + 截图 + 文档 | **`750464b`** `feat(web): 阶段 29 —— 阶段 27 的 5 条视觉细化（FR-82 / FR-83）` |
-| ② | 对抗性自审补强：半选态视觉覆写的 `getComputedStyle` 数值断言（探针 + 脚本 + PROGRESS） | 见交付回复 |
-| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | 见交付回复（提交无法自引用自身 hash） |
+| ② | 对抗性自审第 1 轮补强：半选态视觉覆写的 `getComputedStyle` 数值断言（探针 + 脚本 + PROGRESS） | **`9993327`** `test(ac29): 对抗性自审补强 —— 半选态视觉覆写的 computed-style 数值断言` |
+| ③ | 对抗性自审第 2 轮（5 个独立 checker）修 6 条缺陷：体积记账死代码 / 半选 hover 白底白杠 / 删除请求数未量 / 窄面板不断言 / 截图存在性无断言 / 全选与夹具前置条件断言过松 | 见交付回复 |
+| 收尾 | 本表（commit hash 回填）+ `docs/dev-history/doublecheck-stage29-report.md` 交付记录 —— **docs-only** | 见交付回复（提交无法自引用自身 hash） |
 
 
 ## 归档与当前状态的关系

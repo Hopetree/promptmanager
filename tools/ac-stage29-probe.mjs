@@ -101,6 +101,12 @@ class Cdp {
   async realClickOf(jsExpr, settle = 400) {
     await this.clickPoint(await this.centerOf(jsExpr), settle);
   }
+  /** 真鼠标移到元素上（不点击）—— 用于量 hover 态的 computed style */
+  async hoverOf(jsExpr) {
+    const { x, y } = await this.centerOf(jsExpr);
+    await this.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
+    await sleep(400);
+  }
   async shot(name) {
     const result = await this.send('Page.captureScreenshot', { format: 'png' });
     mkdirSync(shotsDir, { recursive: true });
@@ -214,7 +220,19 @@ async function main() {
       out.ac84_checked_row_style = await cdp.evaluate(
         `JSON.stringify((() => { const box = ${ROW_BOX(ids[0])}; if (box === null) return null; const cs = getComputedStyle(box); return { backgroundColor: cs.backgroundColor, borderTopColor: cs.borderTopColor }; })())`,
       );
+      out.ac84_page_row_count = await cdp.evaluate(`String(${TABLE_ROWS}.length)`);
       await cdp.shot('02-bulk-partial-light');
+
+      // ①（对抗性自审第 2 轮补）：**hover 态** —— antd 给半选态单独注入了 hover（亮色下白底），
+      //    若不覆盖，鼠标悬浮时就是"白底 + 白杠" ⇒ 又看不出半选（AC-84 ① 只验静态会漏掉）。
+      //    真鼠标移到表头复选框上再量：底色/边框必须仍是主色（不是白），横杠仍是白色。
+      await cdp.hoverOf(HEADER_WRAP);
+      out.ac84_partial_hover_style = await cdp.evaluate(
+        `JSON.stringify((() => { const box = ${HEADER_BOX}; if (box === null) return null; const cs = getComputedStyle(box); const after = getComputedStyle(box, '::after'); return { backgroundColor: cs.backgroundColor, borderTopColor: cs.borderTopColor, afterBackground: after.backgroundColor }; })())`,
+      );
+      await cdp.shot('02c-bulk-partial-hover-light');
+      // 鼠标移开，避免影响后续测量
+      await cdp.hoverOf(`document.querySelector('[data-testid="pm-search-input"]')`);
 
       // ② 尺寸一致：表头 vs 行内
       out.ac84_header_box_rect = await cdp.evaluate(rectOf(HEADER_BOX));
