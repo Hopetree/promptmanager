@@ -921,7 +921,8 @@ $ git diff --name-only package.json package-lock.json → 空（无新依赖）
 
 | 单元 | 内容 | commit |
 | --- | --- | --- |
-| ① | FR-82 表格批量 UI（半选态/尺寸/间距）+ FR-83 元信息行（间距/换行/chip）+ 源码级测试 + AC 脚本 + 截图 + 文档 | 见交付回复（本表由收尾 docs-only 提交回填） |
+| ① | FR-82 表格批量 UI（半选态/尺寸/间距）+ FR-83 元信息行（间距/换行/chip）+ 源码级测试 + AC 脚本 + 截图 + 文档 | **`750464b`** `feat(web): 阶段 29 —— 阶段 27 的 5 条视觉细化（FR-82 / FR-83）` |
+| 收尾 | 本表（commit hash 回填）—— **docs-only，无代码改动** | `__CLOSING__`（回填本行）；**最后一个 docs-only 收尾提交的 hash 见交付回复**（提交无法自引用自身 hash） |
 
 
 ## 归档与当前状态的关系
