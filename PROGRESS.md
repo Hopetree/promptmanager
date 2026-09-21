@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–30 已全部完成**；已发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83，含全英文返工）、阶段 29（FR-82/FR-83 / AC-84/AC-85）与阶段 30（FR-84 / AC-86：`docs/` 只留最终状态、过程截图进 `tmp/`）自检全过**（见本文件「阶段 27」「阶段 28」「阶段 29」「阶段 30」） |
+| 阶段 | **阶段 1–31 已全部完成**；已发布 **v1.0.0** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83，含全英文返工）、阶段 29（FR-82/FR-83 / AC-84/AC-85）、阶段 30（FR-84 / AC-86：`docs/` 只留最终状态）与阶段 31（FR-85/FR-86 / AC-87/AC-88：表格标签列间距 + 版本最多保留最近 10 个）自检全过**（见本文件「阶段 27」～「阶段 31」） |
 | 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -52,6 +52,7 @@
 | 28 | 项目级 `AGENTS.md`（AI 代理操作指南：常用命令 / 结构地图 / 约定 / 红线 / 10 条本项目特有的坑 / 文档地图 / 协作约定；按 STANDARDS §5.1 **全文英文**） | 本文件「阶段 28」 |
 | 29 | FR-82 表格批量 UI 细化（表头半选态可辨 + 与行内尺寸一致 + 工具条间距≥6px）+ FR-83 详情页元信息行细化（层级间距 20≤24 + 长内容换行保护 + 标签 chip 与左栏统一） | 本文件「阶段 29」 |
 | 30 | FR-84 `docs/` 只放最终状态：`docs/shots/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/shots-archive/` + `ui-shots.sh` 默认 `tmp/`·`--key` 发版模式 + 11 个阶段脚本截图落 `tmp/` + `AGENTS.md` §5.1（英文） | 本文件「阶段 30」 |
+| 31 | FR-85 表格「标签」列加 4px 间距（与卡片视图同档、多标签换行不溢出）+ FR-86 版本保留策略（数据层：每 prompt 最多保留最近 10 个版本、超出的真删；抽 `pruneVersions` 覆盖 新建/更新/回滚/批量/导入 五类写入点；版本面板 + README 文案） | 本文件「阶段 31」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -1177,10 +1178,317 @@ $ bash tools/ui-shots.sh --key    # 发版模式（第二次跑）
 > 我随后又自查出「自证全套张数」写错（68→53）并补了工具两种模式的实测证据，因此**另有一次收尾提交**承载这 3 个文件。
 > **最终状态以 HEAD 树为准**（AC-86 七条判据在 HEAD 上复验通过）。
 
+## 阶段 31（2026-09-21）：表格「标签」列间距 + 版本最多保留最近 10 个（FR-85 / FR-86；AC-87 / AC-88）
+
+> **一句话**：表格「标签」列的多个标签之间加 **4px** 间距（与卡片视图同档，多标签换行不溢出）；
+> **版本保留策略落到数据层** —— 每个 prompt 在 `prompt_versions` 里**最多保留最近 10 个版本**，超出的**真删**，
+> 覆盖**全部产生新版本的写入点**，并在版本面板与 README 写明这条策略。
+
+### 开工前：AC-87 / AC-88 → 检查命令（先落盘，再动手）
+
+| AC | 命令（可执行） | 期望 |
+| --- | --- | --- |
+| AC-87 ① | `AC31_MULTI_ID=<id> node tools/ac-stage31-probe.mjs tags-ui <base> <sid> tmp/shots/stage31` → 读 `ac87_table_multi.gaps` | 相邻 tag `left-(prev.left+prev.width)` **≥4px**（贴全部间隙值） |
+| AC-87 ② | 同上 → `ac87_card_multi.gaps` | 与卡片视图**一致**（两处数值都贴） |
+| AC-87 ③ | 同上 → `scrollWidth/clientWidth` + `ac87_tag_header_rect.width` | `scrollWidth ≤ clientWidth+2`；列宽**未被撑破**（贴改前/改后） |
+| AC-87 ④ | 同上 → `ac87_table_single` / `ac87_table_none` / `ac87_row_heights` | 单标签 / 无标签不受影响 |
+| AC-87 ⑤ | 同上 → `tmp/shots/stage31/*.png` | 表格多标签行亮色截图存在 |
+| AC-88 ① | `sqlite3 $AC_DIR/pm.db "SELECT COUNT(*) FROM prompt_versions WHERE prompt_id=$P15;"` | **恰好 10**（15 次 PUT 之后） |
+| AC-88 ② | `... "SELECT version_no ... ORDER BY version_no"` | 最新 10 个**连号**；最旧的已不存在 |
+| AC-88 ③ | `... "SELECT version_no FROM prompts WHERE id=$P15"` | 当前版本 ∈ 保留集合 |
+| AC-88 ④ | 裁剪前后两次 `version_no,user_prompt` dump → 逐字对照 | 保留行**不重编号** |
+| AC-88 ⑤ | `curl -X POST .../versions/12/rollback` / `.../versions/1/rollback` | 存在 → 200 且仍 ≤10；被裁 → **404** |
+| AC-88 ⑥ | 构造含 15 版本的导出文件 → `POST /api/import` → 直查库 | 最终 **≤10** |
+| AC-88 ⑦ | 恰好 10 个不删；再 PUT 一次 | 只删最旧的那一个 |
+| AC-88 ⑧ | `node tools/ac-stage31-probe.mjs retention-ui ...` + `grep -n '最多保留最近 10 个版本' README.md` | 版本面板 DOM 文本可见 + README 有该行 |
+| AC-88 ⑨ | `npm test` / `bash tools/ci-check.sh` / `bash tools/ac-stage4.sh` / `bash tools/ac-stage5.sh` | 全绿（既有 AC 不回归） |
+
+**开工前基线**：`npm test` = **307/307 rc=0**（本阶段前）→ 收尾 **319/319**（+12，只增不减）。
+
+### ① FR-85：表格「标签」列加间距（根因 + 修法 + 真实像素前后对照）
+
+**根因（源码级）**：`web/src/components/UseView.tsx` 的表格列原本是
+`render: (_v, prompt) => prompt.tags.map((tag) => <Tag key={tag}>{tag}</Tag>)` —— 多个 `<Tag>` 直接相邻。
+而 **antd 6.6.4 的 `Tag` 没有 antd 5 那条默认的 `margin-inline-end: 8px`**
+（`grep -n "margin" node_modules/antd/es/tag/style/index.js` 只命中图标相关的 `marginInlineStart` / `marginBlockEnd`），
+所以相邻间距**恒为 0** —— 与用户「标签直接目前都是拼在一起的」完全对应。
+
+**修法**：外面套一层 `Flex gap={4} wrap`（与卡片视图同一档），并给每个 `Tag` 显式 `marginInlineEnd: 0`
+（把间距的唯一来源钉在 `gap` 上：将来 antd 若把默认 margin 加回来也不会变成 8+4=12px）；`minWidth: 0` 让
+flex 子项可收缩。列宽 `width: 128` 与其它 7 列宽度**一字未改**。
+
+**改前/改后真实像素对照（同一个探针、同一个夹具）**：改前基线由 `tmp/stage31-before.sh` 在
+**HEAD 的临时 git worktree** 里构建"改前前端"实测（不碰共享工作区，避免并行会话把临时回退扫进提交）：
+
+```
+# 改前（HEAD 的 worktree 里构建的 dist/web，标签列是裸 tags.map(<Tag>)）
+ac87_table_multi={"tagCount":3,...,"gaps":[0,-112.03],...,"display":"table-cell","flexWrap":"nowrap","columnGap":"normal"}
+ac87_tag_header_rect={"left":611,"width":175,"right":786,...}
+ac87_card_multi={...,"gaps":[4,4],...}
+# 改后（本阶段）
+ac87_table_multi={"tagCount":3,"texts":["丙","乙","甲"],"rects":[{"left":619.06,"width":27},{"left":650.06,"width":27},{"left":681.06,"width":27}],"gaps":[4,4],"gapCount":2,"lineCount":1,"wrapped":false,"perLine":[3],"containerRect":{"left":619,"right":778,"width":159,"height":22},"scrollWidth":159,"clientWidth":159,"display":"flex","flexWrap":"wrap","columnGap":"4px"}
+ac87_table_many={"tagCount":7,...,"gaps":[4,4,4,4,4],"gapCount":5,"lineCount":2,"wrapped":true,"perLine":[5,2],...,"height":48}
+ac87_tag_header_rect={"left":611,"width":175,"right":786,"inlineStyle":"","colWidth":null}
+ac87_row_heights={"none":43,"single":43,"multi":43,"many":65}
+```
+
+- **① 间隙**：三标签同一行 → `gaps=[4,4]`；七标签（会换行）→ `gaps=[4,4,4,4,4]`；**合计 7 个值全部 = 4px**
+  （改前 = **0px**）。探针的间隙口径已修正为**只在同一行内**计算 —— 首版按数组顺序跨行量出了 `-112.03`（口径错误，已修）。
+- **② 与卡片一致**：卡片同一 prompt `gaps=[4,4]` → 表格 `4 == 卡片 4`。
+- **③ 不溢出 / 不撑破列宽**：七标签单元格 `scrollWidth 159 ≤ clientWidth 159+2`，且**确实换行**（`lineCount=2`、
+  `perLine=[5,2]`，行高 43→65px）；标签列渲染宽度 **175 → 175**（与改前**逐字一致**，未被撑破；配置的
+  `width: 128` 在 `scroll={{x:'max-content'}}` 下只是下限提示，改前后都被浏览器分配到 175px）。
+- **④ 单/无标签不受影响**：单标签 `tagCount=1, gaps=[]`；无标签 `tagCount=0` 且容器 `0×0`、
+  `display:none`（antd 6 的 `Flex` 带 `&:empty { display: none }`）⇒ **不占位、不撑高**；行高对照
+  `{none:43, single:43, multi:43, many:65}`（无标签行与单标签行**等高**）。
+
+### ② FR-86：版本保留策略（数据层，本次重点）
+
+**新增公共函数**：`src/db/prompt-versions.ts` 的 `VERSION_KEEP_LIMIT = 10` +
+`pruneVersions(qe, promptId, keep = VERSION_KEEP_LIMIT)`。
+实现口径：取"第 keep 大的 `version_no`"作为**保留下界**，删除 `version_no < 下界` 的行；**只删行、不改号**；
+`prompts.version_no` 指向的那一行**额外豁免**（正常路径下它就是最大号、天然在集合里，豁免只是让不变式在任何调用点都成立）。
+
+**覆盖全部写入点（BRIEF 列了 4 处，实测共 5 类 —— 见下）**：
+
+| 写入点 | 位置 | 调用 |
+| --- | --- | --- |
+| 新建 | `src/services/prompts.ts` `createPrompt` | 同事务内 `pruneVersions(trx, id)`（只有 v1，恒为 no-op，防将来漏改） |
+| 更新 PUT | `src/services/prompts.ts` `updatePrompt` | 同事务内 `pruneVersions(trx, id)` |
+| 回滚 | `src/services/versions.ts` `rollbackToVersion` | 同事务内 `pruneVersions(trx, promptId)` |
+| 导入 replace | `src/services/import.ts` `replaceImport` | 同事务内 `pruneVersions(trx, prompt.id)` |
+| 导入 merge | `src/services/import.ts` `mergeImport` | 同事务内 `pruneVersions(trx, inserted.id)` |
+| **批量收藏/移动**（**BRIEF 未列的第 5 处**） | `src/services/prompts.ts` `bulkPrompts` | 同事务内 `pruneVersions(trx, id)` |
+
+> **超出 BRIEF 列举的一处，如实登记**：FR-77 的批量收藏/移动与单条 PUT 同语义，**也会**写 `prompt_versions`
+> （`grep -rn "insertInto('prompt_versions')" src/` 共 6 处：prompts.ts 3 + versions.ts 1 + import.ts 2）。
+> FR-86 的要求是「**每次产生新版本之后**都要检查并裁剪」+「最多 10 个是**数据层不变式**」，因此这第 5 类必须一起裁剪，
+> 否则批量操作就能把不变式打破（新增单测 `AC-88 回归` 就是守这一条：12 次批量收藏后仍恰好 10 个）。
+
+**存量数据**：**不加迁移**（FR-86 明确）。旧数据在**下一次产生新版本**时被自然裁剪。
+
+**契约与语义未变**：`GET /versions`、`/diff`、`/versions/:n/rollback` 的形状/状态码一字未改（只是条数 ≤10）；
+**无 schema 变更**（`migrations/` 仍是 3 个）。回滚到**已被裁剪掉**的版本 → 既有 `selectVersion` 取不到 → **404**。
+
+**文案**：`web/src/components/VersionPanel.tsx` 版本面板标题行新增可见文案
+`data-testid="pm-version-retention-note"` = 「最多保留最近 10 个版本（更早的版本会在产生新版本时自动清理）」；
+同时把与 FR-86 冲突的旧文案清掉（Alert「历史不删除」→「…最多保留最近 10 个版本，更早的会自动清理」；
+两处回滚 Popconfirm「历史版本不会被删除」→「会生成一个新版本；最多保留最近 10 个版本」；
+`message.success` 去掉"历史保留"；`versions.ts` 的 doc 注释同步）。
+
+### ③ AC-87 / AC-88 原样输出（`bash tools/ac-stage31.sh`，rc=0）
+
+```
+  PORT 自动选择：8765
+
+=== 构建 / 类型检查 / 无 schema 变更 / 无新依赖 ===
+  ✅ npm run build 退出码 = 0
+  ✅ 构建输出里的 >500KB 告警数 = 0
+  ✅ npm run typecheck:web 退出码 = 0
+  ✅ 本阶段无迁移（migrations/ 仍是 3 个） = 3
+  ✅ 本阶段无新依赖（package.json/lock 未改） = 
+
+=== 本阶段新增单测（FR-85 前端源码级 + FR-86 数据层直查库） ===
+  ✅ 新测试退出码 = 0
+  ℹ tests 12
+  ℹ pass 12
+  ℹ fail 0
+
+=== 运行时：临时实例（DATA_DIR=/tmp/pm-ac31-98yNYJ，PORT=8765） ===
+  ✅ 夹具：AC87 三标签=1 多标签=2 单标签=3 无标签=4 ｜ 版本夹具=5 ｜ AC88 P15=6 P14=7 PNR=8 P11=9 PR=10
+
+=== AC-87：表格「标签」列间距（真鼠标 + 真实像素） ===
+  ✅ ① 三标签同一行（perLine=[3]，间隙数 = 2） = true
+  ✅ ① 所有相邻标签的水平间隙都 ≥4px（三标签 + 多标签合计 ≥3 个值） = true
+  ✅ ① 间隙恰好 = 4px（与卡片视图同一档；改前 = 0px） = true
+  ✅ ① 全部间隙值：三标签 [4, 4] ｜ 多标签 [4, 4, 4, 4, 4]
+  ✅ ② 表格与卡片的标签间隙一致（同一 prompt 对照） = true
+  ✅ ② 卡片视图间隙 = 4px（未回归） = true
+  ✅ ③ 多标签（7 个，会换行）单元格不横向溢出 = true
+  ✅ ③ 多标签确实发生了换行（wrap 生效：行数 >1） = true
+  ✅ ③ 标签列渲染宽度 ≤ 改前基线 175px（未被撑破） = 175（≤ 175）
+  ✅ ③ 列宽与改前基线一致（175 → 175，配置的 width:128 只是下限提示） = 175
+  ✅ ③ 页面整体无横向溢出 = true
+  ✅ ④ 四种行的 tr 高度对照：{"none":43,"single":43,"multi":43,"many":65}
+  ✅ ④ 单标签：恰好 1 个 Tag、无间隙可量、单元格不溢出 = true
+  ✅ ④ 无标签：0 个 Tag 且容器 0×0（antd Flex 的 :empty ⇒ display:none，不占位、不撑高） = true
+  ✅ ④ 无标签行与单标签行等高（标签区不改变行高） = true
+  ✅ 页面运行时异常（tags-ui） = []
+
+=== AC-88 ① ② ③：PUT 15 次 ⇒ 库里恰好 10 个（sqlite3 直查） ===
+  $ sqlite3 pm.db "SELECT COUNT(*) FROM prompt_versions WHERE prompt_id=6;"
+  10
+  ✅ ① COUNT(*) 恰好 10 = 10
+  $ sqlite3 pm.db "SELECT version_no ... ORDER BY version_no;"
+  7,8,9,10,11,12,13,14,15,16
+  ✅ ② 保留的是最新 10 个连号 [7..16]（首版 v1 + 15 次 PUT = v1..v16） = 7,8,9,10,11,12,13,14,15,16
+  ✅ ② 最旧的 v1 已不存在 = 0
+  ✅ ③ prompts.version_no = 16 = 16
+  ✅ ③ 当前版本在保留集合内 = 1
+  ✅ ②（BRIEF 举例形态）建 + 14 次 PUT（共 15 版）⇒ 保留 [6..15] = 6,7,8,9,10,11,12,13,14,15
+
+=== AC-88 ④：不重编号（裁剪前后重叠版本逐字对照） ===
+  [裁剪前] version_no→正文：1,2,3,4,5,6,7,8,9,10
+  [裁剪前] 逐字：1	初始正文 2	更新1 3	更新2 4	更新3 5	更新4 6	更新5 7	更新6 8	更新7 9	更新8 10	更新9
+  [裁剪后] version_no→正文：7,8,9,10,11,12,13,14,15,16
+  [裁剪后] 逐字：7	更新6 8	更新7 9	更新8 10	更新9 11	更新10 12	更新11 13	更新12 14	更新13 15	更新14 16	更新15
+  ✅ ④ 裁剪前恰好 10 行且为 [1..10] = 1,2,3,4,5,6,7,8,9,10
+  ✅ ④ 裁剪后 = [7..16] = 7,8,9,10,11,12,13,14,15,16
+  ✅ ④ 不重编号：重叠版本（v7..v10）的 version_no→正文 逐字一致 = true
+
+=== AC-88 ⑦：边界 —— 恰好 10 个不删；第 11 个只删最旧的那个 ===
+  ✅ ⑦ 恰好 10 个时不删（COUNT=10） = 10
+  ✅ ⑦ 此时列表 = [1..10] = 1,2,3,4,5,6,7,8,9,10
+  ✅ ⑦ 产生第 11 个后仍恰好 10 个 = 10
+  ✅ ⑦ 只删了最旧的 v1（列表 = [2..11]） = 2,3,4,5,6,7,8,9,10,11
+  ✅ ⑦ v1 已不存在 / v11 已存在 = 0/1
+
+=== AC-88 ⑤：回滚两态（已存在的版本 / 已被裁剪的版本） ===
+  ✅ ⑤ 前置：PR 有 15 次 PUT ⇒ 恰好 10 行 [7..16] = 7,8,9,10,11,12,13,14,15,16
+  ✅ ⑤ 回滚到仍存在的 v12 → 200 = 200
+  ✅ ⑤ 回滚后仍恰好 10 行 = 10
+  ✅ ⑤ 回滚生成新版本（prompts.version_no = 17） = 17
+  ✅ ⑤ 回滚后的保留集 = [8..17]（只挤掉最旧的 v7） = 8,9,10,11,12,13,14,15,16,17
+  ✅ ⑤ 回滚到已被裁剪掉的 v1 → 404（既有语义不变） = 404
+  ✅ ⑤ 404 那次没有改动版本表 = 8,9,10,11,12,13,14,15,16,17
+
+=== AC-88 ⑧：文案（版本面板 DOM + README） ===
+ac88_note_text={"text":"最多保留最近 10 个版本（更早的版本会在产生新版本时自动清理）","visible":true,"width":343,"height":19,"color":"rgb(107, 114, 128)","fontSize":"11.5px"}
+ac88_version_regression={"rollbackButtons":3,"viewSwitcher":true,"versionRows":3,"noteStillVisible":true}
+  ✅ ⑧ 版本面板存在且**可见**的「最多保留最近 10 个版本」文案 = true
+  ✅ ⑧ 版本面板回归：切到「表格」视图后回滚入口仍在（真鼠标点 Segmented） = true
+  $ grep -n '最多保留最近 10 个版本' README.md
+  399:  **版本保留上限（FR-86）**：每个 prompt 在 `prompt_versions` 里**最多保留最近 10 个版本**（`version_no` 最大的 10 行），
+  ✅ ⑧ README 写明保留策略 = 1
+  ✅ ⑧ README 写明导入张力（以本 FR 为准） = 1
+  ✅ 页面运行时异常（retention-ui） = []
+
+=== AC-88 ⑨：回归 —— 版本列表 / diff / 回滚 / 导出导入 的既有语义（真实 HTTP） ===
+  ✅ ⑨ 版本列表升序含首版 [1,2,3] = 1,2,3
+  ✅ ⑨ diff 含删除行（含「-回归第一版」）
+  ✅ ⑨ diff 含新增行（含「+回归第三版」）
+  ✅ ⑨ 回滚 v1 → 200 且生成 v4 = 200
+  ✅ ⑨ 回滚后 prompts.version_no = 4 = 4
+  ✅ ⑨ 回滚后正文回到 v1 = 回归第一版
+  ✅ ⑨ 越界 diff（v9）→ 400 = 400
+{"mode":"replace","imported":{"folders":0,"tags":7,"prompts":11}}
+  ✅ ⑨ 导出 → 导入(replace) → 再导出 逐字一致（AC-10 未回归） = same
+  ✅ ⑨ 往返后版本数不变（4 版 ≤10，不触发裁剪） = 4
+
+=== AC-88 ⑨：既有版本 / 导入导出 单测复跑 ===
+  ✅ 既有 AC 单测退出码 = 0
+  ℹ tests 24
+  ℹ pass 24
+  ℹ fail 0
+
+=== AC-88 ⑥：导入含 15 个版本的文件 → 最终 ≤10（放在最后：replace 会清库） ===
+  夹具文件：/tmp/pm-ac31-inKeDx/import15.json（该 prompt 含 15 个版本）
+  ✅ ⑥ 导入返回 200 = 200
+  ✅ ⑥ 导入响应：{"mode":"replace","imported":{"folders":0,"tags":0,"prompts":1}}
+  $ sqlite3 pm.db "SELECT COUNT(*) FROM prompt_versions WHERE prompt_id=42;"
+  10
+  ✅ ⑥ 导入 15 个版本后库里恰好 10 个 = 10
+  ✅ ⑥ 保留最新 10 个 [6..15]（v1..v5 被裁） = 6,7,8,9,10,11,12,13,14,15
+  ✅ ⑥ prompts.version_no 仍 = 文件里的最大版本号 15 = 15
+  ✅ ⑥ 导入后无任何 prompt 超过 10 个版本（全库不变式） = 0
+
+=== 截图（tmp/shots/stage31） ===
+  -rw-r--r-- 1 root root 108945 01-table-tags-light.png
+  -rw-r--r-- 1 root root  77245 02-card-tags-light.png
+  -rw-r--r-- 1 root root 110141 03-table-tags-dark.png
+  -rw-r--r-- 1 root root 106342 04-version-retention-note-light.png
+  -rw-r--r-- 1 root root 120946 05-version-table-light.png
+  ✅ ⑤ 截图齐备（AC-87 三张 + AC-88 文案/表格两张 = 5） = 5
+
+=== 结论 ===
+  ✅ AC-87 / AC-88 全部通过
+```
+
+### ④ 逐张识图结论（5 张，五问口径）
+
+| 图 | ① 界面 | ② 关键元素位置 | ③ 视觉缺陷 | ④ 与本阶段改动相关 | ⑤ 异常/意外 |
+| --- | --- | --- | --- | --- | --- |
+| `01-table-tags-light` | 表格视图（亮色） | 「标签」列在「标题」右侧；三标签行 `丙 乙 甲` **同排且有可见间隙**；七标签行 `丁 丙 乙 己 庚 / 戊 甲` **折成两行且不出列** | 无（间距均匀、无重叠、无溢出） | 正是 FR-85 的验收点：改前是"拼在一起"、改后 4px | 七标签行**行高变高**（43→65px）——换行的自然结果，非缺陷；已在 AC 里量化为 `many:65` |
+| `02-card-tags-light` | 卡片视图（亮色） | 卡片内 `丙 乙 +1 更多`，间隙与表格**肉眼一致** | 无 | FR-85 ② 的对照面 | 卡片仍只显示前 2 个 + `+N 更多`（既有行为，未改） |
+| `03-table-tags-dark` | 表格视图（暗色） | 同亮色，标签 chip 在暗色下对比度正常 | 无 | FR-85 ⑤ 亮暗双覆盖 | 无 |
+| `04-version-retention-note-light` | 分栏详情面（亮色）+ 版本历史「对比版本」 | 版本面板标题行右侧可见「**最多保留最近 10 个版本（更早的版本会在产生新版本时自动清理）**」，与「共 3 个版本」同行；下方 diff 正常渲染 | 无 | FR-86 ⑧ 的可见文案 | 文案在**三个视图之外**（表格/对比/详情都能看到），这是刻意的 |
+| `05-version-table-light` | 分栏详情面 + 版本历史「表格」视图 | Alert 文案已更新为「…最多保留最近 10 个版本，更早的会自动清理。」；版本表 v1/v2/v3 各有「详情 / 回滚」 | 无 | FR-86 ⑧ + 回滚入口回归 | 无 |
+
+### ⑤ 回归（原样输出）
+
+```
+### npm test（本阶段前）
+ℹ tests 307 / ℹ pass 307 / ℹ fail 0
+### npm test（收尾）
+ℹ tests 319 / ℹ pass 319 / ℹ fail 0
+### bash tools/ci-check.sh   rc=0
+  ③ npm test          rc=0   ✅  ℹ tests 319 ℹ pass 319 ℹ fail 0
+  ④b 体积预算（最大 chunk ≤ 500KB） rc=0 ✅ 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+  ✅ 代码质量检查全部通过（6 项）
+### 阶段 31 的 gzip 记账（新增 STAGE31_ACCOUNTED_DELTA = 113）
+dist/web 的 js+css gzip 合计 = 418757 B（阶段 29 收尾 418644 B ⇒ 阶段 31 增量 113 B）
+### bash tools/ac-stage4.sh（AC-8 / AC-9 / AC-12）rc=0
+  版本号序列 = [1, 2, 3] → MATCH ；回滚后 = [1, 2, 3, 4] → MATCH
+  diff?from=1&to=99 → HTTP 400 ；rollback（版本 99）→ HTTP 404
+  ss -ltn | grep -c ':8768' → 0（端口已释放）
+### bash tools/ac-stage5.sh（AC-10 / AC-11）rc=0
+  去掉 exported_at 后比对两份导出： EQUAL
+  id 保留： MATCH ；被清掉的数据检索不到： MATCH ；CLI 文件与 API 导出： EQUAL
+  非法导入 3 例均 HTTP 400 且「整库逐字段与导入前一致： EQUAL」
+```
+
+**如实登记：本阶段遇到 1 次已知 flaky（不是断言失败，也不是本阶段引入的逻辑缺陷）**
+
+- **现象**：收尾前的一次 `bash tools/ci-check.sh` 里 ③ 报 `rc=1`，原样为 `ℹ tests 315 ℹ pass 314 ℹ fail 1`
+  —— 注意 **`tests 315 < 319`**，即"有 4 个用例没被报出来"，这是**文件级失败**的算术特征
+  （被杀掉的那个文件本身记 1 条 fail），**不是某条断言不成立**。
+- **这正是项目已文档化的 flaky 形态**：`AGENTS.md` §7 与坑 6（jsdom 模块级单例约 200MB，多个测试文件并发加载时
+  内存压力导致**文件级 `test failed`**、无断言细节），历史记录见 `PROGRESS.md` 的 P2「second flaky」。
+- **复现尝试（全部绿）**：随后连跑 `npm test` **3 次**（`319/319` ×3）+ 本阶段完整自检 1 次 + `ci-check` 1 次
+  （`319/319`、6 项全绿）。**共 5 次连续全绿**，未能复现 ⇒ 判为既有 flaky，而非本阶段改动引入。
+- **诚实说明**：**那一次失败的完整日志我没能留下** —— ci-check 把日志写在 `$TMPDIR/pm-ci-*`，
+  而本沙箱的 `/tmp` 是**每次命令独立**的，下一次工具调用已读不到；因此无法贴出"被杀的是哪个文件"。
+  后续 `ci-check` 的日志已复制到 `tmp/stage31-ci-logs-1/`（过程产物，不入库）。
+- **本阶段对并发压力的影响（如实记）**：新增的 `tests/stage31-versions-retention.test.ts` 会经 `helpers.ts`
+  → `dist/server/app.js` → `services/markdown.js` 加载那一个 jsdom 单例（多一个约 200MB 的并发进程）；
+  `tests/stage31-tags-ui.test.ts` 只读 `web/src` 文本、不加载 jsdom。**未改测试框架/并发度**（那是测试基础设施改动，超出本阶段范围）。
+
+### ⑥ 本阶段新增单测（12 例；`npm test` 只增不减）| 文件 | 例数 | 覆盖 |
+| --- | --- | --- |
+| `tests/stage31-versions-retention.test.ts` | 7 | AC-88 ①–⑦ + 批量写入点回归（**全部直查库**：`readDb` 跑 `SELECT COUNT(*) / version_no / user_prompt`） |
+| `tests/stage31-tags-ui.test.ts` | 5 | AC-87 ①②③ 前端源码级（`gap={4}` / `marginInlineEnd:0` / `wrap`+`minWidth:0` / 列宽 128 与其它 7 列逐列核对）+ AC-88 ⑧ 文案与"旧文案已清掉"的对抗性断言 |
+
+### ⑦ 落盘对账（每条结论 → 落盘位置）
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| FR-85 表格标签列加 4px 间距 | `web/src/components/UseView.tsx`（表格 `tableColumns` 的 `key: 'tags'` 列，`Flex gap={4} wrap` + `data-testid="pm-table-tag-cell"`） |
+| FR-86 公共裁剪函数 + 上限常量 | `src/db/prompt-versions.ts`（`VERSION_KEEP_LIMIT` / `pruneVersions`） |
+| 五类写入点统一调用 | `src/services/prompts.ts`（createPrompt / updatePrompt / bulkPrompts）、`src/services/versions.ts`（rollbackToVersion）、`src/services/import.ts`（replaceImport / mergeImport） |
+| 版本面板可见文案 + 清掉冲突旧文案 | `web/src/components/VersionPanel.tsx`（`pm-version-retention-note`、Alert、两处 Popconfirm、`message.success`、文件头注释） |
+| README 已知限制（策略 + 导入张力 + 回滚 404 推论） | `README.md` §已知限制「版本与回滚语义」 |
+| README 其余对齐（阶段 1–31 / AC-1…AC-88 / 319 用例 / 57 文件 / 体积复测 / 界面表 / 验证脚本清单） | `README.md` 第 15/27/94/212/216/252/262/288/306/316/343/352/359/367-370/427 行附近 |
+| AGENTS.md 同步（用例 319 / 文件 57 / 复验阶段 31 / §6 版本保留不变式） | `AGENTS.md` 头部、§3、§4、§6、§7 |
+| 体积记账 | `tests/stage18-bundle.test.ts`（`STAGE31_ACCOUNTED_DELTA = 113`） |
+| AC 自检脚本 + 探针 | `tools/ac-stage31.sh`、`tools/ac-stage31-probe.mjs` |
+| 改前像素基线（过程产物，不入库） | `tmp/stage31-before.sh`（HEAD 的临时 worktree 里构建改前前端）+ `tmp/shots/stage31-before/` |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage31/*.png`（5 张） |
+
+### ⑧ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-85 + FR-86 实现（源码 5 文件）+ 12 例新单测 + AC 脚本/探针 + 文案与 README/AGENTS 对齐 + 体积记账 | 见下方交付回复的**收尾 commit** |
+| ② | PROGRESS 阶段 31 小节（本节） | 同上 |
+
+**纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
+`git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动部署（`/opt/promptmanager`、systemd、8767）。
+
 ## 归档与当前状态的关系
 
 - **根目录 `PROGRESS.md`（本文件）** = 当前状态 + 阶段索引 —— 给"想快速了解项目现在到哪了"的人看。
 - **`docs/dev-history/PROGRESS.md`** = 完整过程记录 —— 给"要复核某条 AC 怎么验的"人看（验收凭据）。
 - 其它开发过程档案同在 `docs/dev-history/`：`QUESTIONS-history.md`（历史问答）、`design/`（阶段 10A 三套设计打样）、
   `shots/`（阶段 18–25 的分阶段验收截图）。
-- **当前状态的界面证据** = `docs/shots/*.png`（顶层 53 张，`tools/ui-shots.sh` 产出）。
+- **当前状态的界面证据** = `docs/shots/*.png`（**关键展示图一套 8 张**，`tools/ui-shots.sh --key` 产出；
+  过程截图一律落 `tmp/`，见 STANDARDS §5.2 与 `AGENTS.md` §5.1）。
