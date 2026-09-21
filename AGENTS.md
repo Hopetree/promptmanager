@@ -5,7 +5,7 @@
 > and `/root/greenhouse/STANDARDS.md` (**highest precedence**; it wins on any conflict).
 >
 > This file covers **how to work in this repo** and nothing else. Every command below was actually executed
-> on 2026-09-21 and re-verified in stage 31 (test counts, bundle size, screenshot conventions); every path
+> on 2026-09-21 and re-verified in stage 32 (test counts, bundle size, screenshot conventions); every path
 > was checked with `test -e`. Where a topic is already documented elsewhere, this file **points to it
 > instead of duplicating it**, so there is exactly one source of truth.
 >
@@ -37,7 +37,7 @@
 cd /root/greenhouse/projects/promptmanager
 npm ci --cache var/cache/npm     # WARNING: /root/.npm is read-only in this sandbox; keep the cache in-repo (see section 3 and pitfall 3)
 npm run build                    # tsc -> dist/server, vite -> dist/web
-npm test                         # expect: tests 319 / pass 319 / fail 0 (~15s)
+npm test                         # expect: tests 329 / pass 329 / fail 0 (~15s)
 
 # Start a throwaway instance (never touches production data, never takes port 8767)
 AC=$(mktemp -d)
@@ -56,11 +56,11 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 | Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` = 470985 B (no `larger than 500 kB` warning). |
 | Server build only | `npm run build:server` | rc=0. The CLI and `node --test` both load from `dist/**` (pitfall 8). |
 | Web build only | `npm run build:web` | rc=0. |
-| Full test suite | `npm test` | rc=0; `tests 319` / `pass 319` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
+| Full test suite | `npm test` | rc=0; `tests 329` / `pass 329` / `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
 | One test file | `npm run build && node --test tests/health.test.ts` | rc=0; `tests 3` / `pass 3` / `fail 0`. **Build first**: tests import from `../dist/**`, and some cases need `dist/web`. |
 | One test case | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0; `tests 1` / `pass 1` / `fail 0`. |
-| Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). |
-| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (deps / 2x typecheck / npm test / build / 500 KB chunk budget). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 319 ... fail 0` and max chunk `470985 B`. |
+| Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). **`typecheck:tests` runs `build:server` first**, because the tests type-check against `../dist/**` (pitfall 11). |
+| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 6 rows green (**deps / build / 2x typecheck / npm test / 500 KB chunk budget** - the build comes *before* the type checks, see pitfall 11). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `tests 329 ... fail 0` and max chunk `470985 B`. |
 | Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v3`**. A second run prints the same and also exits 0. |
 | Set the admin password | `printf '%s\n' '<strong-password>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0; prints **`ok: user admin password updated`** (password is read from stdin and never echoed). |
 | Start (default 8767) | `npm start` | rc=0; logs `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=...)`. Verified with `PORT=8765`; **8767 is currently occupied by the test environment**. |
@@ -87,7 +87,7 @@ first). If all of them are taken, write `QUESTIONS.md` and stop; do not widen th
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
 | `migrations/` | `001_init.sql`, `002_tokens-and-usage.sql`, `003_prompt-sort-order.sql`. |
-| `tests/` | `node:test` cases (57 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
+| `tests/` | `node:test` cases (59 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
 | `tools/` | `ci-check.sh` (the local = CI quality gate), `ui-shots.sh` + `ui-shot.mjs` (UI evidence), `ac-stage<N>.sh` + `ac-stage<N>-probe.mjs` (per-stage AC self-checks), `seed-prompts.mjs`, `search-zh-poc.mjs`, `mcp-client-smoke.py`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans** (developers + users): `dependencies.md` (deps + licenses + CVEs), `versioning.md`, `search-zh.md`, `brief-changelog.md`, `shots/` (**one** set of key page shots, 8 PNGs), `dev-history/` (process archive kept as acceptance evidence: full PROGRESS/VERIFY, past QUESTIONS, design studies — **documents only; its screenshots live in `tmp/`**). See section 5.1. |
@@ -171,7 +171,7 @@ artifact (only the process needs it) goes to `tmp/`.*
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (57 files, **319** cases). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (59 files, **329** cases). How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
@@ -282,6 +282,14 @@ artifact (only the process needs it) goes to `tmp/`.*
 10. **Import `replace` cannot wipe tables in one shot**: `folders.parent_id` is a self-referencing foreign
     key declared `ON DELETE RESTRICT` (`migrations/001_init.sql:37`), so folders must be deleted
     leaf-first, repeatedly. Evidence: `docs/dev-history/PROGRESS.md` (stage 5, "replace clearing order").
+11. **`npm run typecheck:tests` type-checks against the *build output*, so `dist/` must exist first.**
+    `tests/**/*.test.ts` import from `../dist/**`; on a clean checkout (CI, no `dist/`) it fails with
+    **38 `TS2307: Cannot find module '../dist/…'`** (plus 3 cascading `TS7006`) - while passing locally,
+    where a stale `dist/` happens to exist. That is why `tools/ci-check.sh` runs the build **before** the
+    type checks, and why the `typecheck:tests` script itself starts with `npm run build:server &&`.
+    Reproduce: `rm -rf dist && npm run typecheck:tests` -> **38** errors before the fix, **0** after.
+    Evidence: `tools/ci-check.sh` (header comment + step ②), `package.json` scripts,
+    `tests/stage32-ci-order.test.ts`, `tools/ac-stage32.sh`, `PROGRESS.md` (stage 32).
 
 ## 11. Documentation map (which doc owns what, and when to read it)
 

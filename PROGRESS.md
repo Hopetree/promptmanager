@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–31 已全部完成**；已发布 **v1.0.0** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83，含全英文返工）、阶段 29（FR-82/FR-83 / AC-84/AC-85）、阶段 30（FR-84 / AC-86：`docs/` 只留最终状态）与阶段 31（FR-85/FR-86 / AC-87/AC-88：表格标签列间距 + 版本最多保留最近 10 个）自检全过**（见本文件「阶段 27」～「阶段 31」） |
+| 阶段 | **阶段 1–32 已全部完成**；已发布 **v1.0.0** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27（FR-77~FR-81 / AC-78~AC-82）、阶段 28（`AGENTS.md` / AC-83）、阶段 29（FR-82/FR-83 / AC-84/AC-85）、阶段 30（FR-84 / AC-86）、阶段 31（FR-85/FR-86 / AC-87/AC-88）与阶段 32（FR-87/FR-88 / AC-89/AC-90：CI 干净环境 + 登录页简化）自检全过**（见本文件「阶段 27」～「阶段 32」） |
 | 版本 | **`1.0.0`**（首个正式版；`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -53,6 +53,7 @@
 | 29 | FR-82 表格批量 UI 细化（表头半选态可辨 + 与行内尺寸一致 + 工具条间距≥6px）+ FR-83 详情页元信息行细化（层级间距 20≤24 + 长内容换行保护 + 标签 chip 与左栏统一） | 本文件「阶段 29」 |
 | 30 | FR-84 `docs/` 只放最终状态：`docs/shots/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/shots-archive/` + `ui-shots.sh` 默认 `tmp/`·`--key` 发版模式 + 11 个阶段脚本截图落 `tmp/` + `AGENTS.md` §5.1（英文） | 本文件「阶段 30」 |
 | 31 | FR-85 表格「标签」列加 4px 间距（与卡片视图同档、多标签换行不溢出）+ FR-86 版本保留策略（数据层：每 prompt 最多保留最近 10 个版本、超出的真删；抽 `pruneVersions` 覆盖 新建/更新/回滚/批量/导入 五类写入点；版本面板 + README 文案） | 本文件「阶段 31」 |
+| 32 | FR-87 FIX CI 干净环境必失败（`typecheck:tests` 跑在构建前 ⇒ 38 个 TS2307；调 ci-check 顺序 + `typecheck:tests` 自带 `build:server` 前置）+ FR-88 登录页简化（**P0 去掉默认账号名预填与 `placeholder="admin"`** + 删四条噪音，只留登录信息） | 本文件「阶段 32」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -1493,6 +1494,235 @@ dist/web 的 js+css gzip 合计 = 418757 B（阶段 29 收尾 418644 B ⇒ 阶�
 
 **纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
 `git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动部署（`/opt/promptmanager`、systemd、8767）。
+
+## 阶段 32（2026-09-21）：FIX CI 干净环境必失败 + 登录页简化（FR-87 / FR-88；AC-89 / AC-90）
+
+> **一句话**：CI 红是因为 `typecheck:tests` 跑在构建之前（干净环境没有 `dist/` ⇒ 38 个 TS2307）——
+> 调顺序 + 让脚本自带构建前置；登录页删掉默认账号名预填（**P0 安全**）与四条噪音，只留登录信息。
+
+### 开工前：AC-89 / AC-90 → 检查命令（先落盘，再动手）
+
+| AC | 命令（可执行） | 期望 |
+| --- | --- | --- |
+| AC-89 ① | `rm -rf dist && bash tools/ci-check.sh` | **rc=0 且 6 项全绿**（原样输出） |
+| AC-89 ② | `grep -n 'npm run build\|npm run typecheck' tools/ci-check.sh` | 构建的**行号 < typecheck:tests 的行号** |
+| AC-89 ③ | `rm -rf dist && npm run typecheck:tests` | 错误数 **改前 38 → 改后 0**（贴两次数值） |
+| AC-89 ④ | 推送后看 GitHub Actions 的 `ci` workflow | 通过（或说明"已推送待跑完"） |
+| AC-90 ① | `node tools/ac-stage32-probe.mjs login <base> <shots>` → `ac90_username_value.value` | `""`（未登录态打开登录页） |
+| AC-90 ② | `grep -c admin web/src/components/LoginPage.tsx` + 运行时 DOM 扫描 | 两处都是 **0** |
+| AC-90 ③ | 逐条 `grep -c` 四条噪音 + 保留项断言 | 噪音 0；品牌图 96×96 / `PromptManager` / 表单都在 |
+| AC-90 ④ | 探针（真鼠标 + `Input.insertText`） | 登录成功进主界面；错误口令有提示；亮暗截图；390×844 不溢出 |
+
+**开工前基线**：`npm test` = **319/319 rc=0** → 收尾 **329/329**（+10，只增不减）。
+
+### ① FR-87：CI 的 `typecheck:tests` 在干净环境必失败（修法与两层防护）
+
+**根因（先复现，确认与 host_manger 报告一致）**：
+
+```
+$ rm -rf dist && npm run typecheck:tests        # rc=1
+错误数 = 38        （35 个 TS2307 + 3 个级联 TS7006）
+  tests/api-cors.test.ts(3,28): error TS2307: Cannot find module '../dist/config.js' or its corresponding type declarations.
+  tests/api-deploy-shape.test.ts(5,28): error TS2307: Cannot find module '../dist/config.js' or its corresponding type declarations.
+  tests/cli-export.test.ts(23,41): error TS2307: Cannot find module '../dist/config.js' ...
+$ npm run build && npm run typecheck:tests      # rc=0（0 个错误）
+```
+
+**两层防护**（BRIEF 要求第一层；第二层是为了让"裸跑"也没有未声明的前置条件）：
+
+1. **`tools/ci-check.sh` 步骤重排** —— ① 依赖就绪 → **② 构建** → ③ `typecheck:web` + `typecheck:tests`
+   → ④ `npm test` → ⑤ 体积预算（仍是 **6 项**汇总行，只是编号与顺序变了）；
+   文件头注释写明**为什么必须先构建**（含 `TS2307`、`rm -rf dist` 复现命令与 `38` 这个实测数）。
+2. **`package.json` 的 `typecheck:tests` 自带构建前置**：`tsc -p tsconfig.tests.json`
+   → **`npm run build:server && tsc -p tsconfig.tests.json`**。
+   理由：只改 ci-check 的顺序，**任何"裸跑 `typecheck:tests`"的人/脚本仍会撞 38 个 TS2307**；
+   把前置条件写进脚本本身，才是把"未声明依赖"消掉。代价：`npm test` 多一次服务端 `tsc`（实测约 +1.5 秒）。
+
+**AC-89 ③ 的字面命令（改后）**：
+
+```
+$ node -p "require('./package.json').scripts['typecheck:tests']"
+npm run build:server && tsc -p tsconfig.tests.json
+$ rm -rf dist && npm run typecheck:tests   # rc=0
+错误数 = 0
+对照（改前实测）：38 个错误（35 个 TS2307 + 3 个级联 TS7006）
+```
+
+**AC-89 ② 行号先后（原样）**：
+
+```
+$ grep -n 'npm run build\|npm run typecheck' tools/ci-check.sh
+7:#   ③ 类型检查（`npm run typecheck:web` + `npm run typecheck:tests`）
+16:#   复现对照：`rm -rf dist && npm run typecheck:tests` → **38 个错误**；
+17:#            `npm run build && npm run typecheck:tests` → **0 个错误**。
+59:npm run build >"$LOG_DIR/build.log" 2>&1
+64:npm run typecheck:web >"$LOG_DIR/typecheck-web.log" 2>&1
+66:npm run typecheck:tests >"$LOG_DIR/typecheck-tests.log" 2>&1
+  ✅ ② 构建（第 59 行）< typecheck:tests（第 66 行）
+  ✅ ② 构建（第 59 行）< typecheck:web（第 64 行）
+```
+
+**AC-89 ① 干净环境（原样输出，节选）**：
+
+```
+$ rm -rf dist && bash tools/ci-check.sh
+  === ① 依赖就绪 ===
+    ✅ ① 依赖已安装（rc=0）  node_modules 存在（CI 由 workflow 先跑 npm ci）
+  === ② 构建（必须先于类型检查） ===
+    ✅ ② npm run build（rc=0）  0 条 >500KB 告警
+  === ③ 类型检查（依赖 ② 的构建产物） ===
+    ✅ ③a typecheck:web（rc=0）  0 个 TS 错误
+    ✅ ③b typecheck:tests（rc=0）  0 个 TS 错误
+  === ④ 全量测试 ===
+    ✅ ④ npm test（rc=0）  ℹ tests 329 ℹ pass 329 ℹ fail 0
+  === ⑤ 体积预算 ===
+    ✅ ⑤ 体积预算（最大 chunk ≤ 500KB）（rc=0）  最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+  == 汇总 ==（6 行 rc=0 ✅）
+    ✅ 代码质量检查全部通过（6 项）
+  ✅ ① ci-check.sh 在干净环境下的退出码 = 0
+  ✅ ① 汇总表里 ✅ 的项数（须 6） = 6
+  ✅ ① 汇总表里 ❌ 的项数 = 0
+  ✅ ① 干净环境下 ③b typecheck:tests = 0 个 TS 错误 = true
+```
+
+> **不改**：`.github/workflows/ci.yml` 一字未动（触发条件 / Node 24 / `npm ci` + 同一脚本 / 无 secrets）
+> —— 单测 `tests/stage32-ci-order.test.ts` 逐条守住这几点。
+
+### ② FR-88：登录页简化（P0 去预填 + 删四条噪音）
+
+**改前/改后真实 DOM 对照**（同一个探针；改前基线由 `tmp/stage32-before.sh` 在 **HEAD 的临时 git worktree**
+里构建"改前前端"实测 —— 不碰共享工作区，避免并行会话把临时回退扫进提交）：
+
+| 判据 | 改前 | 改后 |
+| --- | --- | --- |
+| ① 用户名框 `value` | **`"admin"`** ← 页面加载即暴露账号名 | **`""`** |
+| ① 用户名框 `placeholder` | `"admin"` | `"用户名"` |
+| ② DOM 里账号名出现次数 | `needleInHtml=2`（`value` + `placeholder` 两个属性） | **`0` / `0`**（亮暗各测一次） |
+| ③ 四条噪音出现次数 | 各 **2**（innerText + innerHTML 各一次，合计 8） | **全 0** |
+| ③ 页面可见文本 | `SELF-HOSTED · 单进程单端口 \| PromptManager \| 轻量自托管的 Prompt 管理器，数据只在本机。 \| 用户名 \| 口令 \| 登 录 \| 口令由本机 CLI 设置，网页不提供注册。 \| 除 /healthz 与登录接口外，全部接口未认证一律 401。` | **`PromptManager \| 用户名 \| 口令 \| 登 录`** |
+| ④ 移动端（390×844）用户名框 | `"admin"` | `""` |
+
+**顺带发现的实证**：改前那个预填还**真的会妨碍使用** —— 探针"点进输入框再键入"得到
+`ac90_wrong_typed_user=adminadmin`（预填的 `admin` + 键入的 `admin` 拼接），于是登录失败、探针在
+"等待登录页消失"处超时。也就是说：**预填不只是"暴露账号名"，还让用户必须先手动清空**。
+
+**改后运行时证据（原样）**：
+
+```
+ac90_username_value={"value":"","placeholder":"用户名","autocomplete":"username","type":"text"}
+ac90_password_value={"value":"","placeholder":"口令","autocomplete":"current-password"}
+ac90_scan={"needleInHtml":0,"needleInText":0,"noiseHits":{"SELF-HOSTED":0,"数据只在本机":0,"网页不提供注册":0,"未认证一律":0},"textSample":"PromptManager | 用户名 | 口令 | 登 录"}
+ac90_keep={"brandArt":true,"brandArtSize":{"w":96,"h":96,"src":"/promptmanager-96.png"},"title":true,"usernameInput":true,"passwordInput":true,"submitButton":true,"submitText":"登 录"}
+ac90_wrong_password={"alertText":"用户名或密码不正确","visible":true,"stillOnLogin":true}
+ac90_mobile_overflow={"docScrollWidth":390,"docClientWidth":390,"loginWidth":390,"viewport":390}
+ac90_mobile_username_value=""
+ac90_dark_bg="rgb(1, 1, 2)"
+ac90_after_login={"loginGone":true,"headerBrand":"PromptM","splitList":true,"cardOrTable":true}
+ac32_runtime_errors=[]
+```
+
+**源码级（AC-90 ②③）**：
+
+```
+$ grep -c 'admin' web/src/components/LoginPage.tsx
+0
+$ grep -c '<噪音串>' web/src/components/LoginPage.tsx
+  SELF-HOSTED      → 0
+  数据只在本机 → 0
+  网页不提供注册 → 0
+  未认证一律  → 0
+✅ 品牌图锚点仍在 = 1 ｜ 标题 PromptManager 仍在 = 1 ｜ 中性 placeholder「用户名」已生效 = 1
+```
+
+**保留 / 删除清单（逐条对账）**：保留品牌图（96×96、`pm-brand-art-login`、`aria-hidden`）、`PromptManager`
+标题、用户名 / 口令 / 登录按钮、`autoComplete`（`username` / `current-password`）、必填校验、错误 `Alert`、
+`api.login()` 调用与 `onSuccess` 回调、`theme.useToken()` 亮暗跟随；删除四条噪音 + 预填 + `placeholder="admin"`。
+
+**「这些技术说明该收进关于页」的处理（判断留痕）**：FR-88 的**保留/删除清单是穷举的**，未要求向「关于」页
+新增内容，故**未改 `AboutModal.tsx`**（也避免与 FR-52「信息克制」清理过的关于页冲突）。这些信息**没有丢失**：
+「CLI 设置口令」在关于页「维护」段有 CLI 命令、`/healthz` 自检在关于页「服务自检」段、401 规则与单进程单端口
+形态在 `README.md`（§是什么 / §怎么跑）。**若 host_manger 认为需要搬进关于页，请作为新指令下发**。
+
+### ③ 逐张识图结论（5 张，五问口径）
+
+| 图 | ① 界面 | ② 关键元素位置 | ③ 视觉缺陷 | ④ 与本阶段改动相关 | ⑤ 异常/意外 |
+| --- | --- | --- | --- | --- | --- |
+| `01-login-light` | 登录页（亮色） | 96px 品牌图居中 → `PromptManager` 大标题 → 用户名（**空**，占位「用户名」）→ 口令 → 黑色胶囊「登录」 | 无 | 正是 FR-88 的验收面：改前此处有 1 条装饰标签 + 副标题，且用户名框里是 `admin` | 页面只剩 4 个可见元素，留白很大但符合"只显示登录信息" |
+| `02-login-error-light` | 登录页 + 错误态（亮色） | 标题下方出现红色 `Alert`「用户名或密码不正确」 | 无 | AC-90 ④ 错误提示 | ⚠️ 图中用户名框里的 `admin` 是**探针真实键入**的内容（`ac90_wrong_typed_user=admin`），**不是预填** —— 预填判据看的是"未登录态打开页面"那一刻（`ac90_scan` 全 0） |
+| `03-login-mobile` | 登录页（390×844） | 元素纵向排布、无横向溢出（`390/390`） | ⚠️ 标题 `PromptManager` **在词中折行**（`PromptManage` / `r`）—— **改前同图也这样**（见 `tmp/shots/stage32-before/03-login-mobile.png`），**非本阶段引入** | AC-90 ④ 移动端不溢出 | 该折行是**既有**观感问题（标题 40px 在 342px 可用宽度内放不下）。**未顺手改**（不在 FR-88 的保留/删除清单里），登记为可选的后续润色项 |
+| `04-login-dark` | 登录页（暗色） | 近黑画布 `rgb(1,1,2)`、浅色标题、白色胶囊按钮 | 无 | AC-90 ④ 亮暗两态 | 无 |
+| `05-after-login-light` | 主界面（分栏） | 顶栏 `PromptM` + 欢迎提示；中栏 1 条夹具；右栏详情与版本面板（含阶段 31 的保留策略文案） | 无 | AC-90 ④ 登录成功进主界面 | 顺带复验了阶段 31 的版本面板文案仍在 |
+
+### ④ 回归（原样输出）
+
+```
+### npm test（本阶段前 / 收尾）
+ℹ tests 319 / pass 319 / fail 0        →        ℹ tests 329 / pass 329 / fail 0
+### bash tools/ci-check.sh（收尾）rc=0
+  ① 依赖已安装                rc=0 ✅ ｜ ② npm run build        rc=0 ✅  0 条 >500KB 告警
+  ③a typecheck:web            rc=0 ✅ ｜ ③b typecheck:tests     rc=0 ✅  0 个 TS 错误
+  ④ npm test                  rc=0 ✅  ℹ tests 329 ℹ pass 329 ℹ fail 0
+  ⑤ 体积预算（最大 chunk ≤ 500KB） rc=0 ✅ 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+  ✅ 代码质量检查全部通过（6 项）
+### bash tools/ac-stage32.sh  rc=0
+  ✅ AC-89 / AC-90 全部通过（❌ 计数 0；唯一含 ❌ 字样的行是断言标签「汇总表里 ❌ 的项数 = 0」）
+### 体积记账
+最大 chunk 470985 B 未变；本阶段只改 ci-check 顺序 / package.json 一条脚本 / 登录页 JSX（净减 4 个文本块），
+gzip 合计未超预算（仍由 tests/stage18-bundle.test.ts 的已对账增量守）
+### 登录相关既有 AC
+AC-3 / AC-4（`tools/ac-stage2.sh` 覆盖，未跑：本阶段未改认证与接口）；`tests/api-auth.test.ts` / `api-guard.test.ts`
+/ `session-persistence.test.ts` / `api-password.test.ts` 均在 `npm test` 329 例内全绿；品牌 AC-59/AC-76 由
+`tests/navigation-hygiene.test.ts`（登录页 96px + aria-hidden）与 `tests/stage25-brand.test.ts`（登录页仍是全名）覆盖，全绿
+```
+
+### ⑤ 本阶段新增单测（10 例；`npm test` 只增不减）
+
+| 文件 | 例数 | 覆盖 |
+| --- | --- | --- |
+| `tests/stage32-ci-order.test.ts` | 5 | AC-89 ②（构建行号 < 两个类型检查）+ 注释含 `TS2307`/`rm -rf dist`/`38` + 6 项编号与顺序未变（旧编号不得残留）+ **`typecheck:tests` 必须带 `npm run build:server &&` 前缀且其它脚本未变** + workflow 未改（Node 24 / 无 secrets / 触发条件） |
+| `tests/stage32-login-page.test.ts` | 5 | AC-90 ①②③ 源码级（账号名 0 命中含大小写不敏感、无 `initialValues`、中性 placeholder、必填仍在、四条噪音 0、保留项齐全、**对抗性**：登录逻辑/亮暗/antd 用法一字未改） |
+
+> 为什么 AC-89 不做"删 dist 再跑"的可执行单测：`npm test` 并发跑所有文件，在某个测试进程里 `rm -rf dist`
+> 会把同批要读 `dist/web` 的文件打挂（假红）。真·干净环境验证放在 `tools/ac-stage32.sh`。
+
+### ⑥ 顺带发现的既有缺陷（**未改**，如实登记）
+
+1. **`README.md` 有重复的「代码质量检查 + 怎么验证」两节**（`grep -n '^## '` 可见两处标题）：
+   - 第 1 份（`## 代码质量检查` / `## 怎么验证`）是**当前**的；
+   - 第 2 份是**陈旧副本**：里面还写着 **`bash tools/ac-stage9.sh # 阶段 9：CLI / MCP 补充面`** —— 该脚本
+     **根本不存在**（README 第 1 份与 `AGENTS.md` §3 都明确说"没有 stage 9 脚本"），且缺 tmp/shots 约定。
+   - **来源**：`git log -S'## 代码质量检查（本地与 CI 同一套）'` 显示自 `8efd440`（重新初始化 git 仓库的
+     首个提交）起就是 2 份 ⇒ **长期既有**，非本阶段引入。
+   - **本阶段处置**：**两份的 ci-check 步骤表都更新**（否则文档会与我的改动矛盾），但**不做删节** ——
+     60+ 行的文档重构不属于本阶段范围，按纪律不"顺手"做。**建议 host_manger 单独下一次清理指令**。
+2. **登录页移动端标题词中折行**（见识图 ③）：既有观感问题，未改，见上。
+
+### ⑦ 落盘对账（每条结论 → 落盘位置）
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| ci-check 步骤重排（构建先于类型检查）+ 理由注释 | `tools/ci-check.sh`（文件头「为什么必须先构建」+ 步骤 ①②③ 分段注释） |
+| `typecheck:tests` 自带构建前置 | `package.json`（`scripts.typecheck:tests`） |
+| 登录页去预填 + 去四条噪音 + 中性 placeholder | `web/src/components/LoginPage.tsx` |
+| 新增单测（10 例） | `tests/stage32-ci-order.test.ts`、`tests/stage32-login-page.test.ts` |
+| AC 自检脚本 + 运行时探针 | `tools/ac-stage32.sh`、`tools/ac-stage32-probe.mjs` |
+| README 对齐（五步表 + FR-87 警示块 + 登录页行 + 329/59 + ac-stage32 两处清单） | `README.md`（两份步骤表都已更新） |
+| AGENTS.md 对齐（329/59、ci-check 行序、typecheck 行、复验阶段 32、**新增坑 11**） | `AGENTS.md` §3 / §4 / §7 / §10 坑 11 / 文件头 |
+| 改前基线（过程产物，不入库） | `tmp/stage32-before.sh`（HEAD 的临时 worktree）+ `tmp/shots/stage32-before/` |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage32/*.png`（5 张） |
+
+### ⑧ commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-87：`tools/ci-check.sh` 顺序 + `package.json` 前置 + 5 例单测 | 见下方交付回复 |
+| ② | FR-88：`LoginPage.tsx` 简化 + 5 例单测 | 同上 |
+| ③ | AC 工具：`tools/ac-stage32.sh` + `ac-stage32-probe.mjs` | 同上 |
+| ④ | 文档：README / AGENTS / 本小节 | **收尾 commit** |
+
+**纪律自查**：`git add` **只用明确路径**（未用 `-A`/`.`）；commit 前核 `git diff --cached --name-only`；
+`git ls-files tmp | wc -l` = **0**；未改 `BRIEF.md` / `STANDARDS.md`；未动部署（`/opt/promptmanager`、systemd、
+8767、**106 生产**）；临时 worktree 已 `git worktree remove --force` 清理。
 
 ## 归档与当前状态的关系
 

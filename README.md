@@ -207,7 +207,7 @@ node bin/pm.mjs export --out backup.json             # 全量导出
 
 | 页面 / 面板 | 能做什么 | 用到的接口 |
 | --- | --- | --- |
-| 登录页 | 用户名 + 口令登录（会话 cookie）；失败/限流有可读提示 | `POST /api/login`、`GET /api/me` |
+| 登录页 | 用户名 + 口令登录（会话 cookie）；失败/限流有可读提示。**只显示登录信息**（品牌图 + 标题 + 表单），**不预填任何用户名**（阶段 32：默认账号名不再出现在页面上） | `POST /api/login`、`GET /api/me` |
 | 分栏 · 中栏 | 每条 = **标题 + 备注（固定两行）**；单击切换右栏；可拖拽排序；**默认三档视图** | `GET /api/prompts?q=&folder_id=&tag=&favorite=&sort=&limit=&offset=` |
 | 表格 · 卡片 | 表格：行内编辑/删除/收藏/复制 + **行拖拽排序** + **批量操作**（首列复选框 + 表头全选 → 工具条「已选择 N 项」+ 批量收藏/移动/删除 + 取消；删除二次确认）+「标签」列内多个标签**间隙 4px、超出列宽自动换行**（阶段 31）；卡片：正文摘要 + 标签 + 元信息 + **卡片本体可拖** | 同上、`POST /api/prompts/bulk` |
 | 左栏 | 文件夹树（增/改名/删 + 点击筛选 + **同层级拖拽排序**；筛选**含全部子目录**，与计数同口径）、标签列表（含计数） | `/api/folders`、`/api/tags` |
@@ -243,14 +243,22 @@ npm ci                    # 首次（CI 里也由 workflow 先跑这一步）
 bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 ```
 
-`tools/ci-check.sh` 依次跑四步并打印**逐项 rc + 关键输出行**的汇总表：
+`tools/ci-check.sh` 依次跑五步并打印**逐项 rc + 关键输出行**的汇总表：
 
 | 步骤 | 命令 | 判据 |
 | --- | --- | --- |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
-| ② 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
-| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **319/319**） |
-| ④ 构建 + 体积预算 | `npm run build` + 量 `dist/web/assets/*.js` | 无 `larger than 500 kB` 告警，且**最大 chunk ≤ 500 KB** |
+| ② 构建 | `npm run build` | 无 `larger than 500 kB` 告警 |
+| ③ 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
+| ④ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **329/329**） |
+| ⑤ 体积预算 | 量 `dist/web/assets/*.js` | **最大 chunk ≤ 500 KB** |
+
+> ⚠️ **② 构建必须排在 ③ 类型检查之前**（FR-87 / AC-89）：`tests/**/*.test.ts` 里 `import` 的是
+> **构建产物** `../dist/**`，干净环境（CI 的 checkout 没有 `dist/`）先跑 `typecheck:tests` 会得到
+> **38 个 `TS2307: Cannot find module '../dist/…'`** ⇒ CI 必红（本地因留有历史 `dist/` 而看不出来）。
+> 复现对照：`rm -rf dist && npm run typecheck:tests` → 改前 **38** 个错误 / 改后 **0** 个。
+> 两层防护：ci-check 的顺序 + `typecheck:tests` 脚本自带 `npm run build:server &&` 前缀
+> （于是"裸跑"也不再有未声明的前置条件）。
 
 CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调 `tools/ci-check.sh`** ——
 所以"CI 一套、本地另一套"不会发生；workflow 用 **Node 24**（与生产一致），**不需要任何 secrets**，
@@ -259,7 +267,7 @@ CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调
 ## 怎么验证
 
 ```bash
-npm test                       # 全量测试（node:test；57 个测试文件 / 319 个用例，自带构建与类型检查）
+npm test                       # 全量测试（node:test；59 个测试文件 / 329 个用例，自带构建与类型检查）
 bash tools/ac-stage1.sh        # 阶段 1：AC-1 / AC-2 / AC-16（部分）/ AC-18 / AC-19（+ AC-20/21 预览）
 bash tools/ac-stage2.sh        # 阶段 2：AC-3 / AC-4 / AC-15
 bash tools/ac-stage3.sh        # 阶段 3：AC-5 / AC-6 / AC-7 / AC-14
@@ -287,6 +295,7 @@ bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM�
 bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82（表格批量 / 详情元信息行 / 两页签 / 去变量区块 / 弹窗尺寸）
 bash tools/ac-stage29.sh       # 阶段 29：AC-84 / AC-85（表格批量 UI 半选态·尺寸·间距 / 详情元信息行间距·换行·chip 统一）
 bash tools/ac-stage31.sh       # 阶段 31：AC-87 / AC-88（表格「标签」列间距真实像素 / 版本最多保留最近 10 个·直查库）
+bash tools/ac-stage32.sh       # 阶段 32：AC-89 / AC-90（干净环境跑 ci-check / 登录页去预填与噪音；真鼠标 + 截图）
 bash tools/ui-shots.sh         # 界面自证：全套 → tmp/ui-shots/shots/（默认，不入库）；--key = 关键展示图 8 张 → docs/shots/
 # 该脚本会**自起自停**一个临时实例（临时 `DATA_DIR`、真实登录 cookie、零安装 headless chromium），
 # 并 dump 渲染后 DOM 供 AC-21 统计 `ant-*` 类名；逐张识图结论记在 `docs/dev-history/PROGRESS.md` 各阶段一节。
@@ -298,14 +307,22 @@ npm ci                    # 首次（CI 里也由 workflow 先跑这一步）
 bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 ```
 
-`tools/ci-check.sh` 依次跑四步并打印**逐项 rc + 关键输出行**的汇总表：
+`tools/ci-check.sh` 依次跑五步并打印**逐项 rc + 关键输出行**的汇总表：
 
 | 步骤 | 命令 | 判据 |
 | --- | --- | --- |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
-| ② 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
-| ③ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **319/319**） |
-| ④ 构建 + 体积预算 | `npm run build` + 量 `dist/web/assets/*.js` | 无 `larger than 500 kB` 告警，且**最大 chunk ≤ 500 KB** |
+| ② 构建 | `npm run build` | 无 `larger than 500 kB` 告警 |
+| ③ 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
+| ④ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0`（当前 **329/329**） |
+| ⑤ 体积预算 | 量 `dist/web/assets/*.js` | **最大 chunk ≤ 500 KB** |
+
+> ⚠️ **② 构建必须排在 ③ 类型检查之前**（FR-87 / AC-89）：`tests/**/*.test.ts` 里 `import` 的是
+> **构建产物** `../dist/**`，干净环境（CI 的 checkout 没有 `dist/`）先跑 `typecheck:tests` 会得到
+> **38 个 `TS2307: Cannot find module '../dist/…'`** ⇒ CI 必红（本地因留有历史 `dist/` 而看不出来）。
+> 复现对照：`rm -rf dist && npm run typecheck:tests` → 改前 **38** 个错误 / 改后 **0** 个。
+> 两层防护：ci-check 的顺序 + `typecheck:tests` 脚本自带 `npm run build:server &&` 前缀
+> （于是"裸跑"也不再有未声明的前置条件）。
 
 CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调 `tools/ci-check.sh`** ——
 所以"CI 一套、本地另一套"不会发生；workflow 用 **Node 24**（与生产一致），**不需要任何 secrets**，
@@ -314,7 +331,7 @@ CI 侧：`.github/workflows/ci.yml`（push / PR 触发）**只做 `npm ci` + 调
 ## 怎么验证
 
 ```bash
-npm test                       # 全量测试（node:test；57 个测试文件 / 319 个用例，自带构建与类型检查）
+npm test                       # 全量测试（node:test；59 个测试文件 / 329 个用例，自带构建与类型检查）
 bash tools/ac-stage1.sh        # 阶段 1：AC-1 / AC-2 / AC-17 / AC-18 / AC-19
 bash tools/ac-stage2.sh        # 阶段 2：AC-3 / AC-4 / AC-15
 bash tools/ac-stage3.sh        # 阶段 3：AC-5 / AC-6 / AC-7 / AC-14
@@ -343,6 +360,7 @@ bash tools/ac-stage25.sh       # 阶段 25：AC-76（顶栏品牌文字 PromptM 
 bash tools/ac-stage27.sh       # 阶段 27：AC-78 / AC-79 / AC-80 / AC-81 / AC-82
 bash tools/ac-stage29.sh       # 阶段 29：AC-84 / AC-85（表格批量 UI / 详情元信息行 视觉细化）
 bash tools/ac-stage31.sh       # 阶段 31：AC-87 / AC-88（标签列间距 / 版本保留上限 10）
+bash tools/ac-stage32.sh       # 阶段 32：AC-89 / AC-90（CI 干净环境 / 登录页简化）
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # AC-7 的 2000 条中文夹具（直接写库，触发器同步 FTS）
