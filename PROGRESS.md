@@ -1763,7 +1763,7 @@ AC-3 / AC-4（`tools/ac-stage2.sh` 覆盖，未跑：本阶段未改认证与接
 | AC-91 ① | `bash tools/ac-stage33.sh`（内部用 `python3` + `pyyaml` **真解析** workflow） | 触发条件 / permissions / 5 个 action 的 pin / 镜像名与登录凭据引用 全部成立；**负向**：无 `echo`+`secrets`、无 `set -x`、无明文 token/用户名、无 `pull_request_target` |
 | AC-91 ② | 同上脚本的「对照表」段 + `grep -n 'type=\|platforms\|context\|file:' .github/workflows/docker.yml` | `context=.`、`file=Dockerfile`、无 `target`、`linux/amd64`；tag 方案 = `1.0.1`/`1.0`/`latest` |
 | AC-91 ③ | 记录 host_manger 在 106 的实测（本机**无 Docker**） | `docker build -t promptmanager:1.0.1 .` → 36 秒 / 959MB |
-| AC-91 ④ | 端到端实跑 | **待用户配 secrets 后由 host_manger 触发**（本阶段**不标完成**） |
+| AC-91 ④ | 端到端实跑 | 交付时**待用户配 secrets 后由 host_manger 触发**（不标完成）；**后已由 host_manger 完成，见 §④ 状态更新与 `586535e`** |
 
 **开工前基线**：`npm test` = **329/329 rc=0** → 收尾仍 **329/329**（本阶段**只加 workflow 与文档**，不加代码）。
 
@@ -1849,15 +1849,20 @@ host_manger 在 106 的实测结论（2026-09-21）：
 > **证据归属说明（不冒领）**：本机（228）**没有 Docker**，所以"镜像能构建"这条证据**不是 dsh 产生的** ——
 > 它是 host_manger 在 106 上的实测；dsh 只断言 workflow 参数与之等价（context/file/无 target/平台）。
 
-### ④ AC-91 ④ 端到端实跑：**未完成，如实标注**
+### ④ AC-91 ④ 端到端实跑：**交付时未完成（如实标注）；后由 host_manger 完成**
 
-**状态：待用户在 GitHub 仓库配好 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 后，由 host_manger 触发验证。**
+> **状态更新（阶段 34 收尾时补记）**：**AC-91 ④ 已由 host_manger 完成** —— 见 `VERIFY.md` 与提交
+> `586535e`（阶段 33 验收）：发版 `v1.0.2` 并推 tag → Docker Hub 出现 `hopetree/promptmanager`，
+> tags = `1.0` / `1.0.2` / `latest`（与 D-32 一致）→ 106 经镜像站 pull（digest `sha256:fda6d3b3…`）→
+> `arch=amd64` → 起临时容器 `healthz` version=1.0.2 + 数据目录自动初始化 + 未认证 401 → 收尾清理、生产未受影响。
+> **dsh 交付时（阶段 33）该条确实未完成**，下列说明是当时的口径（保留存档，不改写）。
+
+**交付时的状态：待用户在 GitHub 仓库配好 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 后，由 host_manger 触发验证。**
 
 - dsh **做不了**的原因：仓库私有（未认证 API 对 `repo`/`actions` 都返回 404）、本机无 `gh` CLI、`_env/` 为空、
   **没有任何 Docker Hub 凭据**（BRIEF 明示"别去找、别去猜"）；且"推 tag / 触发 workflow"属 host_manger。
-- **本阶段不把它写成已完成**（BRIEF AC-91 ④ 明确要求如此）。
-- host_manger 的验收步骤：Actions 绿 → `docker pull <ns>/promptmanager:<ver>` 能拉下 →
-  在 106 上 `docker run` 起容器 → `/healthz` 的 `version` 正确。
+- **交付时不把它写成已完成**（BRIEF AC-91 ④ 明确要求如此）——**当时未完成、事后由 host_manger 补完**，
+  两条状态都留痕，避免"把别人的验证冒领成自己的"。
 
 ### ⑤ 交付物与落盘对账
 
