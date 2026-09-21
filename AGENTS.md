@@ -67,7 +67,7 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 | **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"1.0.0"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
 | Big fixture (2000 rows) | `DATA_DIR=$AC node tools/seed-prompts.mjs 2000` | rc=0; `ok: seeded 2000 prompts (total=2000, fts_hits=2000) in ... [192 ms]`. |
 | Deployment file syntax | `systemd-analyze verify deploy/promptmanager.service` | rc=0 and **no output**. Note: it cannot catch the "starts, then crashes" trap (pitfall 1). |
-| UI evidence screenshots | `bash tools/ui-shots.sh` | rc=0; `OK ui-shots done`; **self-check mode writes the full 68-shot set to `tmp/ui-shots/shots/` (not committed)**. Use `bash tools/ui-shots.sh --key` to (re)generate the one key set of 8 into `docs/shots/` (see section 5.1). |
+| UI evidence screenshots | `bash tools/ui-shots.sh` | rc=0; `OK ui-shots done`; **self-check mode writes the full 53-shot set to `tmp/ui-shots/shots/` (not committed)**. Use `bash tools/ui-shots.sh --key` to (re)generate the one key set of 8 into `docs/shots/` (see section 5.1). |
 | One representative stage script | `bash tools/ac-stage25.sh` | rc=0; the script's final banner (Chinese in its source) means "AC-76 all checks passed". For the full script list see the verification section of `README.md`; there is no stage 9 script. |
 
 **Port discipline**: never use 8767 for a throwaway instance - the test environment is already listening

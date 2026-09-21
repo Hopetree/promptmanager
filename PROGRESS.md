@@ -1102,7 +1102,7 @@ $ du -sh tmp/shots-archive
 
 ```
 $ grep -n "OUT_DIR=\|--key\|自证模式\|发版模式" tools/ui-shots.sh | head -20
-8:#     - 默认（无参数）= **自证模式**：全套 68 张落 `tmp/ui-shots/shots/`（给过程用，不进 git）；
+8:#     - 默认（无参数）= **自证模式**：全套 **53** 张（主 plan 52 + 空态 1）落 `tmp/ui-shots/shots/`（给过程用，不进 git）；
 9:#     - `--key` = **发版 / 交付模式**：只产一套「关键页面展示图」（8 张，见下方 KEY_SET）到 `docs/shots/`，
 14:#   bash tools/ui-shots.sh                 # 自证模式：全套 → tmp/ui-shots/shots/（默认，不入库）
 15:#   bash tools/ui-shots.sh --key           # 发版模式：8 张关键展示图 → docs/shots/（旧的先归档到 tmp/）
@@ -1139,6 +1139,24 @@ $ bash tools/ci-check.sh         → ✅ 代码质量检查全部通过（6 项�
 $ git status --porcelain         → 空（提交前核对；见收尾 commit）
 ```
 
+**工具两种模式都实测跑通**（改完 `ui-shots.sh` 的控制流后必须验，否则"默认路径"可能只是纸面约定）：
+
+```
+$ bash tools/ui-shots.sh          # 自证模式（默认）
+  ...
+  张数=53  目录=tmp/ui-shots/shots
+  DOM dump（AC-21 用）：tmp/ui-shots/*.html（23 个）
+  OK ui-shots done                （rc=0）
+$ ls tmp/ui-shots/shots/*.png | wc -l
+53
+$ ls docs/shots/*.png | wc -l     # 自证跑完 docs/ 仍是关键展示图一套，未被污染
+8
+$ bash tools/ui-shots.sh --key    # 发版模式（第二次跑）
+  旧展示图已归档：docs/shots/*.png → tmp/shots-archive/docs-shots/2026-09-21-115323/（8 张）
+  张数=8  目录=docs/shots
+  OK ui-shots done                （rc=0）
+```
+
 #### ⑥ 已知遗留（按 BRIEF「不改文档内容」保留原样，在此登记）
 
 1. **文档里的图片链接失效**：`docs/dev-history/PROGRESS.md` 与 `docs/dev-history/design/*/design-notes.md`
@@ -1151,7 +1169,13 @@ $ git status --porcelain         → 空（提交前核对；见收尾 commit）
 
 | 单元 | 内容 | commit |
 | --- | --- | --- |
-| ① | `docs/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/` + `ui-shots.sh` 默认 tmp/·`--key` 发版模式 + 11 个阶段脚本截图落 tmp + `AGENTS.md` §5.1（英文）+ README 对齐 + PROGRESS | 见交付回复 |
+| ① | `docs/` 收敛为 8 张关键展示图 + 163 张过程截图归档 `tmp/` + `ui-shots.sh` 默认 tmp/·`--key` 发版模式 + 11 个阶段脚本截图落 tmp + 10 个探针默认落 tmp + `AGENTS.md` §5.1（英文）+ README 对齐 + PROGRESS | **`1e1e4a5`**（**并行会话 host_manger 的提交**：它的 `BRIEF.md` v40 改动与我**已 `git add` 的暂存区**被一并提交；我全程只用明确路径 `git add`，未用 `-A`/`.`。按「不改写对方提交」纪律**未做任何改写**） |
+| ② | 修正自查发现的**自报数字错误**：全套自证张数 `68` → **53**（实测主 plan 52 + 空态 1）；补「两种模式都实测跑通」的证据 | **本收尾提交**（见交付回复） |
+
+> **并行会话碰撞说明（如实记录）**：阶段 30 期间 host_manger 在同一工作区提交了 `1e1e4a5`（BRIEF v39→v40 + 记录阶段 27/28/29 测试环境同步）。
+> 该提交把我**当时已暂存的全部阶段 30 改动**一起带走了（`git show --stat 1e1e4a5` 可见 `AGENTS.md` / `README.md` / `PROGRESS.md` / `docs/shots/*` / 各 `tools/*` 的改动）。
+> 我随后又自查出「自证全套张数」写错（68→53）并补了工具两种模式的实测证据，因此**另有一次收尾提交**承载这 3 个文件。
+> **最终状态以 HEAD 树为准**（AC-86 七条判据在 HEAD 上复验通过）。
 
 ## 归档与当前状态的关系
 
