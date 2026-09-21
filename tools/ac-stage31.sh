@@ -293,8 +293,14 @@ s=json.loads(sys.argv[1]); print('true' if s['rollbackButtons'] > 0 and s['viewS
       pass "⑧ 切到表格视图后的回归证据：$(u ac88_version_regression)"
       echo "  \$ grep -n '最多保留最近 10 个版本' README.md"
       grep -n '最多保留最近 10 个版本' README.md | sed 's/^/  /'
-      eq "⑧ README 写明保留策略" 1 "$(grep -c '最多保留最近 10 个版本' README.md)"
-      eq "⑧ README 写明导入张力（以本 FR 为准）" 1 "$(grep -c '已知张力' README.md)"
+      eq "⑧ README 写明保留策略（出现次数 ≥1）" "true" "$(python3 -c "
+import sys
+print('true' if int(sys.argv[1]) >= 1 else 'false')
+" "$(grep -c '最多保留最近 10 个版本' README.md)")"
+      eq "⑧ README 写明导入张力（以本 FR 为准）" "true" "$(python3 -c "
+import sys
+print('true' if int(sys.argv[1]) >= 1 else 'false')
+" "$(grep -c '已知张力' README.md)")"
       eq "页面运行时异常（retention-ui）" "[]" "$(u ac27_runtime_errors)"
     fi
 

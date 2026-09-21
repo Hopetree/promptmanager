@@ -1453,6 +1453,16 @@ dist/web 的 js+css gzip 合计 = 418757 B（阶段 29 收尾 418644 B ⇒ 阶�
   → `dist/server/app.js` → `services/markdown.js` 加载那一个 jsdom 单例（多一个约 200MB 的并发进程）；
   `tests/stage31-tags-ui.test.ts` 只读 `web/src` 文本、不加载 jsdom。**未改测试框架/并发度**（那是测试基础设施改动，超出本阶段范围）。
 
+**自查发现并修掉的一处「自造假红」（如实登记）**
+
+- **现象**：四个提交完成、工作区干净后复跑 `bash tools/ac-stage31.sh` 变成 **rc=1**，唯一失败项是
+  `❌ ⑧ README 写明保留策略 = 3（期望 1）`。
+- **根因**：**是我自己的断言写脆了**，不是产品问题 —— 我在写 AC 脚本时 README 里该短语只有 1 处，
+  但随后编辑 README（已知限制的版本语义段 + 界面表 + 命令示例）让它变成 **3 处**，而断言用了
+  `eq ... 1`（锁死出现次数）。锁次数会把"文档正常增补"变成假红。
+- **修法**：改成"出现次数 **≥1**"（`tools/ac-stage31.sh` ⑧ 的两条），并注明**不锁次数**的理由。
+- **复跑**：`bash tools/ac-stage31.sh` → `rc=0`，`✅ AC-87 / AC-88 全部通过`（❌ 计数 0）。
+
 ### ⑥ 本阶段新增单测（12 例；`npm test` 只增不减）| 文件 | 例数 | 覆盖 |
 | --- | --- | --- |
 | `tests/stage31-versions-retention.test.ts` | 7 | AC-88 ①–⑦ + 批量写入点回归（**全部直查库**：`readDb` 跑 `SELECT COUNT(*) / version_no / user_prompt`） |
