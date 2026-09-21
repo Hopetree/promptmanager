@@ -183,9 +183,22 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' -d '{"name":"cli"}' http://127.0.0.1:8767/api/tokens
 # → 201 {"id":1,"name":"cli",…,"token":"pm_…"}   ← 明文仅此一次
 curl -s -b /tmp/pm-jar http://127.0.0.1:8767/api/tokens                 # 列表（不含明文）
-curl -s -b /tmp/pm-jar -X DELETE http://127.0.0.1:8767/api/tokens/1     # 撤销（立即失效）
+curl -s -b /tmp/pm-jar -X DELETE http://127.0.0.1:8767/api/tokens/1     # 撤销（立即失效；行保留便于审计）
+
+# 硬删除（FR-96）：**只允许已撤销的行**，真删行、审计记录一并消失
+curl -s -b /tmp/pm-jar -X DELETE -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8767/api/tokens/1/permanent   # 204
 curl -s -H "Authorization: Bearer pm_…" http://127.0.0.1:8767/api/prompts   # 与 cookie 并存的第二条通道
 ```
+
+**撤销 vs 硬删除（语义不同，别混）**
+
+| 操作 | 路由 | 效果 |
+| --- | --- | --- |
+| **撤销** | `DELETE /api/tokens/:id` | 置 `revoked_at`：**立即失效**，但**行保留**（便于审计）；幂等（重复撤销仍 204）；不存在 → 404 |
+| **硬删除** | `DELETE /api/tokens/:id/permanent` | **真删行**（审计记录一并消失，不可恢复）→ 204；**未撤销 → 409 `token_not_revoked`**；不存在 → 404 |
+
+> 为什么硬删除要求"先撤销"：撤销是"立即失效但留痕"，删除是"连痕都不留"。若允许直接删有效凭据，
+> 一次误点就会**无声地**让正在被 CLI/agent 使用的 token 消失；强制两步让"失效"与"抹除"各占一次明确操作。
 
 明文 = `pm_` + 32 字节随机（base64url）。库里存两样东西：
 

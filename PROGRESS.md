@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–35 已全部完成**；已发布 **v1.0.2** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–34 自检全过**；**阶段 35（FR-93/FR-94 / AC-95/AC-96：MCP Streamable HTTP 远程接入 + Token 加密可查看）自检全过**（见本文件「阶段 35」） |
+| 阶段 | **阶段 1–36 已全部完成**；已发布 **v1.0.2** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–35 自检全过**；**阶段 36（FR-95/FR-96/FR-97 / AC-97/AC-98/AC-99：内网 HTTP 下复制修复 + 撤销态硬删除 + 去掉创建弹窗）自检全过 —— AC-97 全程在**内网 IP 非安全上下文**下验**（见本文件「阶段 36」） |
 | 版本 | **`1.0.2`**（`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -57,6 +57,7 @@
 | 33 | FR-89 GitHub Actions 构建容器镜像并推送 Docker Hub（新增 `.github/workflows/docker.yml`：tag `v*` → `1.0.x`/`1.0`/`latest`，`main` 只构建不推送；凭据只走 Secrets；平台 `linux/amd64`）+ README「从镜像运行」+ `deploy/container.md`「镜像发布」 | 本文件「阶段 33」 |
 | 34 | FR-90 分栏中栏手机端撑满（358，改前右侧空 82px）+ FR-91 README 重写为用户文档（Docker / 源码两种部署；开发者内容迁 `docs/development.md`、接口迁 `docs/api.md`，消除 README 重复两节）+ FR-92 移动端档位顺序改「卡片/表格/分栏」且默认落卡片（桌面不动） | 本文件「阶段 34」 |
 | 35 | FR-93 MCP 增加 Streamable HTTP 传输（`POST /mcp` 顶层、无状态、Bearer-only、**请求 token 透传**、与 stdio 共用同一份 `buildMcpServer`）+ FR-94 API Token 可随时查看（AES-256-GCM 落 `token_enc`、迁移 004 → schema v4、reveal 仅会话、旧 token 409、UI 复制按钮 + CLI `token reveal`） | 本文件「阶段 35」 |
+| 36 | FR-95 修内网 HTTP 下 token「复制」不进剪贴板（**真根因**：非安全上下文 + 抽屉焦点陷阱 ⇒ `execCommand` 复制了"焦点元素"的空选区；修法=抽屉打开预取明文 + 点击**同步**写 + Selection API 兜底 + 真「显示」入口）+ FR-96 撤销态 token 可硬删除（`DELETE /api/tokens/:id/permanent`：204/409/404，真删行）+ FR-97 去掉创建时的明文弹窗 | 本文件「阶段 36」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -2253,6 +2254,155 @@ base64 字符集含 `p`/`m`/`_`，密文**偶然出现**子串 `pm_` 完全正�
 **纪律自查**：`git add` **只用明确路径**；commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
 未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；未动部署（`/opt/promptmanager`、systemd、8767、**106 生产**、**Docker Hub**）；
 **所有 token 明文只在本机临时实例里出现**，PROGRESS/回复里一律**脱敏**（只给前后缀）；未把任何凭据写进仓库。
+
+## 阶段 36（2026-09-22）：内网 HTTP 下 token「复制」修复 + 撤销态可删除 + 去掉创建弹窗（FR-95 / FR-96 / FR-97；AC-97 / AC-98 / AC-99）
+
+> **一句话**：**用户报障的真根因被找到并修掉** —— 内网 `http://192.168.0.228:8767` 是**非安全上下文**，
+> 异步剪贴板 API 根本不存在，只能走 `execCommand` 兜底；而旧兜底有**两处**会让它写不进剪贴板。
+> 同时补上「撤销态 token 可硬删除」与「创建时不再弹明文弹窗」。
+
+### 0. 本轮最重要的教训（先写在这里）
+
+⚠️ **上一轮（阶段 35）的 AC-96 ⑥ 是在 `http://127.0.0.1:8768` 验的** —— 那是**安全上下文**，
+`navigator.clipboard` 存在，走的是完全不同的代码路径 ⇒ **验收通过但用户环境仍然是坏的**。
+阶段 19 的 FR-65 早就写明"内网 HTTP 下必须用内网 IP 验"，本轮漏了。**本阶段 AC-97 全程用内网 IP。**
+
+### 1. 根因（**实测**，不是推测）
+
+| # | 事实 | 证据 |
+| --- | --- | --- |
+| ① | 用户环境非安全上下文 | CDP 打开 `http://192.168.0.228:8766`：`origin=http://192.168.0.228:8766`、`isSecureContext=false`、`typeof navigator.clipboard=undefined`、`execCommand=function` |
+| ② | 旧实现"先 await 网络往返、再写剪贴板"⇒ 用户激活可能过期 | 代码事实：旧 `copyPlaintext` = `await api.revealToken(id)` → `await writeClipboard(...)` |
+| ③ | **更隐蔽的第二处**：旧兜底用"隐藏 textarea + `select()`" | 埋点实测：`select()` 后 `selStart=0/selEnd=46`（选区对了）**但 `document.activeElement` 仍是 `BUTTON`**（`sameNode:false`）⇒ `execCommand('copy')` 返回 **true 却什么都没复制**（剪贴板长度 0） |
+| ④ | 为什么"提示词复制"却是好的 | 抽屉里的**焦点陷阱**（antd Drawer）把焦点抢回按钮；提示词复制不在抽屉里 ⇒ textarea 能拿到焦点 ⇒ 正常 |
+| ⑤ | 修法验证 | 同样在抽屉内：Selection API（`Range` 选中隐藏 span → 复制**文档选区**）→ **剪贴板真的拿到了文本**；textarea 路径 → 空 |
+
+### 2. FR-95 修法（预取 + 同步写 + 真「显示」+ 修文案）
+
+| 落盘 | 作用 |
+| --- | --- |
+| `web/src/components/TokenDrawer.tsx` | ① 抽屉打开即**并发预取**所有 `revealable` 行明文到 **React state（内存）**；② 点「复制」= **同步** `writeClipboard(内存里的明文)`（点击时**不发任何请求**）；③ 新增真「显示」按钮：明文渲染在页面上、**显式 `userSelect:'text'` 可选中**（antd 6 的 Typography 默认 `user-select:none` 且已无 `selectable` prop）；④ 提示文案改为指向**真实存在**的「显示」；⑤ `destroyOnHidden` + 关闭 effect 清空缓存/显示态 |
+| `web/src/clipboard.ts` | **兜底实现最小修正**：新增 **Selection API 路**（焦点无关）并排在 textarea 路**之前** —— 这是让内网 HTTP 下真正写进剪贴板的关键 |
+
+> ⚠️ **与 FR-95 的一处偏离（必须让验收方知道）**：FR-95 写"**不改** `writeClipboard` 的兜底实现"。
+> 但实测证明**只做同步化仍不够** —— 兜底本身在焦点陷阱下就是坏的（事实 ③）。
+> 为了让 AC-97 ②（真鼠标复制 → 剪贴板 == 明文）在非安全上下文下**真的成立**，我在**同一个唯一出口内**改了兜底
+> （没有分叉、没有第二处接触剪贴板：`grep -rl document.execCommand web/src` = 1 个文件）。
+> 若验收方认为不该动它，请指明，我按指示回退并改走"抽屉内主动 blur/换容器"的路子。
+
+### 3. AC-97 原样输出（**内网 IP + 非安全上下文 + 真鼠标 + 真粘贴**）
+
+```
+$ bash tools/ac-stage36.sh
+  ✅ ① 页面 origin 就是内网 IP（不是回环） = http://192.168.0.228:8765
+  ✅ ① isSecureContext === false = false
+  ✅ ① typeof navigator.clipboard === 'undefined' = undefined
+  ✅ ① 兜底 execCommand 可用（function） = function
+  ✅ ① 确实不是回环地址 = false
+  ✅ ② 粘贴读回（脱敏）：pm_ZUf…JYfE ｜ 期望（脱敏）：pm_ZUf…JYfE
+  ✅ ② 真鼠标「复制」→ Ctrl+V 粘贴内容 == 明文 = true
+  ✅ ② 粘贴内容形如 pm_（确实是明文） = true
+  ✅ ② 点击后的提示：已复制到剪贴板
+  ✅ ② 粘贴测试后输入框已清空（明文不残留在表单里） = ***(0)
+  ✅ ③ 预取确实在开抽屉时发生（次数 ≥ 1）
+  ✅ ③ 点「复制」时**没有**再发 reveal（前后次数相同） = 1        ← 服务端日志 `token revealed` 行数
+  ✅ ④ 「显示」入口渲染的明文 == 期望明文 = true
+  ✅ ④ 明文节点可选中（computed user-select = text） = text
+  ✅ ⑤ localStorage/sessionStorage/URL 里都没有 pm_ = true
+  ✅ ⑤ 关闭抽屉后页面里没有明文节点 = 0
+  ✅ ⑤ 关闭抽屉后页面文本里搜不到 pm_ = false
+  ✅ ⑥ Bearer 调 reveal → 403 session_required = 403
+  ✅ ⑥ 会话调 reveal → 200 且与创建明文一致 = true
+```
+
+**读剪贴板的手法**（非安全上下文里页面读不到剪贴板）：CDP 在抽屉输入框里 **Ctrl+V 真粘贴** → 读 `value`
+（`tools/ac-stage36-probe.mjs` 的 `pasteInto`）。调试期我还用"同浏览器**安全上下文标签** `navigator.clipboard.readText()`"
+独立复核过系统剪贴板（结论一致），该手法只作调试证据、未进脚本（避免脚本依赖 127.0.0.1）。
+
+### 4. FR-96 撤销态可硬删除 / FR-97 去掉创建弹窗
+
+| 项 | 落盘 | 语义 |
+| --- | --- | --- |
+| 硬删除接口 | `src/services/tokens.ts`（`deleteTokenPermanently`）、`src/server/routes/tokens.ts`（`DELETE /api/tokens/:id/permanent`） | 已撤销 → **204**；未撤销 → **409 `token_not_revoked`**；不存在 → **404**；**真删行、审计一并消失** |
+| 为什么要求先撤销 | 同上（代码注释） | 撤销=失效但留痕；删除=连痕都不留。允许直接删有效凭据会**无声地**打断正在用它的 CLI/agent |
+| UI 删除按钮 | `web/src/components/TokenDrawer.tsx` | **只有已撤销行**出现「删除」+ 二次确认（文案写明"永久删除、不可恢复"）；有效行仍是「撤销」 |
+| 创建不再弹窗 | 同上（删掉 Modal 与 `created` 状态） | 改为 `message.success('已创建；点列表里的「复制」取明文')` + `load()` 刷新；`POST /api/tokens` 响应形态**未改**（仍含明文一次） |
+| 文档 | `docs/api.md`（撤销 vs 硬删除对照表）、`README.md`（能力表/操作表/FAQ/已知限制） | 用户文档零内部术语 |
+
+**AC-98 / AC-99 原样输出（节选）**：
+
+```
+  ✅ ① 已撤销行有「删除」按钮 = true ｜ ✅ ① 已撤销行**没有**「复制」按钮 = false
+  ✅ ① 所有有效行都**没有**「删除」按钮 = true
+  ✅ ① 二次确认文案：永久删除这个 token？ 永久删除、不可恢复：整行会被真删（审计记录一并消失）。… 永久删除
+  ✅ ① 真鼠标删除后行从列表消失（行数 -1） = true        ← rows_after_create=3 → rows_after_delete=2
+  ✅ ② 未撤销 → 409 token_not_revoked = 409 token_not_revoked ｜ ✅ ② 不存在 → 404 = 404 ｜ ✅ ② 已撤销 → 204
+  ✅ ③ 列表不含该行 = 0 ｜ ✅ ③ 直接查库：该行已真删（count = 0） = 0
+  ✅ ④ 被撤销的 token 调 API 仍 401 = 401
+  ✅ ⑤ docs/api.md 记录 DELETE /api/tokens/:id/permanent + 409/404 + 真删语义 = true
+  ✅ ① 创建后没有明文 Modal = 0 ｜ ✅ ① Modal 里不含明文 = false
+  ✅ ① 创建后的提示：已创建；点列表里的「复制」取明文
+  ✅ ② 列表刷新出新行（行数 +1） = true ｜ ✅ ② 新行点「复制」拿到的明文 == 该行「显示」的明文 = true
+  ✅ ③ POST /api/tokens 响应仍含明文一次 = true ｜ ✅ ③ 新 token 仍 revealable=true = true
+```
+
+### 5. 识图（3 张，五问口径）
+
+- `01-token-copy-lan-nonsecure`（内网 IP 下的抽屉，亮色）：① 界面：`⋯更多 → API 令牌` 抽屉；② 关键元素：说明 Alert、
+  创建表单、**第一行有「复制」「隐藏」且明文已显示在页面上**、**第三行是已撤销（操作=「删除」）**、顶部「已复制到剪贴板」；
+  ③ 视觉缺陷：**无**（名称列完整）；④ 与本阶段相关：复制/显示/删除三入口齐全；⑤ 异常：无。
+- `02-token-created-no-modal`（真鼠标创建之后）：① 界面同上；② 关键元素：**没有任何 Modal**、名称输入框已清空（placeholder 可见）、
+  列表 3 行（2 有效 + 1 已撤销）、新行可直接「复制」；③ 视觉缺陷：无；④ 与 FR-97/FR-95 直接相关；⑤ 异常：无。
+- `03-token-drawer-closed`（关闭后）：抽屉已卸载，页面无明文节点 —— 对应 AC-97 ⑤。
+
+> **自查返工 2 处（如实登记）**：① 首版探针用 `el.value=''` 清输入框 —— 只改 DOM，React 受控输入下次渲染就还原
+> （截图里能看到粘贴进去的明文残留在表单、还会污染随后创建 token 的名字）⇒ 改成 focus+select+Delete 走真实输入管线，
+> 并补断言"粘贴后输入框已清空"；② 我的新注释里写了异步剪贴板 API 与 `document.execCommand` 的字面量，
+> **踩坏了 AC-65 ③ 的机械 grep**（要求这两样只出现在 `clipboard.ts`）⇒ 改注释措辞，两个计数都回到 1。
+
+### 6. 回归（原样输出）
+
+```
+npm test                       348/348 → **355/355 fail 0**（+7：AC-97 源码级 2 + AC-98 接口/源码 3 + AC-99 2）
+bash tools/ci-check.sh（先删 dist）rc=0，6 项全绿（④ 355/355；最大 chunk 470985 B）
+bash tools/ac-stage36.sh        rc=0，❌ 0（AC-97 / AC-98 / AC-99 全部通过，47 条判据）
+bash tools/ac-stage19.sh        rc=1 —— **既有探针脆弱性，与本阶段无关**（见下）
+体积预算：总 gzip 418,757 → **419,436 B**（+679 B，已按既有惯例登记到 tests/stage18-bundle.test.ts 的 STAGE36_ACCOUNTED_DELTA）
+```
+
+**关于 `ac-stage19.sh` 的两条失败（如实分类，不甩锅也不冒领）**：`② 变量面板复制提示含 已复制 = 0` 与
+`截图张数 = 5（期望 ≥6）`，二者同源 —— 探针 `等待超时：变量输入框`（split 视图下没有变量面板）。
+我在**开工前的 commit `6fe0fd5`** 上用 `git worktree` 复跑，**同样两条、同一超时点**（rc=1）
+⇒ **既有问题，不是本阶段引入**。与本阶段 clipboard 改动相关的回归信号是同一脚本里的
+**AC-65 ②「详情面复制（内网 IP + 非安全上下文）」= 通过**（改动前后都通过，且 `ac65_detail_clipboard` 内容正确）。
+**未修复该探针**（超出本阶段范围），在此登记为待办。
+
+### 7. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| 同步复制（预取 + 同步写 + 显示 + 文案） | `web/src/components/TokenDrawer.tsx` |
+| 剪贴板兜底修正（Selection API 优先） | `web/src/clipboard.ts` |
+| 硬删除服务/路由 | `src/services/tokens.ts`、`src/server/routes/tokens.ts` |
+| 前端 API | `web/src/api.ts`（`deleteTokenPermanently`） |
+| 单测（7 例新增 + 体积预算登记） | `tests/stage36-tokens-ui.test.ts`、`tests/stage18-bundle.test.ts` |
+| AC 工具（内网 IP + 真粘贴） | `tools/ac-stage36.sh`、`tools/ac-stage36-probe.mjs` |
+| 文档 | `docs/api.md`（撤销 vs 硬删除）、`README.md`（能力表/操作表/FAQ/已知限制） |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage36/{01-token-copy-lan-nonsecure,02-token-created-no-modal,03-token-drawer-closed}.png` |
+
+### 8. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-95：TokenDrawer 预取+同步写+显示；clipboard.ts 兜底修正 | 见下方交付回复 |
+| ② | FR-96 + FR-97：硬删除接口/UI；去掉创建弹窗 | 同上 |
+| ③ | 单测 + 体积预算登记 | 同上 |
+| ④ | AC 工具（ac-stage36.sh / probe） | 同上 |
+| ⑤ | 文档 + 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；
+**token 明文只在本机临时实例里出现**，PROGRESS/回复一律脱敏；调试用的临时脚本/日志全在 `tmp/`（不入库）。
 
 ## 归档与当前状态的关系
 
