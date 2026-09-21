@@ -710,3 +710,175 @@ $ bash tools/ac-stage31.sh  → rc=0 ｜ 0 个 ❌ ｜ ✅ AC-87 / AC-88 全部�
 **⚠️ 两条润色观察（不阻塞，供用户决定是否调整）**：
 1. **标签间隙偏紧**：4px 是 FR-85 要求值、且与卡片视图一致 ⇒ **不算问题**；若觉得"呼吸感"不足可调 6px（一句话即可改）；
 2. **版本保留文案偏弱**：识图评"readable but easy to miss"（浅灰小字）—— 若希望用户更容易注意到这条规则，可加强对比度或加 `tooltip`。
+
+---
+
+# 阶段 32 验收（FR-87 CI 干净环境必失败 + FR-88 登录页简化）— 结论：**过**
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`608a929`**（收尾）—— 实现 `69a8d46`（FR-87：`ci-check.sh` 顺序 + `package.json` 前置 + 5 例单测，3 文件）/ `91e45e7`（FR-88：`LoginPage.tsx` 简化 + 5 例单测，2 文件）/ `431aca3`（AC 脚本 + 探针，2 文件）/ `3c53bb4`（文档，3 文件）/ `fbee2ea`（AC-89 ④ 如实说明，1 文件）/ `608a929`（收尾修正，1 文件） |
+| 规格 | BRIEF **v42**（FR-87 / FR-88；AC-89 / AC-90；阶段 32） |
+| 验收方 | host_manger（**独立复现**：自己起实例、自己跑探针、自己看图、自己查库/源码） |
+| 结论 | **过** —— 唯一未独立核实项是 **AC-89 ④（GitHub Actions 结论）**，原因与等价证据见 §5 |
+
+## 1. AC-89 —— **我自己跑**（不采信它的自述）
+
+### ① 干净环境（先删 `dist`）跑全套质量检查
+
+```
+$ rm -rf dist && bash tools/ci-check.sh
+=== ② 构建（必须先于类型检查） ===
+  ✅ ② npm run build（rc=0）  0 条 >500KB 告警
+=== ③ 类型检查（依赖 ② 的构建产物） ===
+  ✅ ③a typecheck:web（rc=0）  0 个 TS 错误
+  ✅ ③b typecheck:tests（rc=0）  0 个 TS 错误
+=== ④ 全量测试 ===
+  ✅ ④ npm test（rc=0）  ℹ tests 329 ℹ pass 329 ℹ fail 0
+=== ⑤ 体积预算 ===
+  ✅ ⑤ 体积预算（最大 chunk ≤ 500KB）（rc=0）  最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1302 KB）
+== 汇总 ==（6 行全 ✅）
+  ✅ 代码质量检查全部通过（6 项）
+
+$ echo $?            → 0     ｜ ✅ 计数 13 ｜ ❌ 计数 0
+```
+
+### ② 顺序（构建必须在前）
+
+```
+$ grep -n 'npm run build\|npm run typecheck' tools/ci-check.sh
+66:npm run build >"$LOG_DIR/build.log" 2>&1
+72:npm run typecheck:web >"$LOG_DIR/typecheck-web.log" 2>&1
+74:npm run typecheck:tests >"$LOG_DIR/typecheck-tests.log" 2>&1
+⇒ 66 < 72 < 74 ✅（文件头 6–25 行注释写明"为什么必须先构建"，含 TS2307 与 rm -rf dist 复现命令）
+```
+
+### ③ 对照实验（裸跑 `typecheck:tests`）
+
+```
+$ node -p "require('./package.json').scripts['typecheck:tests']"
+npm run build:server && tsc -p tsconfig.tests.json      ← 脚本自带构建前置（第二层防护）
+
+$ rm -rf dist && npm run typecheck:tests
+rc = 0 ｜ 错误数 = 0          （**改前 38** —— 我在派活前自己复现过：35 个 TS2307 + 3 个级联 TS7006）
+```
+
+> **判定**：BRIEF 只要求第一层（调顺序），实现方**多加了一层**（把前置写进 `typecheck:tests` 本身）——
+> 我认这是**超出要求且正确**的做法：只调顺序时，"任何裸跑 `typecheck:tests` 的人/脚本"仍会撞 38 个 TS2307。
+
+## 2. AC-90 —— **我自己跑**（自起临时实例 + 真鼠标探针）
+
+我**没有**用它的实例，也没碰测试环境数据：**8768 + `/tmp/hm-acc32/data`** 起一个临时实例，自己设临时口令、
+自己造 3 条夹具（`POST /api/prompts`），再跑它交付的探针（真鼠标 `Input.dispatchMouseEvent`）：
+
+```
+ac90_username_value={"value":"","placeholder":"用户名","autocomplete":"username","type":"text"}
+ac90_scan={"needleInHtml":0,"needleInText":0,"noiseHits":{"SELF-HOSTED":0,"数据只在本机":0,"网页不提供注册":0,"未认证一律":0},
+           "textSample":"PromptManager | 用户名 | 口令 | 登 录"}
+ac90_keep={"brandArt":true,"brandArtSize":{"w":96,"h":96,"src":"/promptmanager-96.png"},"title":true,
+           "usernameInput":true,"passwordInput":true,"submitButton":true,"submitText":"登 录"}
+ac90_wrong_password={"alertText":"用户名或密码不正确","visible":true,"stillOnLogin":true}
+ac90_mobile_overflow={"docScrollWidth":390,"docClientWidth":390,"loginWidth":390,"viewport":390}   ← 不横向溢出
+ac90_mobile_username_value=""
+ac90_dark_scan={…needleInHtml:0, needleInText:0, noise 全 0…}   ｜ ac90_dark_bg="rgb(1, 1, 2)"
+ac90_after_login={"loginGone":true,"headerBrand":"PromptM","splitList":true,"cardOrTable":true}
+ac32_runtime_errors=[]        服务端 5xx 计数 = 0
+```
+
+源码级（**我自己 grep**）：
+
+```
+grep -c 'admin' web/src/components/LoginPage.tsx      → 0      （含注释，大小写不敏感口径亦 0）
+grep -c 'initialValues'  …LoginPage.tsx               → 0
+四条噪音（SELF-HOSTED / 数据只在本机 / 网页不提供注册 / 未认证一律）→ 各 0
+保留项：pm-brand-art-login → 1 ｜ PromptManager → 1 ｜ placeholder="用户名" → 1
+```
+
+**改前值的独立性**：`git show 91e45e7` 的 diff 显示改前确有 `initialValues={{ username: 'admin' }}` 与 `placeholder="admin"`
+⇒ "改前 `value="admin"`" 与源码一致（**不依赖它的自述**）。
+
+## 3. 看图（我自己识图）
+
+| 图 | 我的结论 |
+| --- | --- |
+| `01-login-light` | 只剩 4 个可见元素：96px 品牌图 → `PromptManager` 大标题 → 用户名（**空**，占位「用户名」）→ 口令 → 黑色胶囊「登录」；**无任何噪音文案** ✅ |
+| `02-login-error-light` | 红色 `Alert`「用户名或密码不正确」可见；框里的 `admin` 是**探针键入**的（`ac90_wrong_typed_user=admin`），不是预填 ✅ |
+| `03-login-mobile` | 390×844 纵向排布、无横向溢出；⚠️ 标题**词中折行**（`PromptManage`/`r`）—— **既有问题**，见 §6 |
+| `04-login-dark` | 近黑画布 + 浅色标题 + 白色胶囊按钮；用户名框空 ✅ |
+| `05-after-login-light` | 真鼠标登录后进主界面：顶栏 `PromptM` + 「欢迎回来」提示 + 分栏列表（3 条夹具）+ 右栏详情（**顺带复验阶段 31 的「最多保留最近 10 个版本」文案仍在**）✅ |
+| `8767-login`（部署后，见 §7） | 测试环境登录页同样**无预填、无噪音** ✅ |
+
+## 4. 过程审查 — 干净（窗口：15:20–16:25，本阶段全部）
+
+```
+工具调用 122 次（bash 61 / edit 35 / read 13 / read_image 6 / write 5 / job_output 1 / web_fetch 1）
+跑测试 14 次（含 npm test 全量 329）｜ 服务端 5xx 0
+git 命令 8 条：全部 `git add <明确路径>` → **每次都先 `git diff --cached --name-only` 核暂存区** → commit（新纪律生效 ✅）
+  · 提交边界干净：69a8d46(3) / 91e45e7(2) / 431aca3(2) / 3c53bb4(3) / fbee2ea(1) / 608a929(1) 文件
+  系统包管理 0 ｜ 写系统路径 0 ｜ curl|bash 0 ｜ 全局安装 0 ｜ git add -A 0 ｜ 历史改写/强推 0 ｜ sudo 0
+  rm -rf 真目标：只有 `dist` 与脚本内临时变量 `"$T"`
+  未碰 BRIEF.md / STANDARDS.md（8860971..HEAD 改这两个文件的提交数 = **0/0**）✅
+  三端一致：LOCAL = ORIGIN = GITHUB = **608a929** ｜ 工作区 0 ｜ `git ls-files tmp` = 0
+  提交归属对账：**25 dsh + 17 host_manger**
+  reflog 正常（无 reset/amend/rebase）｜ fsck 仅 dangling 对象（worktree 残留，正常）
+  凭据：全历史出现 `_env/` 的文件数 **0**；当前树 `_env/` 0
+  系统侧：`find /etc /usr/local/bin -newermt '09-21 15:20' ! -newermt '09-21 16:20'` → **0 项**（228 未重启、未装包）
+  别的项目：同窗口 `find projects/ -maxdepth 2 … -not -path '*promptmanager*'` → **0 项** ✅
+```
+
+## 5. 回复对账 + **唯一未独立核实项**
+
+它收尾回复里的每条结论都能在落盘位置找到对应（`PROGRESS.md` 阶段 32 的 ①–⑨ 小节、`tools/ci-check.sh`、
+`package.json`、`web/src/components/LoginPage.tsx`、`tests/stage32-*.test.ts`、`tools/ac-stage32*`、
+`README.md`、`AGENTS.md`）——**唯一的结构性例外是收尾 commit hash `608a929`**（不可能写进它自己那次提交），
+已在本文件上方「被验收 commit」栏记录。
+
+**AC-89 ④（GitHub Actions 实跑结论）—— 我同样拿不到，如实记录（不替它圆场）**：
+
+```
+仓库私有 ⇒ 未认证 api.github.com/repos/Hopetree/promptmanager 与 /actions/runs 都是 404
+我这边也**没有任何可查凭据**：本容器与 228 均无 gh CLI；`_env/` 无 token；远端是 SSH 且无 credential helper
+（我自己复核过：`command -v gh` 空、`grep -rl GITHUB_TOKEN _env/` 空）
+⇒ 可核实的只有"推送已落地"（三端同 sha 608a929，workflow `on: push: branches: ['**']` ⇒ run 已触发）
+⇒ **最强等价证据**：CI 跑的就是 `npm ci` + `bash tools/ci-check.sh`，而 AC-89 ① 已在**先删 `dist` 的干净环境**把同一脚本跑到 rc=0 / 6 项全绿
+```
+
+⇒ **待用户复核**：登录 <https://github.com/Hopetree/promptmanager/actions> 看 `608a929` 上 `ci` 的结论（**这是本次唯一需要人看一眼的项**）。
+
+## 6. 未采纳的判断 + 两条既有缺陷（我已独立确认"既有"）
+
+1. **它没有把四条技术说明搬进「关于」页** —— FR-88 的保留/删除清单是穷举的，未要求新增；我也认这个判断（避免与 FR-52「信息克制」冲突）。
+   信息没丢：CLI 设口令在关于页「维护」段、`/healthz` 在「服务自检」段、401 规则在 `README`。**我同意不追加**。
+2. **`README.md` 有重复两节**（`## 代码质量检查` / `## 怎么验证` 各 2 次，第 2 份是含 `ac-stage9.sh` 的陈旧副本）：
+   我实测 `grep -c` = 2/2，且 `git log -S` 显示自 `8efd440` 起就有 ⇒ **既有**，非本阶段引入 → 记入 backlog **R-5**。
+3. **登录页窄屏标题词中折行**：我按"标题元素与样式一字未动、只删了兄弟节点 ⇒ 可用宽度不变"判定 **既有** → 记入 backlog **R-6**。
+
+## 7. 上线：测试环境（8767）已同步 ✅（2026-09-21 16:24）
+
+> 本阶段**不含数据/契约变更**（CI 脚本 + 登录页展示层），按既有流程同一轮完成。**生产（106）未动**（见 §8）。
+
+```
+$ sudo bash /tmp/pm-deploy.sh        （我的脚本 projects/greenhouse/scripts/pm-deploy.sh，本轮新增 FR-88 冒烟）
+  同步 → 权限 → npm install → 构建（✓ built in 501ms）→ systemctl restart promptmanager
+  is-active=active ｜ NRestarts=0 ｜ enabled=enabled ｜ healthz={"status":"ok","version":"1.0.0"}
+  未认证访问 /api/prompts = 401 ✅ ｜ 产物裸模块引用 = 0 ✅
+  登录页真实渲染（>0 才算能渲染）= 1 ✅
+  **FR-88 新增冒烟**：登录页 DOM 里账号名出现次数 = **0** ✅ ｜ 四条噪音合计 = **0** ✅
+  数据：prompts=19（用户数据未被触碰）✅
+  新 chunk：index-DgehR1MS.js（旧 index-Cpg5tUSj.js）⇒ 新代码已生效
+$ 我自己再验：错口令 POST /api/login → **401** `{"error":"invalid_credentials"}` ✅（不碰用户账号）
+$ 我自己再看图：8767 登录页 = 无预填、无噪音 ✅
+```
+
+**工具改进（防再犯，已落盘）**：`pm-deploy.sh` 增加 **FR-88 冒烟两项**（登录页 DOM 里账号名 = 0、四条噪音 = 0）——
+理由：这是**用户可见的安全项**，若有人把预填加回来，必须在**部署当时**就红，而不是等用户打开页面发现账号名被暴露。
+
+## 8. 验收方自省（我的失误与纪律）
+
+1. **我的操作顺序曾制造一次"假红"**：我为跑 AC-89 ③ 执行了 `rm -rf dist && npm run typecheck:tests`
+   （只构建服务端）⇒ **前端产物 `dist/web` 缺失**，随后第一次跑探针时 `GET / = 404`、探针超时、`splitList=false`。
+   **这不是产品缺陷，是我的操作顺序**；`npm run build` 重建后一切正常。
+   ⇒ **教训（值得写进技能）**：在**共享工作副本**里跑"删产物"类验收命令后，**必须先恢复到可运行状态**再跑运行时验收；
+   并且 `splitList=false` 这类"少了一个元素"的结果**先怀疑夹具/环境**（我当时是空库 + 无前端产物，两个原因叠在一起）。
+2. 验收命令是在 dsh **仍在回答用户追问**（turn 7）时跑的 —— 我只碰了 gitignore 的构建产物，但纪律上**应尽量选它停手时做**。
+3. 阶段 32 的 AC-90 我**补了 3 条夹具**（它自测时只有 1 条）——夹具按真实数据分布构造这条纪律继续有效。
