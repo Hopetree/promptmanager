@@ -1096,3 +1096,79 @@ git：全部 `git add <明确路径>` + **每次 commit 前核 `git diff --cache
 
 - **派活前把"改前值"量死（276/292）**，实现方交付后我能量到同一个数（358/374）⇒ 本轮**零返工**，这条做法值得继续。
 - 但我的 **AC 措辞**给了实现方一个含糊判据（见 §5）——**"判据要能一眼看出量的是哪个元素"**。
+
+---
+
+# 阶段 35 验收（FR-93 MCP Streamable HTTP 传输 + FR-94 Token 可随时查看）— 结论：**过**（两条独立，都过）
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`6fe0fd5`**（收尾）—— 交付 `008338e`（FR-93 MCP HTTP + 凭据透传 + 5 例单测）/ `162614d`（FR-94 Token 加密可查看 + 迁移 004 + CLI + UI + 10 例单测）/ `b74a3ce`（AC 工具 + 真客户端脚本）/ `6fe0fd5`（文档 + PROGRESS） |
+| 规格 | BRIEF **v46**（FR-93 / FR-94；AC-95 / AC-96；D-35；阶段 35） |
+| 验收方 | host_manger（**用官方 Python MCP 客户端独立握手 + 自己起临时实例 + 自己点 UI 读剪贴板 + 自己查库**） |
+| 结论 | **过** |
+
+## 1. AC-95 MCP Streamable HTTP —— **我用官方客户端（`mcp==1.30.0`）自己跑**
+
+```
+① 正向（带有效 token，打 http://192.168.0.228:8768/mcp）：
+   initialize → serverInfo = promptmanager 1.0.2 ｜ protocolVersion = 2025-11-25
+   tools/list → prompt_search, prompt_get, prompt_render
+   tools/call prompt_search → 命中夹具 2 条；prompt_get(1) → 返回正文
+② 负向：不带 Authorization → 401（客户端 HTTPStatusError 401 + curl `{"error":"unauthorized"}`）
+        错 token           → 401（同上）
+   **精确复验**：只发这两次负向请求，内部 `/api/` 请求数 **8 → 8（未触碰内部 API）** ✅
+③ 凭据透传（硬证据）：**服务进程 env 里 `PM_API_TOKEN` 出现次数 = 0**，而上面 /mcp 的工具调用成功
+   ⇒ 只可能用的是**请求头里的 token**（若回退 env 必失败）；`usage_events` 记 `channel='mcp'` ✅
+④ stdio 不回归：`bin/pm-mcp.mjs` + env 方式握手 → 三工具 ✅
+⑤ 文档（我逐处核）：`docs/api.md` §5.1（方法/必需头/401/无状态/透传）、`README.md`「远程 MCP 接入」（**内部术语 = 0**）、
+   `AGENTS.md` 英文段、`deploy/container.md` §7.1（反代 `/mcp` + 透传 `Authorization`）✅
+⑥ 不泄密：服务日志里 token 明文 **0** 次 ✅
+```
+
+> ⚠️ **一处口径如实记录**：`usage_events` 表**只有 `channel`，没有 `token_id` 列**（我独立查了表结构）——
+> 所以"该次取用归属 token A"**无法直接查证**，只能用上面 ③ 的两条间接证据（env 无凭据 + 调用成功）。
+> 实现方**主动登记了这一点**并说明"如需直接归因请另下指令"。**我认可**（不阻塞本阶段；AC 里那句"归属 token A"是我写宽了）。
+
+## 2. AC-96 Token 可随时查看 —— **我自己跑**
+
+| # | 判据 | 我的实测 |
+| --- | --- | --- |
+| ① | 迁移 | `ok: schema at v4`；`api_tokens` 含 `token_enc`；`schema_migrations=[1,2,3,4]` ✅ |
+| ② | 新建可查看 | `POST /api/tokens/:id/reveal`（会话）→ **200**，明文与创建时**逐字相同**；列表 `revealable=true/false` 正确且**响应不含 `pm_`** ✅ |
+| ③ | 旧 token 两态 | 我把 `token_enc` 置 NULL 模拟迁移前旧 token → reveal **409 `token_not_revealable`**；**该 token 打 `/api/prompts` 仍 200** ✅ |
+| ④ | 权限 | 用 **Bearer** 调 reveal → **403 `session_required`**（消息明说"只允许浏览器会话"）✅ |
+| ⑤ | 密文与密钥 | `token_enc` = 100 字节、**不含 `pm_` 前缀**；密钥文件 **600 root**；**重启后 reveal 仍成功且明文一致** ✅ |
+| ⑥ | UI（真鼠标 + 剪贴板） | 真鼠标点 `⋯更多 → API 令牌` → 点 `pm-token-copy-1` → **剪贴板 sha256 与期望 token 完全一致**（长度 46）；旧 token 行有 `pm-token-unrevealable-2`；无 JS 异常 ✅ |
+| ⑦ | 密钥缺失/恢复 | 移走密钥 → **500 `token_enc_key_unavailable`**（错误体不含明文、**服务不崩**、**鉴权仍 200**）；恢复后 reveal 恢复 ✅ |
+| ⑧ | 不泄密 | 应用日志里明文 **0** 次 ✅ |
+
+## 3. 过程审查 — 干净（窗口 22:40–00:30）
+
+```
+工具调用 85 次（bash 59 / write 10 / read 7 / edit 5 / job_output 2 / read_image 2）
+git：4 个提交，全部 `git add <明确路径>` + **commit 前核暂存区**；提交边界 6 / 12 / 3 / 5 文件
+跑测试/AC/MCP 相关 37 次（含它自建 .venv 用官方 Python 客户端做真客户端验证）
+**未触碰部署/系统/别的机器**（临时实例用 `mktemp -d` 目录，未用 8767/106）✅ ｜ 三端一致 `6fe0fd5`
+回归：`npm test` **348/348**（我复核）+ `ci-check` 先删 dist 全绿（它跑）
+```
+
+## 4. 回复对账 + **它自己登记并修掉的两处**（值得记）
+
+1. **断言假红**：首版用 `token_enc LIKE '%pm_%'` 判"密文不是明文" —— base64 字符集含 `p`/`m`/`_`，**偶然命中是正常的**
+   （它实测 id=1 就命中了）⇒ 判据改为"**不以 `pm_` 前缀开头**" + "≠ 明文" + "长度符合 base64"。**我认可这个修正**（我的检查本来就用的是"不含 `pm_` 前缀"口径）。
+2. **它自己识图发现的观感回归**：新增「令牌」列后 720px 抽屉把名称挤成 `A...` ⇒ 抽屉 **720 → 880** + 名称列 `width: 200`，重跑探针确认。
+
+⇒ 两处都是**主动自查 + 修正 + 登记**，不是被我抓出来的。
+
+## 5. 缺口与观察（不阻塞）
+
+1. `usage_events` **无 `token_id` 列** ⇒ 无法按 token 直接归因（如需，另行派活）。
+2. **远程 MCP 目前只在仓库与测试环境可用**：**106 生产仍是 `1.0.2`**（既没有 `/mcp`，也没有 token 可查看）——
+   用户此前明确"不用发 tag"，故本轮**未动生产**。要让 QwenPaw 的远程 MCP 指向生产，需要一次发版。
+
+## 6. 验收方自省
+
+- 我 AC-95 ③ 写了"usage 记录里该次取用**归属 token A**"，而该字段**根本不存在** —— 实现方发现并如实登记。
+  ⇒ **教训（与阶段 34 的 AC-92 ④ 同源）：写 AC 前先把目标表结构/字段查清，判据只能落在真实存在的东西上。**
+- 本轮我坚持"派活前把可验证的锚点钉死"（临时实例 + 官方客户端 + 查库 + 真鼠标），**零返工**。
