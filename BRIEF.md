@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v36 |
+| 版本 | v37 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -1563,7 +1563,11 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
     ⑦ **可上手性自检**：以"**一个没有任何上下文的新会话**"视角回答 —— 「我只有这份 AGENTS.md + 这个仓库，
        能不能在 5 分钟内把它跑起来、并知道该遵守什么？」把自检发现的缺口**就地补掉**，过程与结论写进 PROGRESS。
     ⑧ **必须全英文**：`AGENTS.md` **不得含任何 CJK 字符**（含中文标点）——
-       判据：`LC_ALL=C grep -cP '[\x{4e00}-\x{9fff}\x{3000}-\x{303f}\x{ff00}-\x{ffef}]' AGENTS.md` → **0**
+       判据：`grep -cP '[\x{4e00}-\x{9fff}\x{3000}-\x{303f}\x{ff00}-\x{ffef}]' AGENTS.md` → **0**
+       ⚠️ **不要加 `LC_ALL=C`**（**v37 修正** —— 由实现方在阶段 28 实测发现并报告）：`LC_ALL=C` 会把 PCRE2 压进**字节模式**，
+       此时 `\x{}` 的上限是 `0xFF` ⇒ 原命令**永远报错 rc=2**、拿不到 0；而"顺手修"成 `LC_ALL=C grep -cP '\p{Han}'` 会**假绿**
+       （对**纯中文**文件实测也返回 0）。**正确判据** = 本行命令（去掉 `LC_ALL=C`、保留码点区间，含中文标点），
+       或 `grep -cP '\p{Han}'`（**不含**中文标点）。
        （依据 `/root/greenhouse/STANDARDS.md` §5.1：**AI 代理指令文件一律英文**，便于 AI 识别与更新）。
   - 期望：①–⑧ 全过（附文件路径、行数、各步原样输出；⑧ 附 grep 命令与命中数）。
 
@@ -1749,6 +1753,13 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v37 2026-09-21（修正 AC-83 ⑧ 的判据命令 —— 实现方实测发现）**：**去掉判据里的 `LC_ALL=C`**。
+  背景：实现方在阶段 28 按 AC-83 ⑧ 原样执行判据时拿到 `rc=2`（`grep: character value in \x{} or \o{} is too large`），
+  遂**做了对照实验**并报告：`LC_ALL=C` 会把 PCRE2 压进**字节模式**（`\x{}` 上限 0xFF）⇒ 原命令**永远跑不通**；
+  而"顺手修"成 `LC_ALL=C grep -cP '\p{Han}'` 会**假绿**（对纯中文文件也返回 0）。
+  我在验收时**独立复现确认**：原判据 rc=2；去掉 `LC_ALL=C` 的同区间判据对英文版 = 0、对中文版 = 192；`\p{Han}`（不带 `LC_ALL`）对中文版 = 188。
+  ⇒ **判据改为**：`grep -cP '[\x{4e00}-\x{9fff}\x{3000}-\x{303f}\x{ff00}-\x{ffef}]' AGENTS.md` → **0**（含中文标点，**不加 `LC_ALL=C`**）。
+  **这是"实现方发现规格缺陷 → 改规格而不是迎合"的正面案例**（与 v5/v6 的 FR-16 同类）。
 - **v36 2026-09-21（用户定「文档语言规范」）**：**`AGENTS.md` 必须全英文** —— 用户明确「**给 AI 看的文件内容都使用英文，方便 AI 识别和更新**」。
   依据 **`/root/greenhouse/STANDARDS.md` §5.1（新增）**：**AI 代理指令文件（`AGENTS.md` / `CLAUDE.md` / `.cursorrules` 等）一律英文**；
   其余文档（`BRIEF` / `STANDARDS` / `PROGRESS` / `VERIFY` / `README` / `deploy/**` / `docs/**`）**保持中文**（人机共读）。
