@@ -985,7 +985,7 @@ $ git diff --name-only package.json package-lock.json → 空（无新依赖）
 | --- | --- | --- |
 | ① | FR-82 表格批量 UI（半选态/尺寸/间距）+ FR-83 元信息行（间距/换行/chip）+ 源码级测试 + AC 脚本 + 截图 + 文档 | **`750464b`** `feat(web): 阶段 29 —— 阶段 27 的 5 条视觉细化（FR-82 / FR-83）` |
 | ② | 对抗性自审第 1 轮补强：半选态视觉覆写的 `getComputedStyle` 数值断言（探针 + 脚本 + PROGRESS） | **`9993327`** `test(ac29): 对抗性自审补强 —— 半选态视觉覆写的 computed-style 数值断言` |
-| ③ | 对抗性自审第 2 轮（5 个独立 checker）修 6 条缺陷：体积记账死代码 / 半选 hover 白底白杠 / 删除请求数未量 / 窄面板不断言 / 截图存在性无断言 / 全选与夹具前置条件断言过松 | 见交付回复 |
+| ③ | 对抗性自审第 2 轮（5 个独立 checker）修 6 条缺陷：体积记账死代码 / 半选 hover 白底白杠 / 删除请求数未量 / 窄面板不断言 / 截图存在性无断言 / 全选与夹具前置条件断言过松 | **`0f75b4d`** `fix(web): 对抗性自审第 2 轮 —— 修 6 条真实缺陷（半选 hover / 体积记账 / 断言过松）` |
 | 收尾 | 本表（commit hash 回填）+ `docs/dev-history/doublecheck-stage29-report.md` 交付记录 —— **docs-only** | 见交付回复（提交无法自引用自身 hash） |
 
 
