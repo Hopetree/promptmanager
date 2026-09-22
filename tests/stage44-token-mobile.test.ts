@@ -28,11 +28,19 @@ test("AC-108 ①（源码级）：表格**必须**有可滚动容器 —— 设�
    * 数值 419 = 五个定宽列之和 + 名称列的最小可读余量：宽容器下 `min-width: 100%` 让它撑满（桌面逐像素不变），
    * 窄容器下 419 > 350 才溢出并可横滚。两端行为分别由 AC-108 ①/⑤ 的像素数钉住。
    */
-  assert.ok(/scroll=\{\{\s*x: \d+ \}\}/.test(drawer), '必须设**数值** scroll.x（而非 max-content）');
+  assert.ok(/scroll=\{\{\s*x: [A-Za-z_$][\w$]* \}\}/.test(drawer), '必须设 scroll.x（由列定义推导出的常量）');
   assert.equal(/scroll=\{\{\s*x: 'max-content'/.test(drawer), false, '不得用 max-content（会把桌面名称列撑大、冒出横滚条）');
-  // 数值必须 ≥ 五个定宽列之和（104+104+76+123+50 = 457？否 —— 是 457 减去名称余量；这里核"够放下定宽列"）
-  const scrollX = Number(/scroll=\{\{\s*x: (\d+) \}\}/.exec(drawer)?.[1] ?? '0');
-  assert.ok(scrollX >= 419, `scroll.x 必须 ≥ 419（放得下五个定宽列）实际 ${String(scrollX)}`);
+  assert.equal(/scroll=\{\{\s*x: \d+ \}\}/.test(drawer), false, '不得再写死数值（FR-107：硬编码 419 曾把名称列压成 0 宽）');
+  // 常量必须真的**由各列 minWidth 求和**得出，而不是又一个手写数字（D-45 ② 的落点）
+  const sumExpr = /const TOKEN_TABLE_MIN_WIDTH =\s*([\s\S]*?);/.exec(drawer)?.[1] ?? '';
+  assert.ok(sumExpr !== '', '必须能定位 TOKEN_TABLE_MIN_WIDTH 的定义');
+  for (const part of ['TOKEN_NAME_MIN_WIDTH', 'TOKEN_MASK_MIN_WIDTH', 'TOKEN_STATE_MIN_WIDTH', 'TOKEN_USE_MIN_WIDTH', 'TOKEN_LAST_USED_MIN_WIDTH', 'TOKEN_ACTION_MIN_WIDTH']) {
+    assert.ok(sumExpr.includes(part), `scroll.x 必须把 ${part} 计入求和（改列宽时 x 自动跟着变）`);
+  }
+  assert.equal(/\d/.test(sumExpr), false, '求和表达式里不得出现字面数字（否则又会漂移）');
+  // 名称列必须有可读下限（FR-107 ①：≥ 60px）
+  const nameMin = Number(/const TOKEN_NAME_MIN_WIDTH = (\d+);/.exec(drawer)?.[1] ?? '0');
+  assert.ok(nameMin >= 60, `名称列 minWidth 必须 ≥ 60（实际 ${String(nameMin)}）`);
   // tableLayout=fixed 仍要在（它让列宽真正生效；与 scroll.x 并存，不冲突）
   assert.ok(/tableLayout="fixed"/.test(drawer), '仍须 tableLayout="fixed"');
   // 列头与顺序不变（6 列）

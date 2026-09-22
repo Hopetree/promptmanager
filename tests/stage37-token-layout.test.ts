@@ -48,7 +48,15 @@ test('FR-98 保留目标 ③：表格有可滚动容器（`scroll.x`）且 fixed
    * `scrollWidth === clientWidth` 在 1600×900 上实测（内容没超就不会出滚动条，比源码断言更强）。
    */
   assert.ok(/scroll=\{\{\s*x:/.test(drawer), '必须设 scroll.x（否则窄容器下表格没有可滚动容器）');
-  assert.ok(/scroll=\{\{\s*x: \d+ \}\}/.test(drawer), 'scroll.x 用**数值**（max-content 会把桌面名称列撑大、冒出横滚条）');
+  /**
+   * ⚠️ **v56（FR-107）改写**：这里原本钉的是"数值"。但那个数值是**手写的 419**，
+   * 小于 6 列实际需求 ⇒ fixed 布局把唯一没有 `width` 的「名称」列压成 0 宽（用户看到"少了一列数据"）。
+   * 现在钉的是**由列定义推导出的常量**（各列 `minWidth` 之和）—— 既排除了 `max-content`，
+   * 也排除了"再手写一个数字"（那正是 FR-107 的根因）。
+   */
+  assert.ok(/scroll=\{\{\s*x: [A-Za-z_$][\w$]* \}\}/.test(drawer), 'scroll.x 必须是**由列定义推导的常量**');
+  assert.equal(/scroll=\{\{\s*x: 'max-content'/.test(drawer), false, '不得用 max-content（会撑大桌面名称列）');
+  assert.equal(/scroll=\{\{\s*x: \d+ \}\}/.test(drawer), false, '不得手写数值（FR-107：419 就是这么把名称列压成 0 的）');
   assert.ok(/tableLayout="fixed"/.test(drawer), 'fixed 布局让列宽可控（避免时间列被挤裁）');
 });
 
