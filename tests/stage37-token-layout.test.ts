@@ -39,8 +39,16 @@ test('FR-98 保留目标 ②：名称不被挤压（按字符截断 + title 看�
   assert.ok(/textOverflow: 'ellipsis'/.test(drawer), '超长名称还要有 CSS 省略号兜底（不撑破列宽）');
 });
 
-test('FR-98 保留目标 ③：不设 scroll.x（表格自适应 ⇒ 无横向滚动）', () => {
-  assert.equal(/scroll=\{\{\s*x:/.test(drawer), false, '不得设 scroll.x');
+test('FR-98 保留目标 ③：表格有可滚动容器（`scroll.x`）且 fixed 布局（v55 修订，见下）', () => {
+  /**
+   * ⚠️ **v55（FR-106）改写**：原文是"不设 scroll.x ⇒ 无横向滚动"，那是**按 640 宽桌面**得出的结论。
+   * 手机 390 下抽屉被夹到视口宽，6 列必然放不下；不给 `scroll.x` 时 antd **不渲染可滚动容器** ⇒
+   * 内容溢出表格外、`scrollLeft` 推不动（实测 `scrollWidth 714 > clientWidth 350` 而滚动量恒为 0）⇒ 两端列都够不着。
+   * 因此改为**必须**设 `scroll.x`；"桌面无横向滚动"这个**真正的目标**由 AC-108 ⑤ 用
+   * `scrollWidth === clientWidth` 在 1600×900 上实测（内容没超就不会出滚动条，比源码断言更强）。
+   */
+  assert.ok(/scroll=\{\{\s*x:/.test(drawer), '必须设 scroll.x（否则窄容器下表格没有可滚动容器）');
+  assert.ok(/scroll=\{\{\s*x: \d+ \}\}/.test(drawer), 'scroll.x 用**数值**（max-content 会把桌面名称列撑大、冒出横滚条）');
   assert.ok(/tableLayout="fixed"/.test(drawer), 'fixed 布局让列宽可控（避免时间列被挤裁）');
 });
 

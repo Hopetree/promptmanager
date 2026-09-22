@@ -59,11 +59,17 @@ test('AC-101 ②③：名称按**字符**截断（20 + 省略号，完整名进 
   assert.ok(/—/.test(maskCol), '取不到明文（旧令牌 / 已撤销）⇒ `—`');
 });
 
-test('AC-101 ①⑦：抽屉 ≤640、不设 scroll.x、tableLayout=fixed（否则列宽会被 antd 重分配把时间挤裁）', () => {
+test('AC-101 ①⑦（v55 修订）：抽屉 ≤640、**必须**设 scroll.x、tableLayout=fixed（否则列宽会被 antd 重分配把时间挤裁）', () => {
   const width = /width=\{(\d+)\}/.exec(drawer);
   assert.ok(width !== null, '找不到 Drawer width');
   assert.ok(Number(width[1]) <= 640, `抽屉宽度必须 ≤640（实际 ${width[1]}）`);
-  assert.equal(/scroll=\{\{\s*x:/.test(drawer), false, '不得设 scroll.x（AC-101 ⑦ 要求无横向滚动）');
+  /**
+   * ⚠️ **v55（FR-106）改写**：原文"不得设 scroll.x（要求无横向滚动）"是按 640 宽桌面得出的结论；
+   * 手机 390 下抽屉被夹到视口宽，不给 `scroll.x` 会让表格**没有可滚动容器**（两端列都够不着）。
+   * 现在要求**设** `scroll.x`；"桌面无横向滚动"改由 AC-108 ⑤ 在 1600×900 上实测
+   * `scrollWidth === clientWidth` 来保证（实测比源码断言更强）。
+   */
+  assert.ok(/scroll=\{\{\s*x:/.test(drawer), '必须设 scroll.x（窄容器下才有可滚动容器）');
   assert.ok(/tableLayout="fixed"/.test(drawer), '必须用 fixed 布局（auto 会把「最近使用」挤到 ~73px 导致时间被裁）');
 });
 

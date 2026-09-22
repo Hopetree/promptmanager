@@ -69,7 +69,13 @@ test('AC-102 ⑦：6 列结构 / 宽度 / 折叠已移除 等 FR-99 口径未回
   assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '最近使用', '操作'], '列头与顺序必须不变');
   const width = /width=\{(\d+)\}/.exec(drawer);
   assert.ok(width !== null && Number(width[1]) <= 640, `抽屉宽度仍须 ≤640（实际 ${width?.[1]}）`);
-  assert.equal(/scroll=\{\{\s*x:/.test(drawer), false, '仍不得设 scroll.x');
+  /**
+   * ⚠️ **v55（FR-106）改写**：这条原本断言"不得设 scroll.x"。那是按 640 宽桌面得出的结论，
+   * 手机 390 下会让表格没有可滚动容器（列够不着）。现在断言**必须设** `scroll.x`；
+   * 桌面无横滚由 AC-108 ⑤ 在 1600×900 上实测 `scrollWidth === clientWidth` 保证。
+   * 本用例关心的其余口径（6 列 / ≤640 / fixed / 折叠已移除）**一字未改**。
+   */
+  assert.ok(/scroll=\{\{\s*x:/.test(drawer), '仍须设 scroll.x（窄容器下表格要能横滚）');
   assert.ok(/tableLayout="fixed"/.test(drawer), '仍须 fixed 布局');
   for (const gone of ['expandable', 'expandedRowRender', 'pm-token-expand-']) {
     assert.equal(drawer.includes(gone), false, `折叠仍须保持移除：${gone}`);
