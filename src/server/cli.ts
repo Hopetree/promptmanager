@@ -1,6 +1,8 @@
 import { renameSync, rmSync, writeFileSync } from 'node:fs';
 // 注意：数据库模块**只在本地管理命令里动态载入**（pm get / pm render 一律走 HTTP，永远不加载它）
 import type { QueryEngine } from '../db/index.js';
+// 领域错误是纯数据类（无副作用、不加载数据库），静态引入以便把 409/404 翻成可读文案
+import { ConflictError, NotFoundError } from '../errors.js';
 import {
   ApiConnectionError,
   apiError,
@@ -20,6 +22,7 @@ const USAGE = `用法：node bin/pm.mjs <命令> [选项]
                                        创建 API Token（明文在 stdout 最后一行；FR-94 起加密落库、可再查看）
                                        --scope 缺省 read（只读：检索/查看/渲染）；write 才能改资源
   token list                           列出 API Token（不含明文；含 revealable / scope）
+  token set-scope <id> <read|write>    改已有 Token 的权限（FR-105；**本机管理路径**，立即生效）
   token reveal <id>                     查看 API Token 明文（本机管理路径，读同一加密密钥）
   token revoke <id>                     撤销 API Token（立即失效）
   get [<关键词>] [--id <N>] [--json]    经 HTTP API 检索 / 取单个 prompt（需 PM_API_URL+PM_API_TOKEN）
@@ -275,19 +278,27 @@ function printTokenList(
  */
 async function token(argv: string[]): Promise<number> {
   const [sub, ...rest] = argv;
-  if (sub === undefined) return usage('token 缺少子命令（create / list / revoke）');
+  if (sub === undefined) return usage('token 缺少子命令（create / list / set-scope / reveal / revoke）');
   if (sub === '--help' || sub === '-h') {
     process.stdout.write(USAGE);
     return 0;
   }
-  if (sub !== 'create' && sub !== 'list' && sub !== 'reveal' && sub !== 'revoke') {
-    return usage(`token 的子命令 "${sub}" 未实现（create / list / reveal / revoke）`);
+  if (sub !== 'create' && sub !== 'list' && sub !== 'reveal' && sub !== 'revoke' && sub !== 'set-scope') {
+    return usage(`token 的子命令 "${sub}" 未实现（create / list / set-scope / reveal / revoke）`);
   }
-  if (sub === 'reveal') {
-    // FR-94：reveal **只走本机管理路径**（读同一加密密钥）。HTTP 面刻意只允许 cookie 会话
-    // （避免 token 互相窥视），而 CLI 没有 cookie ⇒ 设置 PM_API_URL 时明确拒绝，不回退。
+  /**
+   * FR-94 / FR-105：`reveal` 与 `set-scope` **只走本机管理路径**。
+   * reveal 的 HTTP 面刻意只允许 cookie 会话（避免 token 互相窥视）；`PATCH /api/tokens/:id` 同理
+   * —— 它属于"令牌管理"⇒ 用任何令牌调都是 `403 session_required`。CLI 没有 cookie ⇒ 设了
+   * PM_API_URL 时**明确拒绝、不回退直连数据库**（否则会"看起来成功"却改了另一台机器的库）。
+   */
+  if (sub === 'reveal' || sub === 'set-scope') {
     if (resolveApiEnv().explicit) {
-      return usage('token reveal 只支持本机管理路径（不设 PM_API_URL）；HTTP 面只允许浏览器会话调用 /api/tokens/:id/reveal');
+      return usage(
+        sub === 'reveal'
+          ? 'token reveal 只支持本机管理路径（不设 PM_API_URL）；HTTP 面只允许浏览器会话调用 /api/tokens/:id/reveal'
+          : 'token set-scope 只支持本机管理路径（不设 PM_API_URL）；HTTP 面 PATCH /api/tokens/:id 只允许浏览器会话（令牌调一律 403 session_required）',
+      );
     }
   }
 
@@ -357,6 +368,28 @@ async function tokenLocal(sub: string, argv: string[]): Promise<number> {
       if (parsed.rest.length > 0) return usage(`list 不接受参数："${parsed.rest[0]}"`);
       printTokenList(await tokens.listTokens(handle.qe));
       return 0;
+    }
+    if (sub === 'set-scope') {
+      // FR-105：`token set-scope <id> <read|write>`（本机管理路径，直接开库；立即生效）
+      const rawId = parsed.rest[0];
+      const rawScope = parsed.rest[1];
+      if (rawId === undefined || rawScope === undefined) {
+        return usage('缺少参数（token set-scope <id> <read|write>）');
+      }
+      if (!/^[0-9]+$/.test(rawId)) return usage(`<id> 必须是正整数，实际 "${rawId}"`);
+      const scope = tokens.parseScope(rawScope);
+      if (scope === null) return usage(`scope 只能是 read 或 write（收到 "${rawScope}"）`);
+      try {
+        const { summary, previousScope } = await tokens.setTokenScope(handle.qe, Number(rawId), scope);
+        // 回显结果（不含任何令牌值；与 HTTP 面那条日志同口径）
+        process.stdout.write(`ok: token ${String(summary.id)} scope: ${previousScope} → ${summary.scope}\n`);
+        return 0;
+      } catch (error) {
+        // 409 带可读说明（"已撤销的令牌权限没有意义；要恢复请重建一个"）；404 说清 id 不存在
+        if (error instanceof ConflictError) return fail(error.detail ?? error.code);
+        if (error instanceof NotFoundError) return fail(`token ${rawId} 不存在`);
+        throw error;
+      }
     }
     if (sub === 'reveal') {
       const rawId = parsed.rest[0];

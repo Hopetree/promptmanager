@@ -169,6 +169,12 @@ export const api = {
     request<CreatedToken>('POST', '/api/tokens', scope === undefined ? { name } : { name, scope }),
 
   revokeToken: (id: number) => request<void>('DELETE', `/api/tokens/${String(id)}`),
+  /**
+   * FR-105：**改已有令牌的权限**（只读 ↔ 读写）。**立即生效**（服务端每个请求都查库、不缓存）。
+   * 返回该行最新的摘要 —— 界面用它**只更新那一行**（不发整表刷新、不重载页面）。
+   */
+  setTokenScope: (id: number, scope: 'read' | 'write') =>
+    request<TokenSummary>('PATCH', `/api/tokens/${String(id)}`, { scope }),
   /** FR-94：查看 token 明文（**只允许会话 cookie**；Bearer 调会被 403）。 */
   revealToken: (id: number) => request<{ token: string }>('POST', `/api/tokens/${String(id)}/reveal`),
   /** FR-96：**硬删除**已撤销的 token（未撤销 → 409；真删行、审计一并消失）。 */

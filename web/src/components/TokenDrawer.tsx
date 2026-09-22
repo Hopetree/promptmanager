@@ -4,6 +4,7 @@ import {
   App as AntdApp,
   Button,
   Drawer,
+  Dropdown,
   Flex,
   Form,
   Input,
@@ -41,6 +42,11 @@ interface TokenDrawerProps {
  * **FR-103（v53）令牌权限两档**：新建时可选 `只读 / 读写`（**默认只读**）；列表**不新增列** ——
  * 「状态」列显示成 `有效 · 只读` / `有效 · 读写`（已撤销同理）。权限**只作用于资源**：
  * 只读可检索 / 查看 / 渲染；读写还能新建、修改、删除。
+ *
+ * **FR-105（v54）权限可改**：**有效行**的「状态」列权限文本**可点击**（`Dropdown` 两项：只读 / 读写）
+ * → 选中后调 `PATCH /api/tokens/:id`，用返回的摘要**只更新那一行**（立即生效、不重载页面）。
+ * **已撤销行不给入口**（与"已撤销只能删除"一致）；**仍然 6 列、无横向滚动**。
+ * ⚠️ 服务端把 `/api/tokens*` 整段归为"仅会话"⇒ 只有浏览器会话能改权限（防令牌自我提权）。
  *
  * **FR-100（v50）撤销 ≠ 销毁**：撤销只是"立即失效"，密文仍在库里（`revealable` 仍为 true）⇒
  * **已撤销行照常预取明文**：Token 列显示掩码、「使用」列给「复制」（与未撤销行完全一致）。
@@ -185,6 +191,24 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
     }
   };
 
+  /**
+   * FR-105：改权限（只读 ↔ 读写）。**立即生效**（服务端不缓存权限）。
+   *
+   * 为什么只 `setTokens` 改那一行、**不调用 `load()`**：
+   * ① 需求要"该行状态文本立即更新（不刷新页面）"—— 整表重拉会让所有行的掩码/复制按钮闪一下；
+   * ② `load()` 会**重新预取全部明文**（N 次 reveal 请求），改一次权限不该有那个副作用。
+   * 服务端返回的就是更新后的摘要，直接替换该行即可。
+   */
+  const changeScope = async (id: number, scope: 'read' | 'write'): Promise<void> => {
+    try {
+      const updated = await api.setTokenScope(id, scope);
+      setTokens((previous) => previous.map((token) => (token.id === id ? { ...token, scope: updated.scope } : token)));
+      message.success(updated.scope === 'write' ? '已改为读写（立即生效）' : '已改为只读（立即生效）');
+    } catch (error) {
+      handleError(error);
+    }
+  };
+
   /** FR-96：硬删除（仅已撤销行；**真删行、审计一并消失**）。 */
   const removePermanently = async (id: number): Promise<void> => {
     try {
@@ -250,16 +274,41 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       key: 'state',
       width: 104,
       // FR-103：**不新增列** —— 权限并进「状态」列（`有效 · 只读` / `有效 · 读写` / 已撤销同理）
+      // FR-105：**有效行**的这段权限文本**可点击**（真鼠标点 → 弹 只读/读写 两项菜单 → 选完该行立即变），
+      //         仍然**不新增列**；**已撤销行保持纯文本**（撤销行只保留历史记录，只能删除，不提供改权限入口）。
       render: (_value, token) => {
         const scopeText = token.scope === 'write' ? '读写' : '只读';
-        return token.revoked_at === null ? (
-          <Tag color="green" data-testid={`pm-token-state-${String(token.id)}`}>
-            有效 · {scopeText}
-          </Tag>
-        ) : (
-          <Tag color="default" data-testid={`pm-token-state-${String(token.id)}`}>
-            已撤销 · {scopeText}
-          </Tag>
+        if (token.revoked_at !== null) {
+          return (
+            <Tag color="default" data-testid={`pm-token-state-${String(token.id)}`}>
+              已撤销 · {scopeText}
+            </Tag>
+          );
+        }
+        return (
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                { key: 'read', label: '只读' },
+                { key: 'write', label: '读写' },
+              ],
+              selectable: true,
+              selectedKeys: [token.scope],
+              onClick: ({ key }) => void changeScope(token.id, key as 'read' | 'write'),
+            }}
+          >
+            <Tag
+              color="green"
+              /* 指针变手型 + 悬停提示（AC-107 ⑥ 的可见入口） */
+              style={{ cursor: 'pointer' }}
+              title="点击切换：只读 ↔ 读写"
+              data-testid={`pm-token-state-${String(token.id)}`}
+              data-scope-editable="1"
+            >
+              有效 · {scopeText}
+            </Tag>
+          </Dropdown>
         );
       },
     },
@@ -357,7 +406,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           type="info"
           showIcon
           message="Token 与本人等价（单用户，不做权限分层）"
-          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机，点列表里的「复制」即可取用（列表里只显示脱敏预览）；若浏览器拦截自动复制，可用命令行 `pm token reveal <id>` 取明文。权限：只读可搜索 / 查看 / 渲染，读写还能新建、修改、删除；令牌管理与改口令只能用界面会话。"
+          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机，点列表里的「复制」即可取用（列表里只显示脱敏预览）；若浏览器拦截自动复制，可用命令行 `pm token reveal <id>` 取明文。权限：只读可搜索 / 查看 / 渲染，读写还能新建、修改、删除；**有效令牌的权限可点「状态」列直接切换**（立即生效，不用重建令牌）；令牌管理与改口令只能用界面会话。"
         />
 
         <Form form={form} layout="inline" onFinish={() => void create()}>
