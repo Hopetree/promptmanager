@@ -166,6 +166,50 @@ export async function deleteTokenPermanently(qe: QueryEngine, id: number): Promi
 }
 
 /**
+ * FR-105：**修改已有令牌的权限**（`PATCH /api/tokens/:id` 与 CLI `token set-scope` 共用）。
+ *
+ * 为什么需要它：`scope` 建后不可改 ⇒ 想把在用的令牌（例如 MCP 那把）从 `write` 降成 `read`
+ * 只能**撤销后重建**（要改客户端配置、还有中断）。这里让"改权限"成为一次独立操作。
+ *
+ * - 不存在 → `NotFoundError`（404）；
+ * - **已撤销**（`revoked_at IS NOT NULL`）→ `ConflictError('token_revoked', …)`（409）——
+ *   撤销过的凭据已经不能鉴权了，改它的权限没有任何意义；要恢复就**重建一个**（语义与 FR-96 的
+ *   "已撤销只能删除"一致：撤销行是一个只读的历史记录）；
+ * - 有效 → 直接改并**立即生效**（`resolveApiToken` 每次请求都查库、不做缓存 ⇒ 下一个请求就按新权限判定，
+ *   无需重建令牌、无需重新登录）。幂等：改成当前已有的值同样返回成功（`previousScope === scope`）。
+ *
+ * ⚠️ **权限本身**（"仅会话、含不能改自己"）**不在这里判**：闸门（`src/server/auth.ts`）已把
+ * `/api/tokens*` 整段归为"仅会话"⇒ 任何令牌调进来都会先吃 403 `session_required`。
+ * 这是防自我提权的**唯一**依赖点，不要在服务层再补一套更弱的判定。
+ */
+export async function setTokenScope(
+  qe: QueryEngine,
+  id: number,
+  scope: TokenScope,
+): Promise<{ summary: TokenSummary; previousScope: TokenScope }> {
+  const row = await qe
+    .selectFrom('api_tokens')
+    .select(['id', 'revoked_at', 'scope'])
+    .where('id', '=', id)
+    .executeTakeFirst();
+  if (row === undefined) throw new NotFoundError();
+  if (row.revoked_at !== null) {
+    throw new ConflictError(
+      'token_revoked',
+      '该令牌已撤销，已撤销的令牌权限没有意义；要恢复请重建一个（撤销的行只保留历史记录）。',
+    );
+  }
+  const previousScope = normalizeScope(row.scope);
+  const updated = await qe
+    .updateTable('api_tokens')
+    .set({ scope })
+    .where('id', '=', id)
+    .returningAll()
+    .executeTakeFirstOrThrow();
+  return { summary: toSummary(updated), previousScope };
+}
+
+/**
  * Bearer 校验：命中且未撤销 → 记录 last_used_at 并返回摘要；否则 null。
  * 撤销后**立即失效**（每次请求都查库，不做缓存）。
  */

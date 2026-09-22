@@ -6,6 +6,8 @@ import {
   listTokens,
   revealToken,
   revokeToken,
+  setTokenScope,
+  type TokenScope,
 } from '../../services/tokens.js';
 import { TokenEncKeyUnavailableError, loadTokenCipher, type TokenCipher } from '../../services/token-crypto.js';
 import { parsePositiveId } from '../params.js';
@@ -22,12 +24,28 @@ const createTokenSchema = {
 } as const;
 
 /**
+ * FR-105：改权限**只收 `scope`**。
+ * `additionalProperties: false` ⇒ 传 `name` 或任何别的字段一律 400（本接口不做改名）；
+ * `required: ['scope']` ⇒ 空 body `{}` 也是 400（不做"不改任何东西"的空操作）。
+ */
+const setScopeSchema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['scope'],
+  properties: {
+    scope: { type: 'string', enum: ['read', 'write'] },
+  },
+} as const;
+
+/**
  * FR-15 的 HTTP 面（§6.1 未列路径，本阶段按 REST 约定定并在 docs/api.md 记录）：
  * FR-103：**本文件的全部端点一律"仅会话"**（令牌不可调，闸门在 `registerAuthGate` 里按 `/api/tokens*` 前缀拦成
  * 403 `session_required`）—— 令牌能枚举/新建令牌就等于"能自我繁殖"，一处泄漏会变成永久全权。
  *
  * - `GET /api/tokens`    列表（**不含明文**；FR-94 起每项多 `revealable`；FR-103 起多 `scope`）
  * - `POST /api/tokens`   创建 → 201，明文在这一个响应里返回；FR-94 起**同时加密落库**以便日后查看
+ * - `PATCH /api/tokens/:id` **改权限**（FR-105）→ 200 返回该行摘要；**只收 `scope`**（多传字段 → 400）；
+ *   有效令牌**立即生效**；已撤销 → 409 `token_revoked`；不存在 → 404
  * - `POST /api/tokens/:id/reveal` 查看明文（FR-94）→ 200 `{token}`；**只允许 cookie 会话**；存量行 → 409
  * - `DELETE /api/tokens/:id` 撤销 → 204（立即失效；重复撤销幂等，不存在 → 404）
  * - `DELETE /api/tokens/:id/permanent` **硬删除**（FR-96）→ 204；**只允许已撤销的行**（未撤销 → 409
@@ -82,6 +100,23 @@ export function registerTokenRoutes(app: FastifyInstance, config: AppConfig): vo
       }
       throw error;
     }
+  });
+
+  /**
+   * FR-105：**改权限**（只读 ↔ 读写）。
+   *
+   * ⚠️ **防自我提权**：本端点属于"令牌管理" ⇒ 闸门已把 `/api/tokens*` 归为**仅会话**，
+   * **任何令牌（包括它自己）**调进来都是 `403 session_required`（在到达这里之前就被拦下）。
+   * 若允许只读令牌改自己的 scope，它就能把自己变成读写 ⇒ 阶段 42 的边界会被整体绕过。
+   * 因此本处理器**不写任何令牌判定**（不要在这里补一套更弱的），只用 `app.qe` 改库。
+   */
+  app.patch('/api/tokens/:id', { schema: { body: setScopeSchema } }, async (request, reply) => {
+    const id = parsePositiveId((request.params as { id?: string }).id);
+    const { scope } = request.body as { scope: TokenScope };
+    const { summary, previousScope } = await setTokenScope(app.qe, id, scope);
+    // AC-107 ⑨：只记 id 与两档权限，**不含明文、不含 token_hash / token_enc**
+    request.log.info({ tokenId: id, from: previousScope, to: summary.scope }, 'token scope changed');
+    return reply.code(200).send(summary);
   });
 
   app.delete('/api/tokens/:id', async (request, reply) => {

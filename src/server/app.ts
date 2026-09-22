@@ -75,7 +75,11 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
       return reply.code(404).send({ error: 'not_found' });
     }
     if (error instanceof ConflictError) {
-      return reply.code(409).send({ error: error.code });
+      // FR-105：只有带了 detail 的 409 才多一个 message（其余 409 的响应体逐字不变）
+      const conflict = error as ConflictError;
+      return reply
+        .code(409)
+        .send(conflict.detail === undefined ? { error: conflict.code } : { error: conflict.code, message: conflict.detail });
     }
     if (error instanceof InvalidImportError) {
       return reply.code(400).send({ error: 'invalid_import', details: error.details });

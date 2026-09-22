@@ -31,11 +31,17 @@ export class InvalidImportError extends Error {
 /** 409：资源当前状态不允许该操作（如删除非空文件夹）；`code` 直接作为响应体的 error 值。 */
 export class ConflictError extends Error {
   readonly code: string;
+  /**
+   * 可选的人类可读说明（FR-105：`token_revoked` 要讲清"已撤销的令牌权限没有意义；要恢复请重建一个"）。
+   * **为空时响应体保持 `{"error":code}` 不变** —— 既有 409 的断言与契约零改动。
+   */
+  readonly detail?: string;
 
-  constructor(code: string) {
+  constructor(code: string, detail?: string) {
     super(code);
     this.name = 'ConflictError';
     this.code = code;
+    this.detail = detail;
   }
 }
 
