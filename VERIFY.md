@@ -1582,3 +1582,43 @@ CLI 其实有**两条创建通道**，本次都核过：
 - ⚠️ **106 生产仍是 `1.1.1`**（本版不在生产）⇒ 按 `docs/versioning.md` 属 **MINOR**，应发 **`v1.2.0`**。
 - ⚠️ **scope 建后不可改**（接口只有创建/撤销/删除，没有改权限）⇒ 上线后想把 MCP 令牌变只读，**只能撤销后重建**一个只读的
   （"允许改已有令牌的权限"可列为后续小改进）。
+
+---
+
+# 阶段 43 验收（FR-105 允许修改已有令牌的权限）— 结论：**过**（AC-107 九条全过）
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`96e6a6f`**（收尾）—— `228ea44`（PATCH 后端）/ `8b842fa`（界面点状态列改权限 + CLI）/ `7a94b77`（单测 8 例 + AC 工具）/ `96e6a6f`（文档 + PROGRESS） |
+| 规格 | BRIEF **v54**（FR-105；AC-107；D-43；阶段 43） |
+| 验收方 | host_manger（**临时实例 8768 + 真令牌打真端点 + 真鼠标 + 查库**） |
+| 结论 | **过** |
+
+## 1. AC-107 逐条（都是我自己跑的）
+
+| # | 判据 | 我的实测 |
+| --- | --- | --- |
+| ① | **防自我提权（关键负向）** | 只读令牌 `PATCH` **自己** → **403 `session_required`**；**查库仍是 `read`**；它 `POST /api/prompts` 仍 **403 `insufficient_scope`** ｜ 读写令牌 `PATCH` 自己 / 改别人 → **均 403** ✅ |
+| ② | **只读 → 读写（立即生效）** | 会话 `PATCH` → **200**；查库 `scope='write'`；**同一个令牌紧接着** `POST /api/prompts` → **201**（**没重建、没重登**）；`GET /api/tokens` 该行 `scope='write'` ✅ |
+| ③ | 读写 → 只读（立即生效） | 同法改回 → 紧随其后 `POST` → **403 `insufficient_scope`**，`GET /api/prompts` 仍 **200** ✅ |
+| ④ | 已撤销令牌 | `PATCH` 已撤销行 → **409 `token_revoked`**（消息写清"权限对已撤销令牌没有意义；要恢复请重建"）✅ |
+| ⑤ | 入参校验 | `{"scope":"admin"}` → **400**（allowed values）｜`{}` → **400**（缺 scope）｜`{"scope":"read","name":"x"}` → **400 "must NOT have additional properties"**（`additionalProperties:false` 生效）｜不存在 id → **404** ✅ |
+| ⑥ | **界面（真鼠标）** | 列头仍 **6 列**；点**有效行**的状态文本 → 下拉 `["只读","读写"]` → 选「读写」→ 该行文本 **`有效 · 只读` → `有效 · 读写`（未刷新页面）**；再选回 → 变回 `有效 · 只读`；**点已撤销行的状态文本 → 无下拉**（无入口）✅（截图我看过） |
+| ⑦ | CLI | `pm token set-scope 1 write` → rc=0、输出 `ok: token 1 scope: read → write`、查库生效 ✅；`set-scope 1 admin` → **rc=2**（用法错误）✅ |
+| ⑧ | **阶段 42 边界不回归** | 只读令牌：`POST/PUT/DELETE prompts`、`POST folders`、`POST tags` **各 403 `insufficient_scope`**；`POST …/:id/render` **200**；`GET /api/tokens`、`POST /api/password` **403 `session_required`** ✅；`npm test` **409/409**（我复跑，401 + 8 新例）｜`ci-check`（先删 dist）**rc=0** ✅ |
+| ⑨ | 日志 | `token scope changed` 共 2 条，字段只有 `{tokenId, from, to}`；**日志里令牌明文出现 0 次** ✅ |
+
+## 2. 过程审查
+
+（见下方"过程审查"小节，窗口按提交时间对齐）
+
+## 3. 我的验收过程记录（工具教训）
+
+- 界面那条**第一次没测到**：它用的是 antd **`Dropdown`**（点状态 Tag 弹菜单），而我按 `.ant-popover` 找弹层 ⇒ **我的选择器错**。
+  换成 `.ant-dropdown:not(.ant-dropdown-hidden) .ant-dropdown-menu-item` 后一次通过 ✅
+- ⑤ 我第一次只测了 `{"name":"x"}`（400 的原因是"缺 scope"）⇒ **补测** `{"scope":"read","name":"x"}` 才真正证明 `additionalProperties:false` 生效 ✅
+
+## 4. 上线状态
+
+- **8767 测试环境已同步**。
+- **106 生产仍 `1.1.1`**；本次发版应含 **阶段 41（版本历史即时刷新）+ 42（权限两档 + 归因）+ 43（改权限）** ⇒ 按 versioning 属 **MINOR = `v1.2.0`**。
