@@ -1419,3 +1419,49 @@ Token 单元格 = `pm_pA...kCfM` == **前 5 位 + `...` + 后 4 位**（与期�
 
 - **8767 测试环境已同步**（用户可直接刷新看到撤销行的掩码与「复制」）。
 - **106 生产未动**（仍 `1.0.2`）。
+
+---
+
+# 阶段 40 验收（FR-101 FIX：CLI 建的 token 没有密文）— 结论：**过**
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`a0c81c7`**（收尾）—— `d18de9e`（`src/server/cli.ts` 修 cipher）/ `440632c`（CHANGELOG `[未发布]` + `docs/api.md` + 单测 + AC 工具）/ `a0c81c7`（PROGRESS） |
+| 规格 | BRIEF **v51**（FR-101；AC-103；D-40；阶段 40） |
+| 验收方 | host_manger（**在临时实例上真跑 CLI + 真查库 + 双路 reveal 逐字比对 + 密钥三态**） |
+| 结论 | **过** |
+
+## 1. AC-103 逐条（都是我自己跑的，**没碰 8767**）
+
+| # | 判据 | 我的实测 |
+| --- | --- | --- |
+| ① | CLI 新建即带密文 | CLI `token create` → **直接查库**：`token_enc` = **100 字节**、**不以 `pm_` 前缀开头**（前缀 `Aoke49yqOF…`）✅ ｜ stdout 最后一行 **46 字符 = 明文**（**老契约保住**）✅ ｜ stderr 有 `ok: token created …` ✅ |
+| ② | 两路一致 | CLI 建的 `ac40-cli`(id=1) 与**接口建的** `ac40-api`(id=2) 在 `GET /api/tokens` 里**都是 `revealable: True`** ✅；`POST /api/tokens/1/reveal`（会话）返回的明文 **== CLI 创建时的 stdout 明文（逐字）** ✅ |
+| ③ | CLI reveal 通 | `node bin/pm.mjs token reveal 1` 的 stdout **== 创建时明文（逐字）** ✅（改前这里是 `error: token_not_revealable`） |
+| ④ | 既有契约不破 | `create` 的 stdout 最后一行仍是明文 ✅ ｜ 提示仍走 stderr ✅ ｜ `token list` 输出形态不变 ✅ ｜ `revoke` 正常（204）✅ |
+| ⑤ | 密钥不可用三态 | 用**非法 `TOKEN_ENC_KEY`**：CLI `create` **rc=0 不崩** ✅、该行 `token_enc = NULL` ✅、stderr 有**可读提示**（`warn: 加密密钥不可用，这条 token 之后无法查看（鉴权不受影响）…`）✅；**恢复后**新建的 token **又有密文** ✅ |
+| ⑥ | 存量与语义不回归 | 我把 id=2 的密文置 NULL 模拟存量旧行 → 列表 `revealable: False` ✅、reveal → **409 `token_not_revealable`** ✅；**把 id=1 撤销后仍能 reveal（200）** ✅（FR-100 未回归） |
+| ⑦ | 文档 | `docs/api.md` §4 写明「**CLI 建的 token 与界面建的一样，可以随时查看/复制**」+ 密钥不可用的例外 + 「修复前用 CLI 建的 token 无法恢复、需要看值请撤销重建」✅；`CHANGELOG.md` 的 **`[未发布]`** 段有这条修复（含撤销重建提示）✅ |
+| ⑧ | 回归 | `npm test` **386/386**（我复跑；379 + 7 新例）✅ ｜ `ci-check`（**先删 dist**）**rc=0** ✅ |
+
+## 2. 过程审查
+
+```
+工具调用 33 次（bash 25 / read 3 / job_output 2 / write 2 / edit 1）｜跑测试/AC/CLI 14 次
+**commit 前核 `git diff --cached --name-only` 3 次**（3 个提交，纪律在位）
+提交边界 1 / 4 / 1 文件（单用途、干净）｜**未触碰部署 / 系统 / 别的机器**（唯一命中是它自己 `mktemp -d` 起的临时实例）｜三端一致 `a0c81c7`
+```
+
+## 3. 一处值得记的实现细节（它处理得对）
+
+CLI 其实有**两条创建通道**，本次都核过：
+- **本地 admin 路径**（`pm.mjs token create`，直接开库）→ **本次修的那条**，现在传 `loadTokenCipher` 惰性解析 ✅
+- **HTTP 路径**（设了 `PM_API_URL` + `PM_API_TOKEN` 时走 `POST /api/tokens`）→ 走 HTTP 路由，**本来就有密文** ✅
+
+⇒ 两条通道现在**行为一致**。
+
+## 4. 上线状态
+
+- **8767 测试环境已同步**（含本修复）⇒ 现在在 8767 上用 CLI 建的 token 也能在界面看到值/复制。
+- ⚠️ **106 生产仍是 `1.1.0`**（本修复**不在生产**）—— 要让生产也有，需要发一个 **`v1.1.1`（PATCH）** 再走一次"拉镜像 → 备份 → 切 tag → 验证"。
+- ⚠️ **修复前建的 token（含 8767 上我自测留的 2 个已撤销行、以及生产上那个 `qwenpaw-mcp`）仍然看不到值**（没有密文可恢复）；**要看值就撤销后重建**。
