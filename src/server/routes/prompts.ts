@@ -172,7 +172,8 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     if (prompt === null) throw new NotFoundError();
 
     // FR-19：打开详情算"取用"（列表/搜索不算）。先记后读 → 响应里的 use_count 含本次。
-    await recordUsage(app.qe, id, currentPrincipal(request).channel);
+    // FR-104：令牌取用记该令牌 id（会话取用记 NULL），让"谁取的"可归因。
+    await recordUsage(app.qe, id, currentPrincipal(request).channel, currentPrincipal(request).tokenId ?? null);
     return (await getPrompt(app.qe, id)) ?? prompt;
   });
 
@@ -220,7 +221,7 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     const missing = [...new Set([...user.missing, ...system.missing])];
 
     // FR-19：渲染取用也记一条（渲染本身不写库，只有 usage 落一行）
-    await recordUsage(app.qe, id, currentPrincipal(request).channel);
+    await recordUsage(app.qe, id, currentPrincipal(request).channel, currentPrincipal(request).tokenId ?? null);
     return { user_prompt: user.text, system_prompt: system.text, missing };
   });
 

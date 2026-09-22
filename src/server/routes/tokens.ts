@@ -14,12 +14,19 @@ const createTokenSchema = {
   type: 'object',
   additionalProperties: false,
   required: ['name'],
-  properties: { name: { type: 'string', minLength: 1, maxLength: 100 } },
+  properties: {
+    name: { type: 'string', minLength: 1, maxLength: 100 },
+    /** FR-103：权限两档；**不传 = read**（最小权限）。 */
+    scope: { type: 'string', enum: ['read', 'write'] },
+  },
 } as const;
 
 /**
  * FR-15 的 HTTP 面（§6.1 未列路径，本阶段按 REST 约定定并在 docs/api.md 记录）：
- * - `GET /api/tokens`    列表（**不含明文**；FR-94 起每项多一个 `revealable: boolean`）
+ * FR-103：**本文件的全部端点一律"仅会话"**（令牌不可调，闸门在 `registerAuthGate` 里按 `/api/tokens*` 前缀拦成
+ * 403 `session_required`）—— 令牌能枚举/新建令牌就等于"能自我繁殖"，一处泄漏会变成永久全权。
+ *
+ * - `GET /api/tokens`    列表（**不含明文**；FR-94 起每项多 `revealable`；FR-103 起多 `scope`）
  * - `POST /api/tokens`   创建 → 201，明文在这一个响应里返回；FR-94 起**同时加密落库**以便日后查看
  * - `POST /api/tokens/:id/reveal` 查看明文（FR-94）→ 200 `{token}`；**只允许 cookie 会话**；存量行 → 409
  * - `DELETE /api/tokens/:id` 撤销 → 204（立即失效；重复撤销幂等，不存在 → 404）
@@ -43,8 +50,9 @@ export function registerTokenRoutes(app: FastifyInstance, config: AppConfig): vo
   app.get('/api/tokens', async () => ({ items: await listTokens(app.qe) }));
 
   app.post('/api/tokens', { schema: { body: createTokenSchema } }, async (request, reply) => {
-    const { name } = request.body as { name: string };
-    const { token, summary } = await createToken(app.qe, name, cipherOrUndefined());
+    const { name, scope } = request.body as { name: string; scope?: string };
+    // FR-103：scope 省略 ⇒ 服务层缺省 read；显式非法值由 schema（enum）挡成 400
+    const { token, summary } = await createToken(app.qe, name, cipherOrUndefined(), scope);
     return reply.code(201).send({ ...summary, token });
   });
 

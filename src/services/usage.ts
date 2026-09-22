@@ -21,6 +21,8 @@ export interface UsageSummary {
   days: number;
   total: number;
   by_channel: { session: number; token: number; mcp: number };
+  /** FR-104：按**令牌**归因（`token_id = null` 表示 cookie 会话取用）—— 出事后能查"是哪把令牌取的"。 */
+  by_token: Array<{ token_id: number | null; count: number }>;
   top: UsageTopEntry[];
 }
 
@@ -31,10 +33,16 @@ export const MAX_USAGE_TOP = 20;
  * 写一条"取用"记录（FR-19 / D-17）：只记详情、渲染、MCP 取用；列表/搜索不记。
  * ⚠️ 这里**只**写 usage_events，绝不碰 prompts 行 ⇒ 不产生版本、不改 updated_at。
  */
-export async function recordUsage(qe: QueryEngine, promptId: number, channel: UsageChannel): Promise<void> {
+export async function recordUsage(
+  qe: QueryEngine,
+  promptId: number,
+  channel: UsageChannel,
+  /** FR-104：令牌通道传该令牌 id；cookie 会话传 null（会话没有"令牌"可归因）。 */
+  tokenId: number | null = null,
+): Promise<void> {
   await qe
     .insertInto('usage_events')
-    .values({ prompt_id: promptId, channel, used_at: nowIso() })
+    .values({ prompt_id: promptId, channel, used_at: nowIso(), token_id: tokenId })
     .execute();
 }
 
@@ -109,10 +117,20 @@ export async function usageSummary(qe: QueryEngine, days: number): Promise<Usage
     }
   }
 
+  // FR-104：按令牌归因（NULL = 会话取用）
+  const tokens = await qe
+    .selectFrom('usage_events')
+    .select((eb) => ['token_id', eb.fn.countAll<number>().as('count')])
+    .where('used_at', '>=', since)
+    .groupBy('token_id')
+    .orderBy(sql`count(*)`, 'desc')
+    .execute();
+
   return {
     days,
     total: Number(totals.total),
     by_channel: byChannel,
+    by_token: tokens.map((row) => ({ token_id: row.token_id ?? null, count: Number(row.count) })),
     top: top.map((row) => ({
       prompt_id: row.prompt_id,
       title: row.title,

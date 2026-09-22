@@ -1,7 +1,7 @@
 import cookie from '@fastify/cookie';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { SESSION_COOKIE, resolveSession, type SessionUser } from '../services/auth.js';
-import { resolveApiToken } from '../services/tokens.js';
+import { resolveApiToken, type TokenScope } from '../services/tokens.js';
 
 /** 使用记录里的"通道"取值（BRIEF FR-19 固定）。 */
 export type AuthChannel = 'session' | 'token' | 'mcp';
@@ -13,6 +13,11 @@ export interface Principal {
   channel: AuthChannel;
   /** 仅 token 通道有 */
   tokenId?: number;
+  /**
+   * 仅 token 通道有：FR-103 的令牌权限（`read` / `write`）。**只作用于资源** ——
+   * 令牌管理、改口令、登出**与 scope 无关**，一律仅会话（见 `registerAuthGate` 的分类表）。
+   */
+  scope?: TokenScope;
   /** 仅 cookie 会话有：`sessions.id`（= sha256(token)），改密码时用它保留当前会话（FR-67） */
   sessionId?: string;
 }
@@ -26,6 +31,40 @@ declare module 'fastify' {
 
 /** 无需认证的 /api/* 端点（BRIEF §6.1 只放行登录；/healthz 不在 /api/ 下）。 */
 const PUBLIC_API_PATHS = new Set<string>(['/api/login']);
+
+/* ─────────────────────────── FR-103：令牌权限的三类边界 ───────────────────────────
+ * 分类**集中在这里**（而不是散落到每个路由），这样"新加一个端点忘了判权限"的默认行为是
+ * **fail-closed**：不在"仅会话"与"资源读"白名单里的 `/api/*` 请求，令牌一律需要 `write`。
+ * 三条边界（BRIEF v53 §4 FR-103 ②）：
+ *   1. 资源读（read/write 都行）：prompts/folders/tags/export/usage 的 **GET** + `/api/me`
+ *      + **渲染类 POST**（`POST /api/prompts/:id/render`、`POST /api/render/markdown`）
+ *      —— 渲染只出文本、不改资源，**必须归读**，否则 MCP 的 `prompt_render` 会被只读令牌误伤；
+ *   2. 资源写（**仅 write**）：其余 prompts/folders/tags/import 的 POST/PUT/PATCH/DELETE；
+ *   3. 不属于资源 ⇒ **仅会话**（任何令牌都不可）：`/api/tokens*`、`/api/password`、`/api/logout`。
+ */
+
+/** 类别 ③：令牌**一律不可**（与 scope 无关），必须 cookie 会话。 */
+const SESSION_ONLY_PREFIXES = ['/api/tokens'];
+const SESSION_ONLY_PATHS = new Set<string>(['/api/password', '/api/logout']);
+
+/** 类别 ①：资源读的路径前缀（方法为 GET 时）。`/api/me` 只是报身份，也算读。 */
+const RESOURCE_READ_PREFIXES = ['/api/prompts', '/api/folders', '/api/tags', '/api/export', '/api/usage'];
+const RESOURCE_READ_EXTRA_PATHS = new Set<string>(['/api/me']);
+
+/** 类别 ①：**归"读"的 POST**（只渲染、不改资源）。 */
+const RESOURCE_READ_POST = [/^\/api\/prompts\/\d+\/render$/, /^\/api\/render\/markdown$/];
+
+function isSessionOnly(path: string): boolean {
+  return SESSION_ONLY_PATHS.has(path) || SESSION_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+/** 该请求是否属于"资源读"（GET 白名单路径，或归读的渲染类 POST）。 */
+function isResourceRead(method: string, path: string): boolean {
+  if (method === 'POST') return RESOURCE_READ_POST.some((pattern) => pattern.test(path));
+  if (method !== 'GET' && method !== 'HEAD') return false;
+  if (RESOURCE_READ_EXTRA_PATHS.has(path)) return true;
+  return RESOURCE_READ_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
 
 export async function registerCookieSupport(app: FastifyInstance): Promise<void> {
   await app.register(cookie);
@@ -75,11 +114,32 @@ export function registerAuthGate(app: FastifyInstance): void {
         .orderBy('id', 'asc')
         .limit(1)
         .executeTakeFirst();
+      /**
+       * FR-103 ②：先判"仅会话"（与 scope 无关），再判"资源写需要 write"。
+       * 两者都是 **403**，但错误码分开：`session_required`（令牌本就不该调这个端点）
+       * 与 `insufficient_scope`（只读令牌调了资源写 ⇒ 换读写令牌即可）。
+       */
+      if (isSessionOnly(path)) {
+        await reply.code(403).send({
+          error: 'session_required',
+          message: '令牌管理与账号操作只允许浏览器会话（cookie）；请用界面操作，不要用 API 令牌。',
+        });
+        return;
+      }
+      if (!isResourceRead(request.method, path) && token.scope !== 'write') {
+        await reply.code(403).send({
+          error: 'insufficient_scope',
+          message: '该令牌是只读（read），只能检索 / 查看 / 渲染；修改资源需要读写（write）令牌。',
+        });
+        return;
+      }
+
       request.principal = {
         kind: 'token',
         username: owner?.username ?? 'admin',
         channel: bearerChannel(request),
         tokenId: token.id,
+        scope: token.scope,
       };
       return;
     }

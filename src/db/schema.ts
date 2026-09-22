@@ -75,6 +75,7 @@ export interface ApiTokensTable {
   name: string;
   token_hash: string; // sha256(明文) hex（64 字符）—— **鉴权唯一依据**（FR-94 后语义不变）
   token_enc: string | null; // FR-94：AES-256-GCM 密文 base64(nonce‖tag‖ciphertext)；存量行为 NULL（不可恢复）
+  scope: string | null; // FR-103：'read' | 'write'（**只作用于资源**）；迁移把存量回填为 'write'，服务层把 NULL 视作 'write'
   created_at: string;
   last_used_at: string | null;
   revoked_at: string | null;
@@ -85,6 +86,7 @@ export interface UsageEventsTable {
   prompt_id: number;
   channel: string; // 'session' | 'token' | 'mcp'
   used_at: string;
+  token_id: number | null; // FR-104：令牌取用记该令牌 id；cookie 会话取用记 NULL（可归因"谁取的"）
 }
 
 export interface PromptTagsTable {
