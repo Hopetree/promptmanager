@@ -51,14 +51,24 @@
   id + from/to only, never a token value).
 - **The token drawer must stay usable on a phone** (FR-106): the drawer is clamped to the viewport width
   (390), so the 6-column table **must** get `scroll.x` - that is the only thing that makes antd render the
-  scrollable `.ant-table-content` container. Pass a **numeric** `scroll={{ x: 419 }}`, **not**
-  `'max-content'`: `max-content` writes `width: max-content`, which ignores the cell's `maxWidth: 100%`
-  ellipsis and inflates the name column (measured 257px, table 714 > drawer 600) - that **re-introduces a
-  horizontal scrollbar on desktop** and pushes the action column out. With a number, `min-width: 100%`
-  makes the desktop table fill the drawer exactly as before (no scrollbar), while 390px viewports overflow
-  and therefore scroll. `TokenDrawer` also takes an `isMobile` prop (fed by `Workspace`, same breakpoint as
-  `SplitView`) that switches the create form to `layout="vertical"`. Verify any change here in a **real
-  viewport** (390x844 and 1600x900) - `tools/ac-stage44.sh` does exactly that.
+  scrollable `.ant-table-content` container. Use the **derived** `TOKEN_TABLE_MIN_WIDTH` (see the next
+  bullet), **not** `'max-content'`: `max-content` writes `width: max-content`, which ignores the cell's
+  `maxWidth: 100%` ellipsis and inflates the name column (measured 257px, table 714 > drawer 600) - that
+  **re-introduces a horizontal scrollbar on desktop** and pushes the action column out. With a proper
+  width, `min-width: 100%` makes the desktop table fill the drawer exactly as before (no scrollbar), while
+  390px viewports overflow and therefore scroll. `TokenDrawer` also takes an `isMobile` prop (fed by
+  `Workspace`, same breakpoint as `SplitView`) that switches the create form to `layout="vertical"`.
+  Verify any change here in a **real viewport** (390x844 and 1600x900) - `tools/ac-stage44.sh` does exactly that.
+- **Never hand-write the token table's `scroll.x`** (FR-107, the stage-44 regression): a hard-coded
+  `scroll={{ x: 419 }}` was **smaller than what the 6 columns actually need**, so under
+  `tableLayout: fixed` the five fixed-width columns consumed the whole budget and the **name column -
+  the only one without a `width` - was computed to 0px** (measured on 390: `left === right === 20`, and the
+  first header cell was `Token`, i.e. the user saw a missing column). The value now comes from
+  `TOKEN_TABLE_MIN_WIDTH`, a **sum of the per-column `minWidth` constants** (name >= 60px), so changing any
+  column width moves `scroll.x` with it. `tools/ac-stage45.sh` asserts **every column width > 0**, the name
+  column >= 60px, that the first header is `名称`, and that both ends are reachable. **When measuring,
+  always wait for the drawer slide-in animation to finish** (settled left edge) - `getBoundingClientRect`
+  during the animation returns mid-flight values, which is what fooled the stage-44 acceptance run.
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)
