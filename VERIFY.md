@@ -1522,3 +1522,63 @@ CLI 其实有**两条创建通道**，本次都核过：
 
 - **8767 测试环境已同步**（含本修复）。
 - ⚠️ **106 生产仍是 `1.1.1`（不含本修复）** ⇒ 要让它到生产，需要发 **`v1.1.2`（PATCH）**（用户当前用的界面就是生产）。
+
+---
+
+# 阶段 42 验收（FR-103 令牌权限两档 + FR-104 取用归因）— 结论：**过**
+
+| 项 | 值 |
+| --- | --- |
+| 被验收 commit | **`774836e`**（收尾）—— `85c967e`（迁移 + auth + routes + services）/ `169c9b6`（UI + CLI）/ `897724e`（单测 + AC 工具）/ `774836e`（文档 + PROGRESS） |
+| 规格 | BRIEF **v53**（FR-103 / FR-104；AC-105 / AC-106；D-42；阶段 42） |
+| 验收方 | host_manger（**临时实例 8768 + 真令牌打真端点 + 官方 MCP 客户端 + 真鼠标 + 查库**） |
+| 结论 | **过** |
+
+## 1. AC-105（九条全过）
+
+| # | 判据 | 我的实测 |
+| --- | --- | --- |
+| ① | 迁移 + 存量口径 | 我**真模拟了存量**：先移到 v4 → 插一条老式令牌 → 放回 `005` → 迁到 v5 ⇒ `ok: schema at v5`；`api_tokens` 有 `scope`、`usage_events` 有 `token_id`；**存量行 `legacy-before-005` → `scope='write'`** ✅ |
+| ② | 只读令牌写资源 | `GET /api/prompts` **200**；**6 个写端点全 `403 insufficient_scope`**（POST/PUT prompts、PATCH order、DELETE prompt、POST folders、POST tags），消息明确"该令牌是只读（read）…" ✅ |
+| ③ | **渲染类 POST 归读** | `POST /api/prompts/1/render` → **200**（渲染出 `你好 世界`）｜`POST /api/render/markdown` → **200** ✅ ← **关键回归**（MCP 的 `prompt_render` 依赖它） |
+| ④ | 读写令牌 | 读 200 ｜ 建 201 ｜ 改 200 ✅ |
+| ⑤ | **令牌管理 / 改口令仅会话** | 用**读写**令牌：`GET /api/tokens`、`POST /api/tokens`（自我繁殖）、`DELETE /api/tokens/:id`、`DELETE …/permanent`、`POST …/reveal`、**`POST /api/password`** → **全部 `403 session_required`** ✅；被拦后**原口令仍可登录**（200）✅ |
+| ⑥ | `/mcp` 用只读令牌 | **官方 Python 客户端**（mcp 1.30.0）：`initialize` → promptmanager 1.1.1 / 协议 2025-11-25；`tools/list` → 三工具；`prompt_search` / `prompt_get` / `prompt_render` **全部返回真实数据** ✅（读写令牌同样可用，MCP 仍只暴露只读工具 ✅） |
+| ⑦ | 默认只读 | CLI `token create`（不带 `--scope`）→ `read`，用它 POST → **403** ✅；`--scope write` → 建成功 **201** ✅；**界面真鼠标新建（不碰权限控件）→ 查库 `ac42-ui-default` = `read`** ✅ |
+| ⑧ | 界面 | 列头仍是 **6 列**（名称/Token/状态/使用/最近使用/操作）✅；状态列显示 `有效 · 读写` / `有效 · 只读` ✅；新建处权限控件**默认「只读」** ✅（截图我逐项看过） |
+| ⑨ | 回归 | `npm test` **401/401**（我复跑；392 + 9 新例）｜`ci-check`（先删 dist）**rc=0** ✅ |
+
+## 2. AC-106 取用归因（五条全过）
+
+```
+① usage_events 有 token_id ✅（PRAGMA table_info）
+② 只读令牌取用 → (prompt_id=1, channel='token', token_id=2) ✅（2 = 该只读令牌 id）
+③ 会话取用     → (1, 'session', None) ✅（NULL）
+④ 列表 / 搜索 不记取用 ✅（总条数 3 = 令牌 get + 令牌 render + 会话 get）
+⑤ GET /api/usage/summary → {"by_channel":{"session":1,"token":2},"by_token":[{"token_id":2,"count":2},{"token_id":null,"count":1}], …}
+   ✅ 比要求更好：**直接按令牌聚合**（"哪个令牌取了几次"一眼可查）
+```
+
+## 3. 过程审查 — 干净（窗口 21:45–22:25）
+
+```
+工具调用 60 次（bash 51 / write 3 / edit 2 / job_output 2 / read_image 1 / read 1）
+跑测试与 AC 17 次 ｜ **commit 前核 `git diff --cached --name-only` 4 次**（4 个提交）
+**未触碰部署 / 系统 / 别的机器**（唯一命中是 docs 里写了 8767 示例的文档改动）｜三端一致 `774836e`
+```
+
+## 4. 我的验收过程记录（工具教训）
+
+- 我的探针**三处打偏，全是"我的契约记错"**（不是交付物问题）：
+  ① `POST /api/render/markdown` 的字段是 **`markdown`**（我先写成 `text`/`body` → 400）；
+  ② usage 的路径是 **`/api/usage/summary`**（我按 `/api/usage` → 404）；
+  ③ MCP 客户端脚本**得在装了 `mcp` 包的机器上跑**（228 没装 ⇒ 挪到我的容器）。
+  三条改正后**全过** ✓
+- 迁移的"存量 = write"我做了**真模拟**（v4 → 插老式行 → 005 → v5），不是只看 SQL 文本。
+
+## 5. 上线状态与后续
+
+- **8767 测试环境已同步**：迁移会把**现有令牌一律置 `write`** ⇒ 现有 MCP / 推送技能令牌**不受影响** ✓
+- ⚠️ **106 生产仍是 `1.1.1`**（本版不在生产）⇒ 按 `docs/versioning.md` 属 **MINOR**，应发 **`v1.2.0`**。
+- ⚠️ **scope 建后不可改**（接口只有创建/撤销/删除，没有改权限）⇒ 上线后想把 MCP 令牌变只读，**只能撤销后重建**一个只读的
+  （"允许改已有令牌的权限"可列为后续小改进）。
