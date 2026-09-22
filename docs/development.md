@@ -149,6 +149,7 @@ bash tools/ac-stage40.sh       # CLI 建的 token 也有密文（界面可见值
 bash tools/ac-stage41.sh       # 编辑保存后返回详情，版本历史即时更新（真浏览器，不刷新页面）
 bash tools/ac-stage42.sh       # 令牌权限两档 read/write（逐端点实测）/ 取用归因 token_id（真实令牌 + 官方 MCP 客户端）
 bash tools/ac-stage43.sh       # 改已有令牌的权限 PATCH /api/tokens/:id（防自我提权 / 立即生效 / 409·400·404 / 真鼠标改且不刷新 / CLI set-scope）
+bash tools/ac-stage44.sh       # 移动端令牌页可用（真视口 390×844 与 1600×900：表格可横滚且两端列可达 / 表单 ≥120px / 桌面零回归）
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # 2000 条中文夹具（直接写库，触发器同步 FTS）

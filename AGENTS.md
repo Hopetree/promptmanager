@@ -49,6 +49,16 @@
   `状态` column (**active rows only**, still 6 columns, no horizontal scroll); the local admin path is
   `pm token set-scope <id> <read|write>`, and each successful change logs one line (`token scope changed`,
   id + from/to only, never a token value).
+- **The token drawer must stay usable on a phone** (FR-106): the drawer is clamped to the viewport width
+  (390), so the 6-column table **must** get `scroll.x` - that is the only thing that makes antd render the
+  scrollable `.ant-table-content` container. Pass a **numeric** `scroll={{ x: 419 }}`, **not**
+  `'max-content'`: `max-content` writes `width: max-content`, which ignores the cell's `maxWidth: 100%`
+  ellipsis and inflates the name column (measured 257px, table 714 > drawer 600) - that **re-introduces a
+  horizontal scrollbar on desktop** and pushes the action column out. With a number, `min-width: 100%`
+  makes the desktop table fill the drawer exactly as before (no scrollbar), while 390px viewports overflow
+  and therefore scroll. `TokenDrawer` also takes an `isMobile` prop (fed by `Workspace`, same breakpoint as
+  `SplitView`) that switches the create form to `layout="vertical"`. Verify any change here in a **real
+  viewport** (390x844 and 1600x900) - `tools/ac-stage44.sh` does exactly that.
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)

@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–43 已全部完成**；已发布 **v1.1.1**（阶段 43 的改动尚未发版） |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–41 自检全过**；**阶段 42（FR-103/FR-104 / AC-105/AC-106：**令牌权限两档 read/write（只作用于资源）+ 取用归因 token_id** —— 真令牌逐端点实测 + 官方 MCP 客户端 + 真鼠标，68 条判据全过）自检全过**（见本文件「阶段 42」）；**阶段 43（FR-105 / AC-107：**改已有令牌的权限 `PATCH /api/tokens/:id`** —— 仅会话含不能改自己〔防自我提权〕、立即生效、已撤销 409、真鼠标改且不刷新、CLI set-scope，99 条判据全过）自检全过**（见本文件「阶段 43」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
+| 阶段 | **阶段 1–44 已全部完成**；已发布 **v1.2.0**（阶段 43 已发版） |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–41 自检全过**；**阶段 42（FR-103/FR-104 / AC-105/AC-106：**令牌权限两档 read/write（只作用于资源）+ 取用归因 token_id** —— 真令牌逐端点实测 + 官方 MCP 客户端 + 真鼠标，68 条判据全过）自检全过**（见本文件「阶段 42」）；**阶段 43（FR-105 / AC-107：**改已有令牌的权限 `PATCH /api/tokens/:id`** —— 仅会话含不能改自己〔防自我提权〕、立即生效、已撤销 409、真鼠标改且不刷新、CLI set-scope，99 条判据全过）自检全过**（见本文件「阶段 43」）；**阶段 44（FR-106 / AC-108：**FIX 移动端令牌页不可用** —— 表格加数值 `scroll.x` 让它能横滚〔`scroll.x='max-content'` 会把桌面名称列撑到 257px、表格 714 > 抽屉 600 而冒出横滚条，故改用数值 419〕、`isMobile` 下发让创建表单竖排〔名称输入 350px〕、Alert 去 `**`；真视口 390×844 与 1600×900 的像素数，47 条判据全过）自检全过**（见本文件「阶段 44」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
 | 版本 | **`1.1.1`**（`package.json` 单一来源，`/healthz` 同源；host_manger 已发布 v1.1.0 与 v1.1.1） |
 | 最后更新 | 2026-09-22 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -63,6 +63,7 @@
 | 39 | FR-100 **撤销后的 token 仍显示值并可复制**（撤销 ≠ 销毁）：预取过滤去掉 `revoked_at` 条件、「使用」列判断只看 `revealable` ⇒ 撤销行显示**掩码** + 有「复制」（同步写、点击不发请求）；真正无密文的旧 token 仍 `—` 且带 `title` 说明原因；**服务端一行未改**（`revealToken` 本就不看 `revoked_at`） | 本文件「阶段 39」 |
 | 42 | FR-103 **令牌权限两档（只读 / 读写，只作用于资源）**：`005_token-scope.sql` 加 `scope`（**存量=write、新建缺省 read**）；**资源读**含渲染类 POST、**资源写**仅 write（403 `insufficient_scope`）、**令牌管理与改口令/登出一律仅会话**（403 `session_required`）；`/mcp` 沿用同一 scope；界面状态列显示 `有效 · 只读/读写`（不新增列）、新建默认只读；CLI `token create --scope` + FR-104 **取用归因**（同一迁移加 `usage_events.token_id`；令牌取用记 id、会话记 NULL、summary 带 `by_token`） | 本文件「阶段 42」 |
 | 43 | FR-105 **改已有令牌的权限**：新增 `PATCH /api/tokens/:id`（只收 `scope`，`additionalProperties:false`）；**仅会话且不能改自己**（防只读令牌自我提权）→ 403 `session_required`；有效令牌**立即生效**、已撤销 → 409 `token_revoked`、不存在 → 404；界面**点「状态」列的权限文本**切换（有效行才有入口，仍 6 列 + 无横向滚动、不刷新页面）；CLI `token set-scope <id> <read\|write>`；成功后一条不含令牌值的日志 | 本文件「阶段 43」 |
+| 44 | FR-106 **FIX 移动端令牌页不可用**：表格加**数值** `scroll={{x:419}}`（不给 `scroll.x` 时 antd 不渲染可滚动容器 ⇒ 390 下溢出但推不动、两端列都够不着）；`isMobile` 由 `Workspace` 下发 ⇒ 移动端创建表单竖排（名称输入 350px）；Alert 文案去 `**`；**桌面 640 / 600 / 6 列与点状态列改权限零回归** | 本文件「阶段 44」 |
 | 41 | FR-102 **FIX 编辑保存后返回详情，版本历史仍是旧的**（刷新信号 `versionKey` 只在回滚时自增 ⇒ 编辑保存不触发重拉）：改为以 **`prompt.version_no`** 为唯一刷新信号（编辑保存/回滚/移动端重拉都覆盖，无关操作不产生多余请求）；并把版本表格**显示**翻转为**最新在上**（接口是升序返回，原样渲染会把新版本压在最下面）；**接口/数据零改动** | 本文件「阶段 41」 |
 | 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
@@ -3164,6 +3165,150 @@ bash tools/ac-stage43.sh rc=0，❌ 0（99 条判据）
 `??` 的优先级低于 `===`，实际解析成 `a ?? (b === c)`，**返回字符串而不是布尔** ⇒ 等待永远不成立、
 真鼠标会多点一次（重复 PATCH）。已在 `tools/ac-stage43-probe.mjs` 里抽出 `stateIs()` **加括号**修好，
 并把"真鼠标一次点中（up_attempts=1）"作为断言钉住 —— 这类"探针自身的 bug 伪装成产品 bug"值得记一笔。
+
+## 阶段 44（2026-09-23）：FIX 移动端令牌页不可用（FR-106；AC-108）
+
+> **一句话**：390 宽下令牌抽屉的表格**溢出却没有滚动容器** —— `scrollWidth 457 > clientWidth 350`、
+> 最右列右边缘 **477 > 390**（「操作」列在屏幕外）、`scrollLeft` 从 0 推到 9999 **纹丝不动** ⇒ **两端列都够不着**。
+> 根因是 `<Table>` 没设 `scroll={{ x: … }}`（"不设 scroll.x" 那个结论是按 **640 宽桌面**得出的）。
+
+### 0. 开工前：AC-108 → 可执行检查命令的翻译
+
+| AC | 要执行的检查（命令 / 判据） |
+| --- | --- |
+| ① 390 可横滚 + 两端列可达 | `node tools/ac-stage44-probe.mjs mobile <url> <sid>`（CDP `setDeviceMetricsOverride` **390×844**，真鼠标）：量表格 `scrollWidth > clientWidth`；把容器的 `scrollLeft` 设成 `9999` 后**读回实际值**（必须 > 0）；滚到最右时量「操作」列的 `getBoundingClientRect().right` ≤ 抽屉右边缘；滚回 0 时量「名称」列 `left` ≥ 抽屉左边缘 |
+| ② 创建表单不挤 | 同一次探测里量 `[data-testid=pm-token-name]` 的 `getBoundingClientRect().width` **≥ 120**；并确认权限选择与「创建 token」按钮**都还在视口内且可点**（真鼠标点一次创建，列表 +1） |
+| ③ 文案去星号 | Alert 的 `innerText` 里 **`**` 出现次数 = 0**（并 grep 源码） |
+| ④ 页面级不横滚 | `document.documentElement.scrollWidth === 390` |
+| ⑤ 桌面不回归 | 同探针 `desktop` 档：**1600×900** 下抽屉宽 **640**、表格 `scrollWidth === clientWidth`（无横滚）、列头仍是 6 列同序、**真鼠标点状态列改权限**（`有效 · 只读` → `有效 · 读写` → 改回） |
+| ⑥ 视觉证据 | 390 亮 + 桌面亮各一张，自己识图（移动端 6 列齐全且可滚、表单不再挤成一格） |
+| ⑦ 回归 | `npm test` 全绿（只增不减）；`rm -rf dist && bash tools/ci-check.sh` 全绿 |
+
+### 1. 改动（三处，都在同一处代码里）
+
+| 落盘 | 内容 |
+| --- | --- |
+| `web/src/components/TokenDrawer.tsx` `<Table>` | 加 **`scroll={{ x: 419 }}`**（**数值**，**不是** BRIEF D-44 提的 `'max-content'` —— 理由见下面「⚠️ 一处必须偏离 D-44」）⇒ 窄容器下有真正的横向滚动容器（两端列可达）；**桌面 640 内 `scrollWidth === clientWidth`（无横滚）** |
+| `web/src/components/TokenDrawer.tsx` 表单 + 接口 | 新增 **`isMobile?: boolean`** prop；移动端 `<Form layout="vertical">`（名称独占一行、权限与按钮折到下一行）⇒ 名称输入可用宽度 **350px**（≥120） |
+| `web/src/components/Workspace.tsx` | 把已有的 `isMobile`（`Grid.useBreakpoint()`，与 `SplitView` 同款断点 768）**下发给 `LazyTokenDrawer`** |
+| `web/src/components/TokenDrawer.tsx` Alert | 描述里那对 `**` 去掉（Alert 不渲染 Markdown，星号会原样显示） |
+| `web/src/components/TokenDrawer.tsx` 名称列 | 加 `minWidth: 0`（显式声明"名称列可被压到最小"；见 `<Table>` 上那段说明） |
+
+**⚠️ 为什么"加 scroll.x"是根因级修法**：antd 的 `<Table>` 只有在给了 `scroll.x` 时才渲染 `.ant-table-content` 这个
+**可滚动容器**；不给的话窄容器里内容直接溢出到表格外，`scrollLeft` 设了也没用（AC-108 ① 的前后像素数就是证据）。
+
+**⚠️ 一处必须偏离 D-44 的地方（如实报告）**：BRIEF 的 **D-44 ①/D-44 与 FR-106 ① 都写了 `scroll={{ x: 'max-content' }}`**，
+但**照字面实现会把桌面改坏** —— 实测链条（`tmp/probe-table.mjs` / `tmp/probe-opt.mjs` 两次一次性诊断）：
+
+```
+scroll.x = 'max-content' ⇒ 表格元素拿到 width: max-content; min-width: 100%; table-layout: fixed
+  名称列 = 257px（最长那个 21 字中文名撑开），表格总宽 = 714 > 抽屉可用的 600
+  ⇒ 1600×900 下 contentScrollWidth 714 / clientWidth 600（**冒出横滚条、最右列右边缘 1694 > 抽屉 1600**）
+  —— 正是 AC-108 ⑤「桌面不得出现横滚」要防的回归
+根因：max-content 是"内容不换行时的理想宽度"，**不吃**单元格里的 maxWidth:100% / text-overflow: ellipsis
+      （那两个只在宽度已被外部限定时才裁剪）
+改成 scroll.x = 419（数值）= 五个定宽列之和 457 再留 12px 给名称列 ⇒ 表格 width: 419px; min-width: 100%
+  · 宽容器（桌面）min-width:100% 生效 ⇒ 表宽 = 容器 600，名称列自动吃剩余 143px（**与加 scroll.x 之前逐像素一致**）
+  · 窄容器（手机）容器只有 350 ⇒ 表宽 419 > 350 ⇒ 溢出并可横滚 ◀ 两个目标同时满足
+```
+
+这是**对规格字面值的一次偏离**（`'max-content'` → `419`），但**完全在 FR-106 的意图内**（FR-106 ① 原文允许"或等价手段"，
+D-44 ① 的目标是"让表格能横滚"，而不是"必须用那个字符串"）。两个视口的像素数分别由 AC-108 ① / ⑤ 钉住。
+若 host_manger 坚持要字面 `'max-content'`，那 desktop 就必须接受一条横滚条（与 AC-108 ⑤ 冲突）—— 这需要规格侧裁决。
+
+### 2. AC-108 原样输出（**真浏览器 + 真实视口 + 真鼠标**；47 条判据全过）
+
+```
+$ bash tools/ac-stage44.sh          # rc=0 ｜ ✅ 47 ｜ ❌ 0
+  构建 + 全量单测：ℹ tests 413 ℹ pass 413 ℹ fail 0
+
+  手机档（CDP Emulation.setDeviceMetricsOverride 390×844，mobile:true）
+    viewport=390x844 ｜ innerWidth=390 ｜ heads=["名称","Token","状态","使用","最近使用","操作"] ｜ rows=5
+    geo_before={"drawerWidth":390,"drawerLeft":0,"drawerRight":390,"scrollWidth":457,"clientWidth":350,
+                "overflow":107,"canScroll":"auto","scrollLeft":0,
+                "firstLeft":20,"lastLeft":427,"lastRight":477,"docScrollWidth":390}
+    ✅ ① 表格**确有溢出**：scrollWidth 457 > clientWidth 350（溢出 107px）
+    ✅ ① 容器确实可横向滚动：overflow-x = auto
+    ✅ ① scrollLeft 设 9999 后**实际变成 107**（= 最大可滚位置；改前是恒为 0）
+    geo_right={"scrollLeft":107,"firstLeft":-87,"lastLeft":320,"lastRight":370,...}
+    ✅ ① 滚到最右：「操作」列右边缘 **370 ≤ 抽屉右边缘 390** ⇒ **可见**（改前 477 > 390，在屏幕外）
+    ✅ ① 滚到最右：「名称」列已移出左侧（-87 < 0）
+    geo_left={"scrollLeft":0,"firstLeft":20,"lastRight":477,...}
+    ✅ ① 滚回最左：「名称」列左边缘 **20 ≥ 抽屉左边缘 0** ⇒ **可见**；scrollLeft 回到 0
+    ✅ ② form_layout=vertical ｜ ✅ ② 名称输入框实际宽度 = **350px**（≥120；改前 ~80px）
+    ✅ ② 权限选择仍在视口内 ｜ ✅ ② 「创建 token」按钮仍在视口内
+    ✅ ② 真鼠标点「创建 token」⇒ 列表 5 → 6 行（控件真的可用）
+    ✅ ③ Alert 描述里不再出现 `**`（false）｜ ✅ ③ 去星号后那句"点「状态」列直接切换"仍在
+    ✅ ④ document.documentElement.scrollWidth = **390**（页面级无横向滚动）
+    ✅ 运行时异常 = []
+
+  桌面档（1600×900）
+    geo_desktop={"drawerWidth":640,"drawerLeft":960,"drawerRight":1600,"scrollWidth":600,"clientWidth":600,
+                 "overflow":0,"scrollLeft":0,"lastLeft":1530,"lastRight":1580}
+    ✅ ⑤ 抽屉宽仍是 **640** ｜ ✅ ⑤ 表格 **scrollWidth === clientWidth = 600**（**无横滚**）
+    ✅ ⑤ 无横滚 ⇒ scrollLeft 推不动（仍是 0）｜ ✅ ⑤ 列头仍是 6 列同序
+    column_widths=[143,104,104,76,123,50]   ← 名称 143 + 五个定宽列，与加 scroll.x 前一致
+    ✅ ⑤ 6 列都在抽屉内（最右 1580 ≤ 1600）｜ ✅ ⑤ 桌面表单仍是 inline（一行三件，一字未改）
+    ✅ ⑤ 真鼠标点状态列：菜单两项 ["只读","读写"] → 「有效 · 只读」→「有效 · 读写」→ 改回「有效 · 只读」
+    ✅ ⑤ 改权限后桌面仍无横滚 ｜ ✅ ⑤ 查库仍是 read ｜ ✅ 运行时异常 = []
+```
+
+**截图识图**（`tmp/shots/stage44/`，过程产物不入库）：
+- `mobile/02-mobile-scrolled-left.png` —— 390 宽：抽屉占满视口；创建表单**竖排**（名称输入独占一行、满宽约 350px、
+  权限选择「只读」与「创建 token」各占一行）；表格可见 **名称 / Token / 状态 / 使用 / 最近使用** 五列，
+  行内有 `有效 · 只读` / `有效 · 读写` / `已撤销 · 只读` 三种状态与「复制」按钮。
+- `mobile/01-mobile-scrolled-right.png` —— 同一页把表格滑到最右：可见 **状态 / 使用 / 最近使用 / 操作**，
+  「操作」列的「撤销」（红）/「删除」（红）**露出来了** ⇒ 两端列都够得着（这正是用户报的"显示不全"）。
+- `desktop/01-desktop-scope-write.png` —— 1600 宽：抽屉仍是 640，**6 列一屏放下、没有横向滚动条**，
+  表单仍是一行（输入框 + 只读 + 创建 token），右上角提示「已改为读写（立即生效）」⇒ 桌面零回归。
+
+### 3. 回归（原样输出）
+
+```
+npm test                409/409 → **413/413 fail 0**（+4：tests/stage44-token-mobile.test.ts）
+rm -rf dist && bash tools/ci-check.sh   rc=0，6 项全绿
+                        ② 构建 rc=0（0 条 >500KB 告警）｜ ③a/③b 类型检查 0 错误
+                        ④ npm test rc=0 ℹ tests 413 ℹ pass 413 ℹ fail 0
+                        ⑤ 体积预算 rc=0 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1306 KB）
+bash tools/ac-stage44.sh rc=0，❌ 0（47 条判据）
+体积预算：js 合计 1306 KB、gzip 量级不变（本次只改表格 props 与表单布局）⇒ 无需新增对账增量
+```
+
+**既有断言的同步更新（3 处，**未删任何断言**）**：`stage37-token-layout` / `stage38-token-columns` /
+`stage39-revoked-token` 各有一条"**不得**设 `scroll.x`"的断言。它们是按 **640 宽桌面**得出的结论，与 FR-106 直接冲突，
+按惯例**改写为"必须设数值 `scroll.x`"**（并保留各自真正关心的口径：≤640 / `tableLayout="fixed"` / 6 列 / 折叠已移除），
+断言数不减、覆盖不减。
+
+### 4. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| 表格可横滚（根因修法）+ 名称列可压缩 | `web/src/components/TokenDrawer.tsx`（`<Table scroll={{x:419}}>`、名称列 `minWidth: 0`） |
+| 移动端表单竖排 | `web/src/components/TokenDrawer.tsx`（`isMobile` prop + `layout={isMobile?'vertical':'inline'}`） |
+| `isMobile` 下发 | `web/src/components/Workspace.tsx`（`<LazyTokenDrawer … isMobile={isMobile} />`） |
+| 文案去星号 | `web/src/components/TokenDrawer.tsx`（Alert `description`） |
+| 单测（4 例新增）+ 3 条既有断言同步改写 | `tests/stage44-token-mobile.test.ts`（新）、`tests/stage37-token-layout.test.ts`、`tests/stage38-token-columns.test.ts`、`tests/stage39-revoked-token.test.ts` |
+| AC 工具（真视口 / 真鼠标 / 像素数） | `tools/ac-stage44.sh`、`tools/ac-stage44-probe.mjs` |
+| 文档 | `docs/development.md`（验证脚本清单补 44）、`README.md`（操作表补「手机上管令牌」一行）、`AGENTS.md`（英文一段：为什么必须用**数值** `scroll.x`） |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage44/{mobile/{01-mobile-scrolled-right,02-mobile-scrolled-left,03-mobile-after-create},desktop/01-desktop-scope-write}.png` |
+
+### 5. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | 前端修复（表格 `scroll.x` + 名称列 + `isMobile` 竖排表单 + 文案去星号）+ Workspace 下发 | 见下方交付回复 |
+| ② | 单测（+4）+ 3 条既有断言同步改写 + AC 脚本与真视口探针 | 同上 |
+| ③ | 文档（development.md / README / AGENTS）+ 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；
+测试令牌只在本机临时实例里建、PROGRESS 一律脱敏。
+
+**踩坑留痕（本阶段探针自己的两次自伤，都值得记）**：
+① 用 `pm-brand-text` 当"主界面就绪"判据 —— 它是**桌面专属**（`AppHeader` 里 `{!isMobile && …}`）⇒ 手机档必然超时，
+   改用两种视口都在的 `pm-brand-mark`；
+② 在**模板字符串里写 JS 行注释**，注释里的反引号把模板串截断了 ⇒ `SyntaxError: Unexpected identifier 'tr'`
+   （已改用无反引号的措辞）。两次都是"探针自身 bug 伪装成产品 bug"。
 
 ## 归档与当前状态的关系
 
