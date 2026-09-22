@@ -47,7 +47,19 @@ export default function LoginPage({ onSuccess }: LoginPageProps) {
       vertical
       align="center"
       justify="center"
-      style={{ minHeight: '100vh', background: canvas, padding: '48px 24px' }}
+      /**
+       * FR-108（backlog R-7）：**必须显式 `boxSizing: 'border-box'`**，否则登录页恒有一条纵向滚动条。
+       *
+       * 根因（实测，390×844 与 1600×900 两档都多出 **恰好 96px**）：本仓库没有全局
+       * `box-sizing: border-box` 重置（`web/index.html` 也没有），所以这个 div 的默认盒模型是
+       * **`content-box`** ⇒ `minHeight: '100vh'` 只约束**内容盒**，`padding: '48px 24px'` 的上下各 48px
+       * **额外加上去**：`844 + 48 + 48 = 940`、`900 + 48 + 48 = 996` —— 与实测/log 基线逐像素吻合。
+       * 这也解释了"为什么两档的差都是 96"：溢出量 = 上下 padding 之和，**与视口高度无关**。
+       *
+       * 加 `border-box` 后 `minHeight: 100vh` 变成**含 padding 的总高** ⇒ 占用恰好等于视口高，不再溢出；
+       * 居中（`align`/`justify`）与留白（`padding: 48px 24px`）**一字未改**，视觉不变。
+       */
+      style={{ minHeight: '100vh', boxSizing: 'border-box', background: canvas, padding: '48px 24px' }}
       data-testid="pm-login"
     >
       <div style={{ width: '100%', maxWidth: 420 }}>
