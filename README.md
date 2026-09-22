@@ -58,6 +58,24 @@ printf '%s\n' '你的强口令' | docker exec -i promptmanager node bin/pm.mjs u
 curl -s http://127.0.0.1:8767/healthz
 ```
 
+**⚠️ 第 ① 步卡住或很慢？**（国内网络常见）镜像在 **Docker Hub** 上，部分网络下 `docker pull` 会超时或极慢。
+这不是你环境坏了，改用**国内镜像站或代理**即可 —— 做法是**先从镜像站拉，再 `tag` 回规范名**，后面的命令一字不用改：
+
+```bash
+# 第一步：从任一可用的镜像站 / 代理拉（<镜像站> 换成你手上能用的那个，例如公司内网的 registry 或
+#         任意公开加速地址；站点可用性会变，所以这里不写死某一家）
+docker pull <镜像站>/<命名空间>/promptmanager:1.0.2
+
+# 第二步：把刚拉下来的镜像 tag 回规范名 —— 之后 ②③④ 与升级命令全部照旧
+docker tag <镜像站>/<命名空间>/promptmanager:1.0.2 <命名空间>/promptmanager:1.0.2
+```
+
+> 为什么要"tag 回规范名"：`docker run` / `docker compose` / 升级脚本引用的都是规范名
+> `<命名空间>/promptmanager:<tag>`；先 tag 好，后续流程与文档就完全一致，不用改任何配置文件。
+> 同理，能连外网但慢的环境也可以给 Docker 配代理（`/etc/systemd/system/docker.service.d/` 下的
+> `HTTP_PROXY`/`HTTPS_PROXY`），那样连 tag 都不用做。
+> 若你的镜像站把路径写成了扁平名（如 `<镜像站>/promptmanager:1.0.2`），把上面的 `<镜像站>/<命名空间>` 整段换成它给的名字即可。
+
 然后浏览器打开 **`http://<主机IP>:8767/`**，用 `admin` + 刚设的口令登录。
 
 **用 compose 更省事**（仓库里带了一份，按部署机改两处：端口映射的宿主地址、数据卷路径）：
@@ -190,6 +208,27 @@ curl -s -X POST http://127.0.0.1:8767/mcp \
 ---
 
 ## 常见问题（FAQ）
+
+**拉取镜像很慢或者失败怎么办？**
+多半是网络到 **Docker Hub** 不通（国内常见），不是你的环境有问题。两种办法：
+
+1. **换国内镜像站 / 加速地址**（见效最快）：先从镜像站拉下来，再 `tag` 回规范名，后续命令不用改：
+
+   ```bash
+   docker pull <镜像站>/<命名空间>/promptmanager:1.0.2
+   docker tag  <镜像站>/<命名空间>/promptmanager:1.0.2 <命名空间>/promptmanager:1.0.2
+   ```
+
+   > **不写死具体站点**：各家加速地址的可用性会变，请用你所在网络里能用的那一个（公司内网 registry、
+   云厂商加速器、公开镜像站都行）。若镜像站给的是扁平名（`<镜像站>/promptmanager:1.0.2`），
+   把 `<镜像站>/<命名空间>` 整段替换成它给的名字。
+
+2. **给 Docker 配代理**（能连外网但慢）：在 `/etc/systemd/system/docker.service.d/` 下加
+   `HTTP_PROXY` / `HTTPS_PROXY` 环境变量后 `systemctl daemon-reload && systemctl restart docker`，
+   之后直接 `docker pull` 原命令即可，**不需要**再 tag。
+
+自检是否拉成功：`docker images | grep promptmanager` 里应能看到 `<命名空间>/promptmanager:<tag>`；
+`docker compose` 与升级命令引用的都是这个规范名，所以上面前两步做完就够了。
 
 **忘记管理员口令了怎么办？**
 在服务所在主机上重设（覆盖式，不需要旧口令）：
