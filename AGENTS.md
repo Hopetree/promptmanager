@@ -41,6 +41,14 @@
   allows resource mutations. Token management (`/api/tokens*`), `POST /api/password` and `POST /api/logout`
   are **session-only for every token** (403 `session_required`) - a leaked token must not be able to
   enumerate tokens or mint new ones. Missing scope (`NULL`) is treated as `write` for backwards compatibility.
+- **An existing token's scope can be changed** (`PATCH /api/tokens/:id`, FR-105, body `{scope}` only,
+  `additionalProperties: false`): it takes effect on the **very next request** (no re-creation, no re-login);
+  a **revoked** token gives 409 `token_revoked`; a missing id gives 404. Because it is token management it is
+  **session-only too** - a token may not change **its own** scope (that would be self-escalation from `read` to
+  `write` and would defeat the whole scope boundary). The UI entry point is the clickable scope text in the
+  `状态` column (**active rows only**, still 6 columns, no horizontal scroll); the local admin path is
+  `pm token set-scope <id> <read|write>`, and each successful change logs one line (`token scope changed`,
+  id + from/to only, never a token value).
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)

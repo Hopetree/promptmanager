@@ -213,6 +213,25 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 - 存量令牌在迁移（`005_token-scope.sql`）里**一律置 `write`**，保证既有 MCP / 技能令牌不被打断；`scope` 列为 NULL 时服务端也按 `write` 处理（与回填口径一致）。
 - 取用记录（`GET /api/usage/summary`）现在带 **`by_token`**（按令牌归因，`token_id = null` 表示 cookie 会话取用）。
 
+**改已有令牌的权限（FR-105）：`PATCH /api/tokens/:id`**
+
+```bash
+# 把一把在用的令牌从只读改成读写（或反过来）—— 立即生效，不用重建令牌、不用重新登录
+curl -s -b /tmp/pm-jar -X PATCH -H 'Content-Type: application/json' \
+  -d '{"scope":"write"}' http://127.0.0.1:8767/api/tokens/1
+# → 200 {"id":1,"name":"mcp","…","scope":"write"}
+```
+
+- **body 只收 `scope`**（`read` / `write`，`additionalProperties: false`）：传 `name` 或其它字段、或传空体 `{}` → **400 `invalid_body`**（本接口**不做改名**）。
+- **权限（硬）：属于"令牌管理" ⇒ 一律仅会话** —— 用**任何令牌**调（**包括它自己**）→ **403 `session_required`**。
+  ⚠️ 这条是**防自我提权**的关键：只读令牌若能改自己的 `scope`，就等于能把自己变成读写，整个 scope 边界会被绕过。
+- **有效令牌**：直接改、**立即生效**（服务端每个请求都查库、不缓存权限 ⇒ **下一个请求**就按新权限判定）；幂等（改成当前值同样 200）。
+- **已撤销的令牌** → **409 `token_revoked`**（附说明：已撤销的令牌权限没有意义；要恢复请重建一个）—— 与"已撤销只能删除"一致。
+- **不存在的 id** → **404**。
+- 成功后应用日志记一条 **`token scope changed`**（只带 `tokenId` 与 `from`/`to` 两档权限，**不含任何令牌值**）。
+- 界面：**有效行**点「状态」列的权限文本（`有效 · 只读` / `有效 · 读写`）即可切换（**不新增列**）；**已撤销行没有该入口**。
+- CLI（本机管理路径，直接开库）：`node bin/pm.mjs token set-scope <id> <read|write>`；非法取值给用法错误（退出码 2）。
+
 **撤销 vs 硬删除（语义不同，别混）**
 
 | 操作 | 路由 | 效果 |
@@ -241,7 +260,7 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # �
 - **加密密钥**：env `TOKEN_ENC_KEY`（32 字节 hex）优先；缺失时自动生成到 `<DATA_DIR>/token-enc.key`（600）。
   **密钥丢失不影响鉴权**，只是"看不了"；此时 reveal → **500 `token_enc_key_unavailable`**（附可读说明）。
   ⚠️ 权衡：库与密钥分开保管 ⇒ 只有库泄露拿不到 token；但把**整个数据目录**一起备份 = 钥匙与锁放一起（靠备份落点权限保护）。
-- 可列出（不含明文）与撤销；记录 `last_used_at`；单用户下不做 scope 分层。
+- 可列出（不含明文）、**改权限（FR-105）**与撤销；记录 `last_used_at`；单用户下**不做按用户的 ACL**（只有令牌两档 scope）。
 
 ### 3.10 使用记录
 
@@ -283,9 +302,10 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `401` | 未认证（除 `/healthz`、`/api/login` 外的全部 `/api/*`） |
 | `404` | prompt / 版本 / 令牌不存在（含"回滚到已被裁剪掉的版本"） |
 | `409 folder_not_empty` | 删除仍有子目录或仍有 prompt 归属的文件夹 |
-| `403 session_required` | 用**令牌**调"不属于资源"的端点：`/api/tokens*`（列表 / 新建 / 撤销 / 硬删 / reveal）、`POST /api/password`、`POST /api/logout` —— **只允许浏览器会话** |
+| `403 session_required` | 用**令牌**调"不属于资源"的端点：`/api/tokens*`（列表 / 新建 / **`PATCH /api/tokens/:id` 改权限** / 撤销 / 硬删 / reveal）、`POST /api/password`、`POST /api/logout` —— **只允许浏览器会话** |
 | `403 insufficient_scope` | **只读令牌**（`scope=read`）调**资源写**端点（建 / 改 / 删 prompt、文件夹、标签、导入）—— 需要读写令牌 |
 | `409 token_not_revealable` | 该 token 是迁移前创建的（没有密文），明文不可恢复 |
+| `409 token_revoked` | 对一条**已撤销**的令牌调 `PATCH /api/tokens/:id`（改权限）—— 撤销行只保留历史记录，要恢复请重建一个 |
 | `500 token_enc_key_unavailable` | 加密密钥缺失/不匹配（**鉴权不受影响**，恢复密钥后可再查看） |
 | `429` | 登录失败达阈值（含封锁期内口令正确）；带 `Retry-After` |
 
@@ -303,8 +323,9 @@ node bin/pm.mjs get '会话交接' --json         # 检索（输出 JSON 数组�
 node bin/pm.mjs get --id 3 --json            # 按 id 取单条
 node bin/pm.mjs get --id 3                   # 人类可读
 node bin/pm.mjs render --id 3 --set 姓名=张三  # 渲染变量 → stdout 就是成品文本
-node bin/pm.mjs token list                   # 列出（不含明文；含 revealable）
+node bin/pm.mjs token list                   # 列出（不含明文；含 revealable / scope）
 node bin/pm.mjs token create --name cli      # 设了 PM_API_URL+PM_API_TOKEN 走 HTTP；都没设时是本机引导
+node bin/pm.mjs token set-scope <id> read    # 改权限（FR-105；**本机管理路径**，直接开库，立即生效）
 node bin/pm.mjs token reveal <id>            # 查看明文（本机管理路径，读同一加密密钥）
 ```
 
