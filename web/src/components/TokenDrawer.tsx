@@ -1,4 +1,12 @@
-import { CopyOutlined, EyeOutlined, KeyOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  CopyOutlined,
+  DownOutlined,
+  EyeOutlined,
+  KeyOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  RightOutlined,
+} from '@ant-design/icons';
 import {
   Alert,
   App as AntdApp,
@@ -14,6 +22,7 @@ import {
   Typography,
 } from 'antd';
 import type { TableProps } from 'antd';
+import type { ReactNode } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, describeError } from '../api';
 import { writeClipboard } from '../clipboard';
@@ -28,7 +37,13 @@ interface TokenDrawerProps {
 }
 
 /**
- * API Token 管理（FR-15 / FR-94 可查看 / FR-95 同步复制 / FR-96 硬删除 / FR-97 无创建弹窗）。
+ * API Token 管理（FR-15 / FR-94 可查看 / FR-95 同步复制 / FR-96 硬删除 / FR-97 无创建弹窗 / FR-98 折叠排版）。
+ *
+ * **FR-98 折叠排版**：折叠态只留 4 列（`名称 / 状态 / 创建时间 / 使用`），把 `最近使用` 与 `操作` 折叠进**行展开区**
+ * （连同明文）。动因：改前 6 列固定宽合计 **990px** 而抽屉只有 880 ⇒ 表格 `scrollWidth(990) > clientWidth(840)`，
+ * 用户必须横向滑动才能看全。抽屉收窄到 **620** 后必须**无横向滚动**，名称列靠**换行**保证完整显示（不再 `ellipsis`）。
+ * ⚠️ **每行都必须能展开**（antd 行展开箭头）：已撤销行没有「显示」按钮，只能靠箭头到达「删除」。
+
  *
  * **FR-95 为什么必须"预取 + 同步写"**：真实环境是内网 HTTP（`http://192.168.0.228:8767`）⇒
  * `window.isSecureContext === false`、浏览器的异步剪贴板 API **根本不存在** ⇒ 只能走
@@ -48,8 +63,11 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
   const [creating, setCreating] = useState(false);
   /** FR-95 ①：预取的明文（**只在内存**，抽屉关闭即清空）。 */
   const [plaintexts, setPlaintexts] = useState<Map<number, string>>(new Map());
-  /** FR-95 ③：哪些行正在"显示"明文（可选中、可手动 Ctrl+C）。 */
-  const [shown, setShown] = useState<Set<number>>(new Set());
+  /**
+   * FR-98：哪些行**处于展开态**（行展开区里放 明文 + 最近使用 + 操作）。
+   * 两个入口都改这一个状态：「显示」按钮（FR-95 语义不变：点它就能看到明文）与 antd 的行展开箭头。
+   */
+  const [expanded, setExpanded] = useState<number[]>([]);
   const [form] = Form.useForm<{ name: string }>();
   /** 预取失败的 id（点「复制」时给出可读原因，而不是静默失败）。 */
   const prefetchFailed = useRef<Set<number>>(new Set());
@@ -106,7 +124,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
   useEffect(() => {
     if (!open) {
       setPlaintexts(new Map());
-      setShown(new Set());
+      setExpanded([]);
       prefetchFailed.current = new Set();
     }
   }, [open]);
@@ -147,13 +165,9 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
     });
   };
 
-  const toggleShown = (id: number): void => {
-    setShown((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  /** FR-98：「显示」= **展开该行**（同一个展开状态；再点一次收起）。 */
+  const toggleExpanded = (id: number): void => {
+    setExpanded((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
   };
 
   const revoke = async (id: number): Promise<void> => {
@@ -178,11 +192,14 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
   };
 
   const columns: TableProps<TokenSummary>['columns'] = [
-    { title: '名称', dataIndex: 'name', key: 'name', ellipsis: true, width: 200 },
+    // 折叠态只留 4 列（FR-98）：名称**不设固定宽 + 不 ellipsis**（换行显示完整名称，避免出现 "A…"）
+    { title: '名称', dataIndex: 'name', key: 'name', render: (value: string, token) => (
+        <span data-testid={`pm-token-name-${String(token.id)}`}>{value}</span>
+      ) },
     {
       title: '状态',
       key: 'state',
-      width: 90,
+      width: 84,
       render: (_value, token) =>
         token.revoked_at === null ? <Tag color="green">有效</Tag> : <Tag color="default">已撤销</Tag>,
     },
@@ -190,105 +207,119 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      width: 150,
+      width: 132,
       render: (value: string) => <Typography.Text type="secondary">{formatDateTime(value)}</Typography.Text>,
     },
     {
-      title: '最近使用',
-      dataIndex: 'last_used_at',
-      key: 'last_used_at',
+      title: '使用',
+      key: 'use',
       width: 150,
-      render: (value: string | null) => <Typography.Text type="secondary">{formatDateTime(value)}</Typography.Text>,
-    },
-    {
-      title: '令牌',
-      key: 'reveal',
-      width: 250,
       render: (_value, token) => {
-        if (token.revoked_at !== null) return <Typography.Text type="secondary">—</Typography.Text>;
-        if (!token.revealable) {
-          return (
-            <Typography.Text
-              type="secondary"
-              style={{ fontSize: 12 }}
-              data-testid={`pm-token-unrevealable-${String(token.id)}`}
-            >
-              不可查看（旧令牌，请撤销后重建）
-            </Typography.Text>
-          );
+        // 已撤销 / 不可查看 ⇒ 该列给 `—`（保持既有语义）；展开区里再给相应操作
+        if (token.revoked_at !== null || !token.revealable) {
+          return <Typography.Text type="secondary">—</Typography.Text>;
         }
         const plaintext = plaintexts.get(token.id);
         return (
-          <Flex
-            vertical
-            gap={4}
-            style={{ minWidth: 0 }}
+          <Space
+            size={2}
             /* 预取是否就绪（AC 探针用它做确定性等待；对用户不可见） */
             data-prefetched={plaintext === undefined ? '0' : '1'}
           >
-            <Space size={2}>
-              <Button
-                type="link"
-                size="small"
-                icon={<CopyOutlined />}
-                data-testid={`pm-token-copy-${String(token.id)}`}
-                onClick={() => copyPlaintext(token.id)}
-              >
-                复制
-              </Button>
-              {/* FR-95 ③：真正的「显示」入口 —— 剪贴板仍失败时的兜底（明文可选中、手动 Ctrl+C） */}
-              <Button
-                type="link"
-                size="small"
-                icon={<EyeOutlined />}
-                data-testid={`pm-token-show-${String(token.id)}`}
-                onClick={() => toggleShown(token.id)}
-              >
-                {shown.has(token.id) ? '隐藏' : '显示'}
-              </Button>
-            </Space>
-            {shown.has(token.id) && (
-              /* ⚠️ antd 6 的 Typography 默认 `user-select: none` 且已无 `selectable` prop ⇒
-                 这里用原生文本元素 + 显式 `userSelect: 'text'`，保证明文**可选中、可手动 Ctrl+C**（FR-95 ③）。 */
-              <span
-                className="pm-mono"
-                data-testid={`pm-token-plaintext-${String(token.id)}`}
-                style={{ fontSize: 11, wordBreak: 'break-all', userSelect: 'text', padding: '2px 4px', background: 'var(--pm-surface-2, rgba(0,0,0,0.04))', borderRadius: 4 }}
-              >
-                {plaintext ?? '（明文读取中…）'}
-              </span>
-            )}
-          </Flex>
+            <Button
+              type="link"
+              size="small"
+              icon={<CopyOutlined />}
+              data-testid={`pm-token-copy-${String(token.id)}`}
+              onClick={() => copyPlaintext(token.id)}
+            >
+              复制
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<EyeOutlined />}
+              data-testid={`pm-token-show-${String(token.id)}`}
+              onClick={() => toggleExpanded(token.id)}
+            >
+              {expanded.includes(token.id) ? '收起' : '显示'}
+            </Button>
+          </Space>
         );
       },
     },
-    {
-      title: '操作',
-      key: 'action',
-      width: 150,
-      render: (_value, token) =>
-        token.revoked_at === null ? (
-          <Popconfirm title="撤销这个 token？" description="撤销后立即失效。" onConfirm={() => void revoke(token.id)}>
-            <Button type="link" size="small" danger data-testid={`pm-token-revoke-${String(token.id)}`}>
-              撤销
-            </Button>
-          </Popconfirm>
-        ) : (
-          // FR-96：只有**已撤销**的行才有「删除」（真删行、不可恢复）
-          <Popconfirm
-            title="永久删除这个 token？"
-            description="永久删除、不可恢复：整行会被真删（审计记录一并消失）。"
-            okText="永久删除"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => void removePermanently(token.id)}
-          >
-            <Button type="link" size="small" danger data-testid={`pm-token-delete-${String(token.id)}`}>
-              删除
-            </Button>
-          </Popconfirm>
-        ),
-    },
   ];
+
+  /**
+   * FR-98 展开区（三块）：① 明文（可选中，FR-95 语义不变）② 最近使用 ③ 操作（有效→撤销；已撤销→删除）。
+   * 已撤销行没有「显示」按钮 ⇒ 靠**行展开箭头**进来，这样「删除」才可达。
+   */
+  const renderDetails = (token: TokenSummary): ReactNode => {
+    const plaintext = plaintexts.get(token.id);
+    return (
+      <Flex vertical gap={8} data-testid={`pm-token-details-${String(token.id)}`}>
+        {token.revoked_at === null && token.revealable && (
+          <Flex gap={6} align="baseline" wrap>
+            <Typography.Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
+              明文：
+            </Typography.Text>
+            {/* 可选中、可手动 Ctrl/Cmd+C（FR-95 ③；antd 6 的 Typography 默认 user-select:none） */}
+            <span
+              className="pm-mono"
+              data-testid={`pm-token-plaintext-${String(token.id)}`}
+              style={{
+                fontSize: 12,
+                wordBreak: 'break-all',
+                userSelect: 'text',
+                padding: '2px 6px',
+                background: 'var(--pm-surface-2, rgba(0,0,0,0.04))',
+                borderRadius: 4,
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              {plaintext ?? '（明文读取中…）'}
+            </span>
+          </Flex>
+        )}
+        {token.revoked_at === null && !token.revealable && (
+          <Typography.Text type="secondary" data-testid={`pm-token-unrevealable-${String(token.id)}`}>
+            不可查看（旧令牌，请撤销后重建）
+          </Typography.Text>
+        )}
+        <Flex gap={6} align="baseline">
+          <Typography.Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
+            最近使用：
+          </Typography.Text>
+          <Typography.Text type="secondary" data-testid={`pm-token-lastused-${String(token.id)}`}>
+            {formatDateTime(token.last_used_at)}
+          </Typography.Text>
+        </Flex>
+        <Space size={4}>
+          {token.revoked_at === null ? (
+            <Popconfirm title="撤销这个 token？" description="撤销后立即失效。" onConfirm={() => void revoke(token.id)}>
+              <Button size="small" danger data-testid={`pm-token-revoke-${String(token.id)}`}>
+                撤销
+              </Button>
+            </Popconfirm>
+          ) : (
+            /* FR-96：只有**已撤销**的行才有「删除」（真删行、不可恢复） */
+            <Popconfirm
+              title="永久删除这个 token？"
+              description="永久删除、不可恢复：整行会被真删（审计记录一并消失）。"
+              okText="永久删除"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => void removePermanently(token.id)}
+            >
+              <Button size="small" danger data-testid={`pm-token-delete-${String(token.id)}`}>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
+      </Flex>
+    );
+  };
 
   return (
     <Drawer
@@ -296,8 +327,8 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       onClose={onClose}
       /* FR-95 ⑤：关闭即卸载内容 ⇒ 页面文本里不再残留明文（配合上面的清缓存 effect） */
       destroyOnHidden
-      /* FR-94 新增「令牌」列后，720 会把名称挤成 "A..." ⇒ 880 */
-      width={880}
+      /* FR-98：折叠掉「最近使用 / 令牌 / 操作」三列后，620 就够（改前 880 仍要横向滑动） */
+      width={620}
       rootClassName="pm-tokens"
       title={
         <Space>
@@ -339,6 +370,30 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           dataSource={tokens}
           loading={loading}
           pagination={false}
+          /* 不设 scroll.x：让表格自适应容器宽度（FR-98 的目标是**没有横向滚动**） */
+          expandable={{
+            expandedRowKeys: expanded,
+            onExpandedRowsChange: (keys) => setExpanded(keys.map((key) => Number(key))),
+            /**
+             * ⚠️ 收起时**不放内容**：rc-table 会把最后一行展开区留在 DOM 里（`display:none`，视觉上已消失），
+             * 但明文会因此**留在 DOM 中**直到关抽屉。这里显式按展开态返回 null ⇒ 一收起明文就离开 DOM，
+             * 只依赖"关抽屉即清"就不够干净了（AC-100 ⑥/⑦）。
+             */
+            expandedRowRender: (token) => (expanded.includes(token.id) ? renderDetails(token) : null),
+            /* 每行都能展开（含已撤销行）——「删除」可达的前提 */
+            rowExpandable: () => true,
+            expandIcon: ({ expanded: isExpanded, onExpand, expandable, record }) =>
+              expandable ? (
+                <Button
+                  type="text"
+                  size="small"
+                  aria-label={isExpanded ? '收起' : '展开'}
+                  data-testid={`pm-token-expand-${String((record as TokenSummary).id)}`}
+                  icon={isExpanded ? <DownOutlined /> : <RightOutlined />}
+                  onClick={(event) => onExpand(record, event)}
+                />
+              ) : null,
+          }}
           locale={{ emptyText: <EmptyState title="还没有 token" hint="创建一个给 CLI 或 MCP 用；之后可随时复制" /> }}
         />
       </Space>
