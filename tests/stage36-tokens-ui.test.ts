@@ -133,7 +133,9 @@ test('AC-97 ①（源码级）：抽屉打开时**预取**明文，点「复制�
 
   // 同步复制：点击处理器里，writeClipboard 之前不得出现 await
   const handlerStart = drawer.indexOf('const copyPlaintext = (id: number): void => {');
-  const handlerEnd = drawer.indexOf('const toggleShown');
+  // ⚠️ 边界必须用**代码**（`drawer` 是去注释后的文本，用注释标记当边界会找不到 → slice 到 -1）
+  // 阶段 37（FR-98）把展开状态改名 toggleShown → toggleExpanded ⇒ 边界随之更新（断言语义不变）
+  const handlerEnd = drawer.indexOf('const toggleExpanded');
   assert.ok(handlerStart >= 0 && handlerEnd > handlerStart, '找不到 copyPlaintext');
   const handler = drawer.slice(handlerStart, handlerEnd);
   const writeAt = handler.indexOf('writeClipboard(plaintext)');
@@ -150,7 +152,8 @@ test('AC-97 ①（源码级）：抽屉打开时**预取**明文，点「复制�
 test('AC-97 ③④⑤（源码级）：关闭即清缓存 + 内容卸载 + 真「显示」入口 + 文案指向真实操作', () => {
   // 关抽屉清缓存
   assert.ok(/setPlaintexts\(new Map\(\)\)/.test(drawer), '抽屉关闭必须清空明文缓存');
-  assert.ok(/setShown\(new Set\(\)\)/.test(drawer), '抽屉关闭必须清空"显示"状态');
+  // 阶段 37（FR-98）：「显示」改为切换**行展开**，关闭时清的是 expanded（语义不变：展开态一并清掉）
+  assert.ok(/setExpanded\(\[\]\)/.test(drawer), '抽屉关闭必须清空展开态（原"显示"状态）');
   assert.ok(/destroyOnHidden/.test(drawer), 'Drawer 必须 destroyOnHidden（关闭后 DOM 不残留明文）');
   // 明文不落持久存储：TokenDrawer 里不得出现 localStorage/sessionStorage
   assert.equal(/localStorage|sessionStorage/.test(drawer), false, '明文绝不能写进任何持久存储');
