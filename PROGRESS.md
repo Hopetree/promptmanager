@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–38 已全部完成**；已发布 **v1.0.2** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–37 自检全过**；**阶段 38（FR-99 / AC-101：令牌列表**固定 6 列**、去掉折叠、名称截断 20+省略号、Token 脱敏前5…后4、抽屉 640 无横向滚动）自检全过**（见本文件「阶段 38」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
+| 阶段 | **阶段 1–39 已全部完成**；已发布 **v1.0.2** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–38 自检全过**；**阶段 39（FR-100 / AC-102：**撤销后的 token 仍显示掩码并可复制** —— 撤销 ≠ 销毁；纯前端两处判断，服务端未改）自检全过**（见本文件「阶段 39」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
 | 版本 | **`1.0.2`**（`package.json` 单一来源，`/healthz` 同源） |
 | 最后更新 | 2026-09-21 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -60,6 +60,7 @@
 | 36 | FR-95 修内网 HTTP 下 token「复制」不进剪贴板（**真根因**：非安全上下文 + 抽屉焦点陷阱 ⇒ `execCommand` 复制了"焦点元素"的空选区；修法=抽屉打开预取明文 + 点击**同步**写 + Selection API 兜底 + 真「显示」入口）+ FR-96 撤销态 token 可硬删除（`DELETE /api/tokens/:id/permanent`：204/409/404，真删行）+ FR-97 去掉创建时的明文弹窗 | 本文件「阶段 36」 |
 | 37 | FR-98 令牌列表折叠排版（折叠态 4 列 `名称/状态/创建时间/使用`；`最近使用/操作/明文` 折进**行展开区**；**两种展开入口**=「显示」按钮 + 每行箭头〔已撤销行没有「显示」，靠箭头才能到达「删除」〕；抽屉 **880→620**、`tableScroll 990→580 = clientWidth` ⇒ **无横向滚动**、名称靠换行完整显示）—— ⚠️ **v49 起作废**（用户改口要 6 列） | 本文件「阶段 37」 |
 | 38 | FR-99 令牌列表**固定 6 列**（`名称/Token/状态/使用/最近使用/操作`）、**去掉折叠**（展开箭头/展开区/「显示」按钮与相关 testid 全移除）；名称**按字符截断 20 + 省略号**且完整名进 `title`；Token **脱敏**前 5+`...`+后 4（来源=预取明文，取不到给 `—`，页面不出现完整明文）；抽屉 **640**、`tableLayout=fixed` ⇒ 无横向滚动；复制失败文案改指 `pm token reveal` | 本文件「阶段 38」 |
+| 39 | FR-100 **撤销后的 token 仍显示值并可复制**（撤销 ≠ 销毁）：预取过滤去掉 `revoked_at` 条件、「使用」列判断只看 `revealable` ⇒ 撤销行显示**掩码** + 有「复制」（同步写、点击不发请求）；真正无密文的旧 token 仍 `—` 且带 `title` 说明原因；**服务端一行未改**（`revealToken` 本就不看 `revoked_at`） | 本文件「阶段 39」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -2619,6 +2620,97 @@ bash tools/ac-stage38.sh rc=0，❌ 0（57 条判据）
 
 **纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
 未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；**未动任何接口/数据模型**（纯前端）；
+未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；token 明文只在本机临时实例出现、PROGRESS 一律脱敏。
+
+## 阶段 39（2026-09-22）：撤销后的 token 仍显示值并支持复制（FR-100；AC-102；纯前端两行）
+
+> **一句话**：**撤销 ≠ 销毁** —— 撤销只是"立即失效"，密文仍在库里（`revealable` 仍为 true）。
+> 之前是**前端**把撤销行挡住了（预取过滤 + 「使用」列判断）⇒ 撤销行看不到值也复制不了；
+> 本阶段把这两处放开：**撤销行照常显示掩码、照常可复制**（用户理由："撤销的 token 可能还在别处用着，需要核对值"）。
+
+### 1. 改了什么（服务端一行未改）
+
+| 落盘 | 改动 |
+| --- | --- |
+| `web/src/components/TokenDrawer.tsx`（预取） | `filter((token) => token.revealable && token.revoked_at === null)` → **`filter((token) => token.revealable)`** ⇒ 撤销行也预取明文 |
+| 同上（Token 列） | 撤销行照常渲染**掩码**（`maskToken()`）；只有 **`revealable === false`**（迁移前创建、没存密文）才 `—`，且该 `—` 带 **`title`** 说明原因 |
+| 同上（「使用」列） | `if (token.revoked_at !== null \|\| !token.revealable)` → **`if (!token.revealable)`** ⇒ 撤销行也有「复制」，行为与未撤销行**完全一致**（同步写、点击不发请求） |
+| 同上（文案常量） | 新增 `UNREVEALABLE_HINT = '迁移前创建的令牌没有保存可恢复的密文，无法查看；可撤销后重建'`，Token 列与「使用」列**共用一处**，避免两处文案漂移 |
+
+**服务端为什么不用改**（我在单测里把它钉成"前提"）：`src/services/tokens.ts` 的 `revealToken()` 只校验**行存在** + **`token_enc` 非 NULL**，
+**不看 `revoked_at`**；`toSummary()` 的 `revealable = row.token_enc !== null` —— 撤销**不清密文**，所以撤销后本来就能 reveal。
+
+### 2. AC-102 原样输出（**内网 IP 非安全上下文 + 真鼠标 + 真粘贴**，50 条判据全过）
+
+```
+$ bash tools/ac-stage39.sh
+  origin=http://192.168.0.228:8765 ｜ is_secure_context=false ｜ clipboard_type=undefined
+  夹具前置：✅ 已撤销行 revealable 仍为 true（撤销 ≠ 销毁）｜ ✅ 不可恢复行 revealable = false
+  ① 期望掩码（脱敏）pm_o5… ｜ 实际 pm_o5...jQw8
+  ✅ ① 撤销行 Token 列 = 掩码（不是 —）｜ ✅ ① 撤销行 Token 列确实不是 —
+  ✅ ② 撤销行「使用」列有「复制」按钮 ｜ ✅ ② 提示：已复制到剪贴板
+  ✅ ② 真鼠标「复制」→ Ctrl+V 粘贴内容 == 明文（脱敏 pm_o5j…jQw8）
+  ✅ ② 点击「复制」时没有发 reveal 请求（服务端计数 2 → 2）
+  ✅ ③ 未撤销行「使用」列仍有「复制」（行为不变）
+  ④ 不可恢复行：Token 列 = —（title = 迁移前创建的令牌没有保存可恢复的密文，无法查看；可撤销后重建）
+     「使用」列 = —（同一 title）｜ ✅ 没有「复制」按钮
+  ✅ ⑤ 页面文本里不出现完整明文
+  ⑥ 行分区：有效 2 行 / 已撤销 2 行 → ✅ 有效行只有「撤销」｜ ✅ 有效行没有「删除」
+     ✅ 已撤销行没有「撤销」｜ ✅ 已撤销行只有「删除」
+     ✅ 二次确认（永久删除、不可恢复）→ ✅ 真鼠标删除后行消失（4 → 3）→ ✅ 直查库该 id 行数 = 0
+  ✅ ⑦ 列头仍是 6 列且顺序不变 ｜ ✅ 抽屉 640 ≤ 640 ｜ ✅ 表格无横向滚动
+  ✅ ⑦ 关抽屉后页面无完整明文 ｜ ✅ 明文不落 localStorage/sessionStorage/URL
+  ✅ ⑧ 暗色下撤销行同样显示掩码（不是 —）｜ ✅ 暗色下撤销行有「复制」｜ ✅ 页面运行时异常 = []
+回归：✅ 撤销行 reveal 合法（200）且明文与创建时一致 ｜ ✅ Bearer 调 reveal 仍 403
+      ✅ 409 token_not_revoked ｜ ✅ 404 ｜ ✅ 响应仍含明文一次 ｜ ✅ 列表不含明文 ｜ ✅ 日志无明文 ｜ ✅ 迁移仍 v4
+```
+
+### 3. 识图（亮 / 暗各一张，五问口径）
+
+- **`01-revoked-copy-light`（亮）**：四行分别是「已撤销 `pm_o5...jQw8` + 复制 + 删除」、「有效 `pm_3q...2pyw` + 复制 + 撤销」、
+  「已撤销二 `pm_eT...mRdM` + 复制 + 删除」、「**不可恢复** `—` + `—` + 撤销」；① 界面：API 令牌抽屉；
+  ② 关键元素：**撤销行的掩码与「复制」都在**（本阶段的核心）；③ 视觉缺陷：无（无横向滚动/重叠；长名按 FR-99 截断）；
+  ④ 与本阶段相关：撤销行可见值可复制、不可恢复行仍是 `—`；⑤ 异常：无。
+- **`02-revoked-copy-dark`（暗）**：删除测试后剩余三行，其中「已撤销二」仍显示 `pm_eT...mRdM` + 「复制」 —— 暗色下同样成立。
+
+### 4. 回归与既有断言同步更新（**不删断言**）
+
+```
+npm test                371/371 → **379/379 fail 0**（+8：tests/stage39-revoked-token.test.ts）
+bash tools/ci-check.sh（先删 dist）rc=0，6 项全绿（④ 379/379；最大 chunk 470985 B）
+bash tools/ac-stage39.sh rc=0，❌ 0（50 条判据）
+体积预算：js 合计 1305 KB（与阶段 38 同量级，预算内 ⇒ 无需新增对账增量）
+既有断言同步更新（两条，都是 FR-100 **有意改变**的行为）：
+  · tests/stage38-token-columns.test.ts AC-101 ④：原断言「已撤销或不可查看 → —」→ 改为「只有 revealable=false 才 —；
+    并明确断言不得再把 revoked_at 当排除条件」
+  · tests/stage36-tokens-ui.test.ts AC-97 ①：原断言「只预取可查看且未撤销的行」→ 改为「预取只按 revealable 过滤（含已撤销行）」
+```
+
+> **两处自查返工（如实登记，都是我自己脚本的 bug）**：① 探针把"掩码预取就绪"的等待条件**写死在会被删除的那一行**上
+> ⇒ 暗色阶段超时（行已被删）；改为"任一行就绪 + 另一个**不参与删除**的已撤销夹具"，并让暗色阶段与回归都用它；
+> ② 回归里用**已被删掉的 token** 当 Bearer 去验"reveal 只允许会话"，结果先被闸门判 **401**（不是 403）；改用仍然有效的 token。
+
+### 5. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| 预取放开撤销行 / Token 列掩码 / 「使用」列只看 revealable / 不可恢复行 `—`+title | `web/src/components/TokenDrawer.tsx`（`UNREVEALABLE_HINT` 常量 + 两处判断） |
+| 源码级单测（8 例新增，含"服务端未改"的前提断言） | `tests/stage39-revoked-token.test.ts` |
+| 既有断言同步更新（2 例） | `tests/stage38-token-columns.test.ts`、`tests/stage36-tokens-ui.test.ts` |
+| AC 工具（内网 IP + 真粘贴 + 亮暗截图） | `tools/ac-stage39.sh`、`tools/ac-stage39-probe.mjs` |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage39/{01-revoked-copy-light,02-revoked-copy-dark}.png` |
+
+### 6. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-100：`TokenDrawer` 两处判断 + `UNREVEALABLE_HINT` | 见下方交付回复 |
+| ② | 单测（+8）+ 两处既有断言按 FR-100 口径同步更新 | 同上 |
+| ③ | AC 工具（`ac-stage39.sh` + 探针） | 同上 |
+| ④ | 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；**未改任何接口/数据模型**（纯前端两处判断）；
 未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；token 明文只在本机临时实例出现、PROGRESS 一律脱敏。
 
 ## 归档与当前状态的关系
