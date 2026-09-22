@@ -135,7 +135,7 @@ test('AC-97 ①（源码级）：抽屉打开时**预取**明文，点「复制�
   const handlerStart = drawer.indexOf('const copyPlaintext = (id: number): void => {');
   // ⚠️ 边界必须用**代码**（`drawer` 是去注释后的文本，用注释标记当边界会找不到 → slice 到 -1）
   // 阶段 37（FR-98）把展开状态改名 toggleShown → toggleExpanded ⇒ 边界随之更新（断言语义不变）
-  const handlerEnd = drawer.indexOf('const toggleExpanded');
+  const handlerEnd = drawer.indexOf('const revoke');
   assert.ok(handlerStart >= 0 && handlerEnd > handlerStart, '找不到 copyPlaintext');
   const handler = drawer.slice(handlerStart, handlerEnd);
   const writeAt = handler.indexOf('writeClipboard(plaintext)');
@@ -149,25 +149,25 @@ test('AC-97 ①（源码级）：抽屉打开时**预取**明文，点「复制�
   assert.ok(/plaintexts\.get\(id\)/.test(handler), '明文必须取自内存缓存');
 });
 
-test('AC-97 ③④⑤（源码级）：关闭即清缓存 + 内容卸载 + 真「显示」入口 + 文案指向真实操作', () => {
+test('AC-97 ③④⑤（源码级）：关闭即清缓存 + 内容卸载 + 失败文案指向**真实存在**的路径', () => {
   // 关抽屉清缓存
   assert.ok(/setPlaintexts\(new Map\(\)\)/.test(drawer), '抽屉关闭必须清空明文缓存');
-  // 阶段 37（FR-98）：「显示」改为切换**行展开**，关闭时清的是 expanded（语义不变：展开态一并清掉）
-  assert.ok(/setExpanded\(\[\]\)/.test(drawer), '抽屉关闭必须清空展开态（原"显示"状态）');
   assert.ok(/destroyOnHidden/.test(drawer), 'Drawer 必须 destroyOnHidden（关闭后 DOM 不残留明文）');
   // 明文不落持久存储：TokenDrawer 里不得出现 localStorage/sessionStorage
   assert.equal(/localStorage|sessionStorage/.test(drawer), false, '明文绝不能写进任何持久存储');
 
-  // 真「显示」入口 + 可选中
-  assert.ok(/data-testid=\{`pm-token-show-\$\{String\(token\.id\)\}`\}/.test(drawer), '必须有真正的「显示」入口');
-  assert.ok(/data-testid=\{`pm-token-plaintext-\$\{String\(token\.id\)\}`\}/.test(drawer), '「显示」要渲染明文节点');
-  assert.ok(/userSelect: 'text'/.test(drawer), '明文节点必须显式 userSelect:text（antd 6 Typography 默认 none，不可选中）');
-
-  // 文案必须指向真实存在的操作（「显示」按钮确实在）
-  assert.ok(drawer.includes('点「显示」'), '失败提示必须指向「显示」');
-  const mentionsShow = drawer.match(/「显示」/g) ?? [];
-  assert.ok(mentionsShow.length >= 1, '文案里必须提到「显示」');
-  assert.ok(/pm-token-show-/.test(drawer), '「显示」入口真实存在（testid）');
+  /**
+   * ⚠️ v49（FR-99）变更：UI 里的「显示」入口**随折叠一起被移除**（用户改口，AC-100 作废）。
+   * 因此这一条断言的**目标同步改写**为"不再有指向已移除入口的文案 + 改为指向真实存在路径"，
+   * 而不是删掉这条覆盖（FR-95 的"文案必须可执行"要求依然成立）。
+   */
+  assert.equal(/pm-token-show-/.test(drawer), false, '「显示」入口已随折叠移除（FR-99）');
+  assert.equal(drawer.includes('「显示」'), false, '不得再出现指向已移除入口的文案');
+  assert.ok(/浏览器不允许自动复制/.test(drawer), '仍须有可读的失败提示');
+  assert.ok(/pm token reveal/.test(drawer), '失败提示必须指向真实存在路径（命令行 pm token reveal）');
+  // 明文仍以"掩码 + 复制"两种方式出现在 UI（不再是可展开的完整明文）
+  assert.ok(/maskToken\(/.test(drawer), 'Token 列以掩码展示（前 5 + ... + 后 4）');
+  assert.ok(/writeClipboard\(plaintext\)/.test(drawer), '「复制」仍是取完整明文的路径');
 });
 
 test('AC-99 ①③（源码级）：创建后**不再有明文 Modal**，改为提示 + 列表刷新；响应形态未改', () => {
