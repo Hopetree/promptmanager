@@ -6,6 +6,12 @@
 
 ## [未发布]
 
+- （无）
+
+## [1.1.1] — 2026-09-22
+
+**修复版**：用 CLI 创建的 token 现在也会加密保存（界面可见值、`pm token reveal` 可用）。无接口/数据模型变化。
+
 ### 修复（Fixed）
 
 - **用 CLI 创建的 token 现在也有加密密文**（`pm.mjs token create` / `pm token create --name …`）：

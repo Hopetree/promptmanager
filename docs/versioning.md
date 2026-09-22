@@ -73,6 +73,7 @@ curl -s http://127.0.0.1:8767/healthz     # {"status":"ok","version":"1.1.0"}
 
 | 版本 | 日期 | 说明 |
 | --- | --- | --- |
+| `1.1.1` | 2026-09-22 | **修复**：用 CLI（`pm.mjs token create`）创建的 token 此前没有保存密文 ⇒ 界面看不到值、`pm token reveal` 报 `token_not_revealable`；现已与界面路径一致（AES-256-GCM 落库） |
 | `1.1.0` | 2026-09-22 | **新增** MCP 远程接入（`POST /mcp` Streamable HTTP）+ API Token 可查看/复制（加密存储）+ 撤销行仍可查看/复制 + 删除已撤销 token；**变更** 令牌列表改固定 6 列、README 用户化、移动端体验两处；**修复** 内网 HTTP 下复制失效 |
 | `1.0.2` | 2026-09-21 | 新增镜像发布流水线（GitHub Actions → Docker Hub，`linux/amd64`）+ 拉取/发布文档；**运行时行为与 1.0.1 一致** |
 | `1.0.1` | 2026-09-21 | 修复 CI 干净环境必失败（`typecheck:tests` 前置）；登录页去掉默认账号名预填与四条噪音文案（阶段 32） |
