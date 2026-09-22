@@ -139,6 +139,15 @@ bash tools/ac-stage29.sh       # 表格批量 UI 与详情元信息行的视觉�
 bash tools/ac-stage31.sh       # 表格「标签」列间距 / 版本保留上限
 bash tools/ac-stage32.sh       # 干净环境跑质量门禁 / 登录页去预填与噪音
 bash tools/ac-stage33.sh       # 镜像构建 workflow 的静态断言（不需要 Docker）
+bash tools/ac-stage34.sh       # 分栏中栏手机端撑满 / README 用户化（Docker+源码两条部署）/ 移动端档位顺序
+bash tools/ac-stage35.sh       # MCP Streamable HTTP（POST /mcp，真实 Python 客户端）/ Token 加密可查看（reveal）
+bash tools/ac-stage36.sh       # 内网 IP 非安全上下文下的 token「复制」（真鼠标 + 真粘贴）/ 撤销态硬删除 / 去创建弹窗
+bash tools/ac-stage37.sh       # （已作废）令牌列表折叠排版 —— 保留 FR-98 的"无横向滚动 + 名称不被挤压"两目标
+bash tools/ac-stage38.sh       # 令牌列表固定 6 列（名称截断 20 + Token 脱敏前5…后4）
+bash tools/ac-stage39.sh       # 撤销后的 token 仍显示值并可复制（撤销 ≠ 销毁）
+bash tools/ac-stage40.sh       # CLI 建的 token 也有密文（界面可见值 / pm token reveal 可用）
+bash tools/ac-stage41.sh       # 编辑保存后返回详情，版本历史即时更新（真浏览器，不刷新页面）
+bash tools/ac-stage42.sh       # 令牌权限两档 read/write（逐端点实测）/ 取用归因 token_id（真实令牌 + 官方 MCP 客户端）
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # 2000 条中文夹具（直接写库，触发器同步 FTS）

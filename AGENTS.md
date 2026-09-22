@@ -35,6 +35,12 @@
   (`src/mcp/http.ts`) which is **stateless** and **Bearer-only** (`Authorization: Bearer <API token>`),
   and passes the request token through to the internal `/api/*` calls. `/mcp` is *not* under `/api/*`,
   so it does its own auth - do not rely on the `/api/*` gate for it.
+- **API tokens carry a scope** (`api_tokens.scope`, FR-103): `read` (default for new tokens) allows
+  resource reads **including the render POSTs** (`/api/prompts/:id/render`, `/api/render/markdown` -
+  rendering does not mutate anything, and MCP's `prompt_render` depends on it); `write` additionally
+  allows resource mutations. Token management (`/api/tokens*`), `POST /api/password` and `POST /api/logout`
+  are **session-only for every token** (403 `session_required`) - a leaked token must not be able to
+  enumerate tokens or mint new ones. Missing scope (`NULL`) is treated as `write` for backwards compatibility.
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)

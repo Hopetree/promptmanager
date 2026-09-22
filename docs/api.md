@@ -190,6 +190,29 @@ curl -s -b /tmp/pm-jar -X DELETE -o /dev/null -w '%{http_code}\n' http://127.0.0
 curl -s -H "Authorization: Bearer pm_…" http://127.0.0.1:8767/api/prompts   # 与 cookie 并存的第二条通道
 ```
 
+**令牌权限（scope，FR-103）：只读 / 读写两档，且只作用于资源**
+
+新建时可指定 `scope`（**不传 = `read`**，最小权限）：
+
+```bash
+curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"mcp","scope":"read"}'  http://127.0.0.1:8767/api/tokens    # 只读（缺省）
+curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
+  -d '{"name":"dsh","scope":"write"}' http://127.0.0.1:8767/api/tokens    # 读写
+```
+
+| 类别 | 端点 | `read` | `write` |
+| --- | --- | --- | --- |
+| **资源读** | `GET /api/prompts*`（列表 / 详情 / versions / variables）、`GET /api/folders`、`GET /api/tags`、`GET /api/export*`、`GET /api/usage*`、`GET /api/me`，以及 **`POST /api/prompts/:id/render`** 与 **`POST /api/render/markdown`**（**只渲染、不改资源 ⇒ 归读**） | ✅ | ✅ |
+| **资源写** | `POST/PUT/PATCH/DELETE /api/prompts*`（建 / 改 / 排序 / 批量 / 回滚 / 删）、`POST/PUT/PATCH/DELETE /api/folders*`、`POST/PUT/DELETE /api/tags*`、`POST /api/import` | ❌ **403 `insufficient_scope`** | ✅ |
+| **不属于资源** | `GET/POST/DELETE /api/tokens*`（列表 / 新建 / 撤销 / 硬删 / reveal）、`POST /api/password`、`POST /api/logout` | ❌ **403 `session_required`** | ❌ **403 `session_required`** |
+
+要点：
+- **令牌管理与账号操作（改口令 / 登出）一律"仅会话"**，与 scope 无关 —— 否则一把泄漏的令牌可以**枚举令牌、再造新钥匙**（撤销泄漏的那把也没用）。
+- **`/mcp` 沿用同一套 scope**：MCP 三个工具本来就是只读 ⇒ **只读令牌即可全部可用**；给读写令牌也只暴露这三个只读工具。
+- 存量令牌在迁移（`005_token-scope.sql`）里**一律置 `write`**，保证既有 MCP / 技能令牌不被打断；`scope` 列为 NULL 时服务端也按 `write` 处理（与回填口径一致）。
+- 取用记录（`GET /api/usage/summary`）现在带 **`by_token`**（按令牌归因，`token_id = null` 表示 cookie 会话取用）。
+
 **撤销 vs 硬删除（语义不同，别混）**
 
 | 操作 | 路由 | 效果 |
@@ -260,7 +283,8 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `401` | 未认证（除 `/healthz`、`/api/login` 外的全部 `/api/*`） |
 | `404` | prompt / 版本 / 令牌不存在（含"回滚到已被裁剪掉的版本"） |
 | `409 folder_not_empty` | 删除仍有子目录或仍有 prompt 归属的文件夹 |
-| `403 session_required` | 用 Bearer 调 `POST /api/tokens/:id/reveal`（只允许浏览器会话） |
+| `403 session_required` | 用**令牌**调"不属于资源"的端点：`/api/tokens*`（列表 / 新建 / 撤销 / 硬删 / reveal）、`POST /api/password`、`POST /api/logout` —— **只允许浏览器会话** |
+| `403 insufficient_scope` | **只读令牌**（`scope=read`）调**资源写**端点（建 / 改 / 删 prompt、文件夹、标签、导入）—— 需要读写令牌 |
 | `409 token_not_revealable` | 该 token 是迁移前创建的（没有密文），明文不可恢复 |
 | `500 token_enc_key_unavailable` | 加密密钥缺失/不匹配（**鉴权不受影响**，恢复密钥后可再查看） |
 | `429` | 登录失败达阈值（含封锁期内口令正确）；带 `Retry-After` |

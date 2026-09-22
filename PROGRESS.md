@@ -7,8 +7,8 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–41 已全部完成**；已发布 **v1.1.1** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–40 自检全过**；**阶段 41（FR-102 / AC-104：**FIX 编辑保存后返回详情版本历史仍是旧的** —— 刷新信号改为 `prompt.version_no`、版本表格最新在上；真浏览器验，30 条判据全过）自检全过**（见本文件「阶段 41」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
+| 阶段 | **阶段 1–42 已全部完成**；已发布 **v1.1.1** |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–41 自检全过**；**阶段 42（FR-103/FR-104 / AC-105/AC-106：**令牌权限两档 read/write（只作用于资源）+ 取用归因 token_id** —— 真令牌逐端点实测 + 官方 MCP 客户端 + 真鼠标，68 条判据全过）自检全过**（见本文件「阶段 42」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
 | 版本 | **`1.1.1`**（`package.json` 单一来源，`/healthz` 同源；host_manger 已发布 v1.1.0 与 v1.1.1） |
 | 最后更新 | 2026-09-22 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -61,6 +61,7 @@
 | 37 | FR-98 令牌列表折叠排版（折叠态 4 列 `名称/状态/创建时间/使用`；`最近使用/操作/明文` 折进**行展开区**；**两种展开入口**=「显示」按钮 + 每行箭头〔已撤销行没有「显示」，靠箭头才能到达「删除」〕；抽屉 **880→620**、`tableScroll 990→580 = clientWidth` ⇒ **无横向滚动**、名称靠换行完整显示）—— ⚠️ **v49 起作废**（用户改口要 6 列） | 本文件「阶段 37」 |
 | 38 | FR-99 令牌列表**固定 6 列**（`名称/Token/状态/使用/最近使用/操作`）、**去掉折叠**（展开箭头/展开区/「显示」按钮与相关 testid 全移除）；名称**按字符截断 20 + 省略号**且完整名进 `title`；Token **脱敏**前 5+`...`+后 4（来源=预取明文，取不到给 `—`，页面不出现完整明文）；抽屉 **640**、`tableLayout=fixed` ⇒ 无横向滚动；复制失败文案改指 `pm token reveal` | 本文件「阶段 38」 |
 | 39 | FR-100 **撤销后的 token 仍显示值并可复制**（撤销 ≠ 销毁）：预取过滤去掉 `revoked_at` 条件、「使用」列判断只看 `revealable` ⇒ 撤销行显示**掩码** + 有「复制」（同步写、点击不发请求）；真正无密文的旧 token 仍 `—` 且带 `title` 说明原因；**服务端一行未改**（`revealToken` 本就不看 `revoked_at`） | 本文件「阶段 39」 |
+| 42 | FR-103 **令牌权限两档（只读 / 读写，只作用于资源）**：`005_token-scope.sql` 加 `scope`（**存量=write、新建缺省 read**）；**资源读**含渲染类 POST、**资源写**仅 write（403 `insufficient_scope`）、**令牌管理与改口令/登出一律仅会话**（403 `session_required`）；`/mcp` 沿用同一 scope；界面状态列显示 `有效 · 只读/读写`（不新增列）、新建默认只读；CLI `token create --scope` + FR-104 **取用归因**（同一迁移加 `usage_events.token_id`；令牌取用记 id、会话记 NULL、summary 带 `by_token`） | 本文件「阶段 42」 |
 | 41 | FR-102 **FIX 编辑保存后返回详情，版本历史仍是旧的**（刷新信号 `versionKey` 只在回滚时自增 ⇒ 编辑保存不触发重拉）：改为以 **`prompt.version_no`** 为唯一刷新信号（编辑保存/回滚/移动端重拉都覆盖，无关操作不产生多余请求）；并把版本表格**显示**翻转为**最新在上**（接口是升序返回，原样渲染会把新版本压在最下面）；**接口/数据零改动** | 本文件「阶段 41」 |
 | 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
@@ -2886,6 +2887,120 @@ bash tools/ac-stage41.sh rc=0，❌ 0（30 条判据）
 **纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
 未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；**未改接口与数据模型**（纯前端两处）；
 未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；AC 全程用临时 DATA_DIR + 备用端口。
+
+## 阶段 42（2026-09-22）：令牌权限两档（只读 / 读写，**只作用于资源**）+ 取用归因（FR-103 / FR-104；AC-105 / AC-106）
+
+> **一句话**：修复前 Bearer 令牌是**全权** —— 除 reveal 外，**枚举令牌、新建令牌（响应还带明文 ⇒ 令牌可自我繁殖）、
+> 撤销/硬删、甚至改口令**都能用令牌调；一处泄漏 = 永久全权，且攻击者能**再造新钥匙**。
+> 本阶段把令牌拆成 **`read` / `write`** 两档（**只作用于资源**），并把令牌管理与账号操作**一律收成"仅会话"**。
+
+### 1. 数据与实现（一个迁移、三处代码）
+
+| 落盘 | 内容 |
+| --- | --- |
+| `migrations/005_token-scope.sql` | ① `api_tokens.scope TEXT`，**存量行一律回填 `'write'`**（不能让在用的 MCP / 技能令牌突然 403）；② `usage_events.token_id INTEGER`（FR-104，同一迁移） |
+| `src/services/tokens.ts` | `TokenScope` / `DEFAULT_TOKEN_SCOPE='read'` / `normalizeScope()`（**NULL 视作 write**，与回填口径一致）/ `parseScope()`（显式非法值 → 400）；`createToken(qe, name, cipher?, scope?)` 显式写入 scope；`resolveApiToken` 返回 `scope`；`TokenSummary.scope` |
+| `src/server/auth.ts` | **三类边界集中在这一个钩子里**（不散落到各路由）：`SESSION_ONLY`（`/api/tokens*`、`/api/password`、`/api/logout` → **403 `session_required`**）/ `RESOURCE_READ`（prompts·folders·tags·export·usage 的 GET + `/api/me` + **两个渲染类 POST**）/ 其余 `/api/*` **fail-closed 需要 `write`** → **403 `insufficient_scope`**；`principal.scope` |
+| `src/server/routes/tokens.ts` | 创建 body 支持 `scope`（enum，缺省由服务层取 read）；文件头注明"本文件全部端点仅会话" |
+| `src/services/usage.ts` + `routes/prompts.ts` | `recordUsage(..., tokenId)`：令牌取用记该 id、会话记 NULL；`GET /api/usage/summary` 新增 **`by_token`** 归因 |
+| `web/src/{types,api}.ts` + `components/TokenDrawer.tsx` | 新建处**权限下拉（默认只读）**；**不新增列** —— 「状态」列显示 `有效 · 只读/读写`（已撤销同理） |
+| `src/server/cli.ts` | `token create --scope read\|write`（**缺省 read**）并在 stderr 回显权限；`token list` 显示 `scope=`；非法值给用法错误 |
+
+**⚠️ 关键归类（容易做错的一处）**：**渲染类 POST（`/api/prompts/:id/render`、`/api/render/markdown`）必须归"读"** ——
+它们只出文本、不改资源；若归"写"，**MCP 的 `prompt_render` 会被只读令牌误伤**（AC-105 ③ 与 ⑥ 都在盯这一点）。
+
+### 2. AC-105 原样输出（**真令牌打真端点** + 官方 Python 客户端 + 真鼠标；68 条判据全过）
+
+```
+$ bash tools/ac-stage42.sh
+  ① 真跑 004→005 升级：ok: schema at v5 ｜ sqlite3: legacy-token|write  ← 存量令牌被回填 write
+     usage_events 有 token_id 列
+  夹具：prompt=1 ｜ 只读 id=1 pm_Cr…E4kM ｜ 读写 id=2 pm_BK…Klkc
+  ② GET /api/prompts = 200 ｜ GET /api/prompts/:id = 200
+     ✅ POST /api/prompts → 403 insufficient_scope        ✅ PUT /api/prompts/:id → 403 insufficient_scope
+     ✅ DELETE /api/prompts/:id → 403 insufficient_scope   ✅ PATCH /api/prompts/order → 403 insufficient_scope
+     ✅ POST /api/folders → 403 insufficient_scope         ✅ POST /api/tags → 403 insufficient_scope
+     ✅ POST /api/import（导入也是写）→ 403 insufficient_scope
+  ③ ✅ POST /api/prompts/:id/render = 200 ｜ ✅ POST /api/render/markdown = 200 ｜ ✅ 只读也能读 export / usage
+  ④ ✅ 读写令牌：GET 200 ｜ POST 201（新 id=2）｜ PUT 200 ｜ DELETE 204
+  ⑤ 用**读写**令牌：GET /api/tokens、POST /api/tokens、DELETE /api/tokens/:id、.../permanent、reveal、
+     POST /api/password、POST /api/logout → **全部 403 session_required**（7 条）；会话路径仍 200
+  ⑥ /mcp 用**只读**令牌（官方 Python mcp 1.30.0）：
+     server_name=promptmanager ｜ tool_names=prompt_search,prompt_get,prompt_render
+     search_isError=False ｜ get_isError=False ｜ **render_isError=False**（渲染归读的关键证据）
+     ✅ 只读令牌经 HTTP 写仍 403（MCP 未绕过 scope）
+  ⑦ 界面真鼠标新建（**不动权限选项**）→ 查库 read；CLI 不带 --scope = read（读 200 / 写 403）；
+     CLI --scope write 可写（201）；CLI 非法 scope → rc=2
+  ⑧ heads=["名称","Token","状态","使用","最近使用","操作"]（**仍 6 列**）
+     scope_select_present=true ｜ scope_default_text=只读 ｜ scope_options=["只读","读写"] ｜ 收起后仍"只读"
+     既有读写令牌状态列 = 有效 · 读写 ｜ 新建行 = 有效 · 只读 ｜ 暗色同样
+     sqlite3: 1|AC105 只读|read ｜ 2|AC105 读写|write ｜ 3|AC105 界面默认权限|read
+  ⑨ 回归（脚本外另跑）：npm test 401/401、ci-check 6/6 全绿
+```
+
+**AC-106 取用归因**：
+
+```
+  ① usage_events 有 token_id 列
+  $ sqlite3 pm.db "SELECT prompt_id, channel, token_id FROM usage_events ORDER BY id;"
+    1|token|1          ← 只读令牌取用：token_id = 该令牌 id（channel 仍是 token）
+    1|session|(NULL)   ← 会话取用：token_id 为 NULL
+  ④ 列表 / 搜索不记取用（条数不变）
+  ⑤ $ curl -s -b <jar> /api/usage/summary?days=1 | jq .by_token
+     [{"token_id":1,"count":1},{"token_id":null,"count":1}]   ← 能查出"哪把令牌取的"
+```
+
+**识图（`01-token-scope-light`，五问）**：① 界面：API 令牌抽屉（亮色）；② 关键元素：创建区多了一个**权限下拉（显示"只读"）**、
+表格仍是 **6 列**，状态列三行分别是 **`有效 · 只读` / `有效 · 读写` / `有效 · 只读`**（第三行正是真鼠标新建、未动权限选项的那把）；
+③ 视觉缺陷：无（无挤压/重叠/横向滚动）；④ 与本阶段直接相关：默认只读 + 状态列显示权限 + 不新增列；⑤ 异常：无。
+另有 `02-token-scope-dark`（暗色同样显示权限）。
+
+### 3. 回归：既有断言的同步更新（**未删任何断言**）
+
+| 既有断言 | 为什么必须改 | 怎么改 |
+| --- | --- | --- |
+| `api-tokens.test.ts`：Bearer 登出 **401** | FR-103 把"登出"归入仅会话类别 ⇒ 403 | 断言改为 **403 `session_required`**（语义不变：Bearer 不能登出），并**新增** 5 个令牌管理端点的 403 断言 |
+| `api-usage.test.ts`：夹具令牌 | 新建缺省只读 ⇒ 该文件的写路径会 403 | 夹具令牌显式要 `scope: 'write'`（只读令牌的用法与归因在 stage42 新文件里单独验） |
+| `cli-token.test.ts`：令牌走 HTTP 调 `token list` 期望成功 | 令牌管理现在仅会话 | 断言改为 **403 session_required + stdout 无本地令牌列表** —— 原意（"绝不静默回退直连 DB"）反而更强 |
+| 迁移版本断言 ×5（`migrate` / `migrate-prompt-order` ×2 / `cli-user` ×2 / `stage35` AC-96 ①） | 新增 005 ⇒ v5 | 版本号 4 → 5（并补注释说明 005 是什么） |
+| `stage40` 的两条源码级断言 | `createToken` 追加了第 4 个可选参数 `scope` | 签名断言同步更新；"无 cipher 则 NULL"的原意保留 |
+
+### 4. 回归（原样输出）
+
+```
+npm test                392/392 → **401/401 fail 0**（+9：tests/stage42-token-scope.test.ts）
+bash tools/ci-check.sh（先删 dist）rc=0，6 项全绿（④ 401/401；最大 chunk 470985 B）
+bash tools/ac-stage42.sh rc=0，❌ 0（68 条判据）
+体积预算：js 合计 1305 KB（预算内 ⇒ 无需新增对账增量）
+```
+
+### 5. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| 迁移（scope + token_id，存量回填 write） | `migrations/005_token-scope.sql` |
+| 令牌权限模型与服务层 | `src/services/tokens.ts`、`src/db/schema.ts` |
+| **三类边界的唯一判定点** | `src/server/auth.ts`（`SESSION_ONLY_*` / `RESOURCE_READ_*` / fail-closed 写） |
+| 令牌路由（仅会话）+ 创建支持 scope | `src/server/routes/tokens.ts` |
+| 取用归因（token_id + by_token） | `src/services/usage.ts`、`src/server/routes/prompts.ts` |
+| 界面（权限下拉 + 状态列） | `web/src/components/TokenDrawer.tsx`、`web/src/{types,api}.ts` |
+| CLI（--scope / list 显示） | `src/server/cli.ts` |
+| 文档 | `docs/api.md`（「令牌权限（scope）」小节 + 错误码两行）、`README.md`（能力表一行）、`AGENTS.md`（英文一段）、`docs/development.md`（验证脚本清单补 34–42） |
+| 单测（9 例）+ AC 工具 | `tests/stage42-token-scope.test.ts`、`tools/ac-stage42.sh`、`tools/ac-stage42-probe.mjs` |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage42/{01-token-scope-light,02-token-scope-dark}.png` |
+
+### 6. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-103 + FR-104 后端：迁移 / 服务 / 鉴权三类边界 / 路由 / 归因 | 见下方交付回复 |
+| ② | 前端 + CLI（权限下拉、状态列、`--scope`） | 同上 |
+| ③ | 单测（+9）+ 既有断言同步更新 + AC 工具 | 同上 |
+| ④ | 文档（api.md / README / AGENTS / development.md）+ 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；
+测试令牌只在本机临时实例里建、PROGRESS 一律脱敏（只给前后缀）。
 
 ## 归档与当前状态的关系
 
