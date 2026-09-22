@@ -76,7 +76,6 @@ export function PromptDetailPanel({
   const [sourceMode, setSourceMode] = useState(false);
   const [plain, setPlain] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const [versionKey, setVersionKey] = useState(0);
   const versionsRef = useRef<HTMLDivElement | null>(null);
 
   const fieldText = field === 'user_prompt' ? prompt.user_prompt : prompt.system_prompt;
@@ -264,11 +263,15 @@ export function PromptDetailPanel({
         <Suspense fallback={<LazyFallback label="正在加载版本…" />}>
           <LazyVersionPanel
             promptId={prompt.id}
-            refreshKey={versionKey}
-            onRollbackDone={() => {
-              setVersionKey((key) => key + 1);
-              onReload(prompt);
-            }}
+            /**
+             * FR-102：**以 `prompt.version_no` 作为唯一刷新信号**。
+             * 它天然覆盖三条"版本真的变了"的路径：编辑保存后回详情（`editing` 就是保存接口的返回值）、
+             * 回滚（父级 `onReload` 重新取回这条 prompt）、移动端详情抽屉重拉；
+             * 而"切换 用户/系统 提示词、切 源码/预览"等无关操作**不会**改变它 ⇒ 不产生多余请求（AC-104 ⑥）。
+             * ⚠️ 之前的实现是内部 state，**只在回滚回调里自增** ⇒ 编辑保存这条路径永远不刷新版本列表（本 bug）。
+             */
+            refreshKey={prompt.version_no}
+            onRollbackDone={() => onReload(prompt)}
             onUnauthorized={onUnauthorized}
           />
         </Suspense>

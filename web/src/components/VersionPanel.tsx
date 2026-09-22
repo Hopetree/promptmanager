@@ -407,7 +407,14 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
             rowKey="version_no"
             size="small"
             columns={columns}
-            dataSource={versions}
+            /**
+             * FR-102 / AC-104 ①：版本列表**最新在上**。
+             * 接口（`GET /api/prompts/:id/versions`）按 `version_no` **升序**返回（最老的在前），
+             * 直接渲染会把新版本压在最下面 —— 用户"改完返回详情看不到新版本"的观感正来自这里。
+             * 只翻转**表格的显示顺序**：`versions` 本身保持升序，供「对比版本」（旧→新 diff 方向）与
+             * 「详情」默认选中最新版（`items[last]`）继续使用，避免改动既有语义。
+             */
+            dataSource={[...versions].reverse()}
             pagination={false}
             scroll={{ x: 'max-content' }}
           />
