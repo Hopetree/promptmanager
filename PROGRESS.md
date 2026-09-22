@@ -7,10 +7,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–39 已全部完成**；已发布 **v1.0.2** |
-| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–38 自检全过**；**阶段 39（FR-100 / AC-102：**撤销后的 token 仍显示掩码并可复制** —— 撤销 ≠ 销毁；纯前端两处判断，服务端未改）自检全过**（见本文件「阶段 39」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
-| 版本 | **`1.0.2`**（`package.json` 单一来源，`/healthz` 同源） |
-| 最后更新 | 2026-09-21 |
+| 阶段 | **阶段 1–40 已全部完成**；已发布 **v1.1.0**（v1.0.2 之后的功能版） |
+| 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–39 自检全过**；**阶段 40（FR-101 / AC-103：**FIX CLI 建的 token 没有密文** —— 修 `cli.ts` 漏传 cipher，CLI 与界面两路一致、既有 stdout 契约不破、存量不回填）自检全过**（见本文件「阶段 40」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
+| 版本 | **`1.1.0`**（`package.json` 单一来源，`/healthz` 同源；host_manger 已于阶段 34–39 发布 v1.1.0） |
+| 最后更新 | 2026-09-22 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
 
 ## 阶段索引
@@ -61,6 +61,7 @@
 | 37 | FR-98 令牌列表折叠排版（折叠态 4 列 `名称/状态/创建时间/使用`；`最近使用/操作/明文` 折进**行展开区**；**两种展开入口**=「显示」按钮 + 每行箭头〔已撤销行没有「显示」，靠箭头才能到达「删除」〕；抽屉 **880→620**、`tableScroll 990→580 = clientWidth` ⇒ **无横向滚动**、名称靠换行完整显示）—— ⚠️ **v49 起作废**（用户改口要 6 列） | 本文件「阶段 37」 |
 | 38 | FR-99 令牌列表**固定 6 列**（`名称/Token/状态/使用/最近使用/操作`）、**去掉折叠**（展开箭头/展开区/「显示」按钮与相关 testid 全移除）；名称**按字符截断 20 + 省略号**且完整名进 `title`；Token **脱敏**前 5+`...`+后 4（来源=预取明文，取不到给 `—`，页面不出现完整明文）；抽屉 **640**、`tableLayout=fixed` ⇒ 无横向滚动；复制失败文案改指 `pm token reveal` | 本文件「阶段 38」 |
 | 39 | FR-100 **撤销后的 token 仍显示值并可复制**（撤销 ≠ 销毁）：预取过滤去掉 `revoked_at` 条件、「使用」列判断只看 `revealable` ⇒ 撤销行显示**掩码** + 有「复制」（同步写、点击不发请求）；真正无密文的旧 token 仍 `—` 且带 `title` 说明原因；**服务端一行未改**（`revealToken` 本就不看 `revoked_at`） | 本文件「阶段 39」 |
+| 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
 ## 上线准备 P1（2026-09-20）：文档整理 + 产物清理
 
@@ -2712,6 +2713,91 @@ bash tools/ac-stage39.sh rc=0，❌ 0（50 条判据）
 **纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
 未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；**未改任何接口/数据模型**（纯前端两处判断）；
 未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；token 明文只在本机临时实例出现、PROGRESS 一律脱敏。
+
+## 阶段 40（2026-09-22）：FIX —— CLI 建的 token 没有密文（FR-101；AC-103）
+
+> **一句话**：host_manger 在写"推送提示词技能"时实测发现：**CLI 建的 token 看不到值也复制不了**
+> （界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）—— 而 CLI 正是文档里的**引导路径**。
+> 根因只有一处：**CLI 调 `createToken` 时漏传第三个参数 `cipher`**。
+
+### 1. 根因与修法（**一行调用 + 一条提示**）
+
+| 位置 | 事实 |
+| --- | --- |
+| 根因 | `src/server/cli.ts` 的 `token create` 调 `createToken(handle.qe, parsed.name)` —— **没传 `cipher`**；而服务层的 `createToken(qe, name, cipher?)` 在 `cipher === undefined` 时**直接 `token_enc = null`** |
+| 为什么界面建的是好的 | `src/server/routes/tokens.ts` 传了 `cipherOrUndefined()` |
+| 为什么服务端本来没"拦" | 全仓 `createToken(` **只有两处**调用点（CLI + HTTP 路由）⇒ 只需修 CLI 这一处 |
+| 修法 | CLI 照 HTTP 路**惰性解析**密钥：`loadTokenCipher(handle.config)` 失败即降级 `undefined`（**创建永不因密钥失败**），并在失败时补一条**可读 stderr 提示** |
+
+> **一处与 BRIEF 措辞的差异（如实说明）**：FR-101 ③ 写"`createToken` 内部已有那条 warn，保持/沿用即可"，
+> 但实测该 warn **只在"拿到了 cipher 但加密失败"时**才响；CLI 的降级路径（解析失败 → `undefined`）**不会触发它**
+> ⇒ 我**在 CLI 侧补了一条**等价的 warn（只写原因，**不含明文/密钥**）。`createToken` 的签名与语义因此**一字未动**。
+> 另外 HTTP 路在密钥缺失时**仍是静默降级**（FR-101 明确"不改 HTTP 路行为"）—— 如实登记，如需一致化可另开一条小改。
+
+### 2. AC-103 原样输出（真跑 CLI + 真查库；43 条判据全过）
+
+```
+$ bash tools/ac-stage40.sh
+  $ node bin/pm.mjs token create --name ac103-cli
+  stdout 最后一行（脱敏）：pm_HyE…j6Ao  长度=46
+  stderr：ok: token created id=1 name=ac103-cli（明文只显示这一次）
+  $ sqlite3 pm.db "SELECT id,name,token_enc IS NOT NULL,length(token_enc),substr(token_enc,1,3)='pm_' FROM api_tokens;"
+    1|ac103-cli|1|100|0            ← ① 有密文、长度 100、**不以 pm_ 开头**
+  ✅ ① CLI 建的 token_enc IS NOT NULL ｜ 密文不以 pm_ 前缀开头 ｜ 长度 ≈100 ｜ 密文 ≠ 明文
+  ✅ ③ CLI reveal 退出码 = 0（**改前这里是 error: token_not_revealable**）
+  ✅ ③ CLI reveal 的 stdout == 创建时明文（**逐字**）｜ reveal 的 stderr 不含明文
+  ✅ ④ stdout 只有一行（明文｜AC-22 ① 契约）｜ ok: token created 仍在 stderr ｜ stderr 不含明文
+  ✅ ④ revoke rc=0 ｜ revoke 后 list 显示 status=revoked ｜ list 不含明文
+  ✅ ⑤ 密钥不可用（TOKEN_ENC_KEY=abcd）：create 仍 rc=0（不崩）｜ 明文仍返回（鉴权不受影响）
+       stderr：warn: 加密密钥不可用，这条 token 之后无法查看（鉴权不受影响）：TOKEN_ENC_KEY 必须是 32 字节 hex…当前长度 4
+  ✅ ⑤ 该行 token_enc IS NULL ｜ 该行 token_hash 仍写入（64）⇒ 鉴权可用
+  ✅ ⑤ 第二条不可用路径（密钥文件读不到，用同名目录占位）：rc=0 + 可读提示 + 无密文
+  ✅ ⑤ 恢复密钥后新建的 token 又有密文
+  ✅ ⑥ 存量无密文行 reveal 仍 rc=1 + token_not_revealable（**不回填、不假装成功**）
+  ✅ ② CLI 建的 revealable=true ｜ 接口建的 revealable=true
+  ✅ ② 接口 reveal CLI 建的 token == CLI 创建时的明文（逐字）｜ 日志无明文 ｜ 两条明文互不相同
+  ✅ ⑥ FR-100 不回归：已撤销（CLI 建的）行 revealable 仍 true，接口与 CLI reveal 都仍可用
+  ✅ ⑦ docs/api.md §4 有「CLI 建的 token 与界面建的一样，可以随时查看/复制」
+  ✅ ⑦ CHANGELOG [未发布] 有这条修复且含「撤销后重建」
+  ✅ 回归：迁移仍 v4 ｜ TOKEN_ENC_KEY 只出现在 src/services/token-crypto.ts ｜ createToken 调用点仍两处
+```
+
+> **一处实测澄清（AC-103 ⑤ 的措辞）**：AC 写"把密钥文件**临时移走** ⇒ 该行 `token_enc IS NULL`"，
+> 但**目录可写时移走密钥会按 D-35 自动生成新密钥** ⇒ 那条 token **照样有密文**（我实测确认：新密钥文件 600、65 字节）。
+> 因此"密钥真正不可用"我用 AC 自己给的另一个口径 **`TOKEN_ENC_KEY` 写错**，外加"密钥文件读不到（EISDIR）"两条路径来验，
+> 两条都是 rc=0 + 无密文 + 可读提示。**自动生成是 D-35 的规定行为，不是缺陷**，如实记录以免下一个人误判。
+
+### 3. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| CLI 传 cipher（惰性解析 + 失败降级 + 可读 warn） | `src/server/cli.ts`（`token create` 分支） |
+| 文档：CLI 建的 token 与界面一致可查看/复制 + 密钥不可用例外 + 存量需重建 | `docs/api.md` §4（`token reveal` 说明与引用块） |
+| 变更日志 | `CHANGELOG.md` `[未发布] → 修复（Fixed）` |
+| 单测（7 例：真跑 CLI ×5 + 源码级 ×2） | `tests/stage40-cli-token-enc.test.ts` |
+| AC 工具（真 CLI + 真查库 + 两路一致） | `tools/ac-stage40.sh` |
+
+### 4. 回归（原样输出）
+
+```
+npm test                379/379 → **386/386 fail 0**（+7：tests/stage40-cli-token-enc.test.ts）
+bash tools/ci-check.sh（先删 dist）rc=0，6 项全绿（④ 386/386；最大 chunk 470985 B）
+bash tools/ac-stage40.sh rc=0，❌ 0（43 条判据）
+既有断言：本阶段**无需改动任何既有断言**（未删、未弱化）
+```
+
+### 5. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | FR-101：`src/server/cli.ts` 传 cipher + 可读 warn | 见下方交付回复 |
+| ② | 单测（+7）+ 文档（`docs/api.md` §4、`CHANGELOG.md`） | 同上 |
+| ③ | AC 工具（`tools/ac-stage40.sh`） | 同上 |
+| ④ | 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml`；未动部署（`/opt/promptmanager`、systemd、**8767**、106 生产、Docker Hub）；
+CLI 全部验证都在**临时 DATA_DIR** 上跑；token 明文只在本机临时实例出现、PROGRESS 一律脱敏。
 
 ## 归档与当前状态的关系
 
