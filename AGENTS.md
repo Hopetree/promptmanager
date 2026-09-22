@@ -69,6 +69,18 @@
   column >= 60px, that the first header is `名称`, and that both ends are reachable. **When measuring,
   always wait for the drawer slide-in animation to finish** (settled left edge) - `getBoundingClientRect`
   during the animation returns mid-flight values, which is what fooled the stage-44 acceptance run.
+- **The login page must not overflow vertically** (FR-108): this repo has **no global
+  `box-sizing: border-box` reset** (not even in `web/index.html`), so an element is `content-box` by default
+  and `minHeight: '100vh'` **excludes** its padding. `LoginPage`'s root has `padding: '48px 24px'`, so it
+  used to occupy `100vh + 96px` at **every** viewport (measured 940 on 390x844 and 996 on 1600x900 - the
+  overflow is the vertical padding sum, independent of viewport height). The fix is an explicit
+  `boxSizing: 'border-box'` on that root; centering and padding are unchanged (verified at ±2px on the
+  title/inputs/button). If you add `100vh` heights anywhere, set `border-box` too.
+- **Local-network / offline users need a mirror hint** (FR-109): the README deploy chapter and FAQ explain
+  that `docker pull` may time out from Docker Hub and that the way to cope is "pull from a mirror, then
+  `docker tag` back to the canonical name" (or configure a Docker proxy). **Never name one specific mirror
+  site as the only option** - those endpoints expire; teach the method only, and do not tell users to edit
+  `Dockerfile` / `docker-compose.yml` / the workflows.
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)

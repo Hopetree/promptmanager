@@ -7,9 +7,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–45 已全部完成**；已发布 **v1.2.0**（阶段 43 已发版） |
+| 阶段 | **阶段 1–46 已全部完成**；已发布 **v1.2.0**（阶段 43 已发版） |
 | 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–41 自检全过**；**阶段 42（FR-103/FR-104 / AC-105/AC-106：**令牌权限两档 read/write（只作用于资源）+ 取用归因 token_id** —— 真令牌逐端点实测 + 官方 MCP 客户端 + 真鼠标，68 条判据全过）自检全过**（见本文件「阶段 42」）；**阶段 43（FR-105 / AC-107：**改已有令牌的权限 `PATCH /api/tokens/:id`** —— 仅会话含不能改自己〔防自我提权〕、立即生效、已撤销 409、真鼠标改且不刷新、CLI set-scope，99 条判据全过）自检全过**（见本文件「阶段 43」）；**阶段 44（FR-106 / AC-108：**FIX 移动端令牌页不可用** —— 表格加数值 `scroll.x` 让它能横滚〔`scroll.x='max-content'` 会把桌面名称列撑到 257px、表格 714 > 抽屉 600 而冒出横滚条，故改用数值 419〕、`isMobile` 下发让创建表单竖排〔名称输入 350px〕、Alert 去 `**`；真视口 390×844 与 1600×900 的像素数，47 条判据全过）自检全过**（见本文件「阶段 44」）；
-**阶段 45（FR-107 / AC-109：**FIX 移动端令牌表「名称」列被压成 0 宽** —— 阶段 44 的硬编码 `scroll={{x:419}}` 小于 6 列实际需求，`tableLayout:fixed` 下把唯一没有 `width` 的名称列算成 0；改为**由各列 `minWidth` 求和得出的 `TOKEN_TABLE_MIN_WIDTH`**〔名称 ≥60px〕，390 下 6 列宽度 [86,86,86,86,86,86] 全 >0、表头首列是「名称」、两端可达，桌面 640/600/6 列零回归；49 条判据全过）自检全过**（见本文件「阶段 45」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
+**阶段 45（FR-107 / AC-109：**FIX 移动端令牌表「名称」列被压成 0 宽** —— 阶段 44 的硬编码 `scroll={{x:419}}` 小于 6 列实际需求，`tableLayout:fixed` 下把唯一没有 `width` 的名称列算成 0；改为**由各列 `minWidth` 求和得出的 `TOKEN_TABLE_MIN_WIDTH`**〔名称 ≥60px〕，390 下 6 列宽度 [86,86,86,86,86,86] 全 >0、表头首列是「名称」、两端可达，桌面 640/600/6 列零回归；49 条判据全过）自检全过**（见本文件「阶段 45」）；
+**阶段 46（FR-108 / AC-110：**FIX 登录页纵向溢出** —— 根因是仓库**无全局 `box-sizing` 重置**，登录根容器为 `content-box`，`minHeight:100vh` 不含 `padding:48px 24px` ⇒ 任何视口恒溢出 96px；加 `boxSizing:border-box` 后 390/1600 高度 940→844、996→900、溢出 96→0，而标题/输入框/按钮的 x/width **逐像素未变**；并给 README 补了国内镜像拉取指引〔只教方法、不绑定站点〕，52 条判据全过）自检全过**（见本文件「阶段 46」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
 | 版本 | **`1.1.1`**（`package.json` 单一来源，`/healthz` 同源；host_manger 已发布 v1.1.0 与 v1.1.1） |
 | 最后更新 | 2026-09-22 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -66,6 +67,7 @@
 | 43 | FR-105 **改已有令牌的权限**：新增 `PATCH /api/tokens/:id`（只收 `scope`，`additionalProperties:false`）；**仅会话且不能改自己**（防只读令牌自我提权）→ 403 `session_required`；有效令牌**立即生效**、已撤销 → 409 `token_revoked`、不存在 → 404；界面**点「状态」列的权限文本**切换（有效行才有入口，仍 6 列 + 无横向滚动、不刷新页面）；CLI `token set-scope <id> <read\|write>`；成功后一条不含令牌值的日志 | 本文件「阶段 43」 |
 | 44 | FR-106 **FIX 移动端令牌页不可用**：表格加**数值** `scroll={{x:419}}`（不给 `scroll.x` 时 antd 不渲染可滚动容器 ⇒ 390 下溢出但推不动、两端列都够不着）；`isMobile` 由 `Workspace` 下发 ⇒ 移动端创建表单竖排（名称输入 350px）；Alert 文案去 `**`；**桌面 640 / 600 / 6 列与点状态列改权限零回归** | 本文件「阶段 44」 |
 | 45 | FR-107 **FIX 移动端令牌表「名称」列被压成 0 宽**：阶段 44 的硬编码 `scroll={{x:419}}` 小于 6 列实际需求 ⇒ fixed 布局把唯一没有 `width` 的名称列算成 0（表头首列变成「Token」）；修法=**列宽下限来自列定义**（各列 `minWidth`，名称 ≥60px），`scroll.x` **由它们求和得出**（禁止手写数值）；390 下 6 列宽度全 >0、表头首列是「名称」、两端可达；桌面 640/600/6 列零回归 | 本文件「阶段 45」 |
+| 46 | FR-108 **FIX 登录页纵向溢出**（根因：仓库**无全局 `box-sizing` 重置** ⇒ 登录根容器是 `content-box`，`minHeight:100vh` **不含** `padding:48px 24px` ⇒ 任何视口恒多 96px〔940/844、996/900〕；修法=该根容器加 `boxSizing:border-box`，居中/留白逐像素不变）+ FR-109 **README 补「国内网络拉镜像失败」指引**（部署章节教"先从镜像站拉 → `docker tag` 回规范名"，FAQ 新增一条；**只教方法、不绑定具体镜像站**；纯文档） | 本文件「阶段 46」 |
 | 41 | FR-102 **FIX 编辑保存后返回详情，版本历史仍是旧的**（刷新信号 `versionKey` 只在回滚时自增 ⇒ 编辑保存不触发重拉）：改为以 **`prompt.version_no`** 为唯一刷新信号（编辑保存/回滚/移动端重拉都覆盖，无关操作不产生多余请求）；并把版本表格**显示**翻转为**最新在上**（接口是升序返回，原样渲染会把新版本压在最下面）；**接口/数据零改动** | 本文件「阶段 41」 |
 | 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
@@ -3445,6 +3447,174 @@ bash tools/ac-stage45.sh rc=0，❌ 0（49 条判据）
    **桌面抽屉靠右停靠**（left = 视口宽 − 640 = 960）⇒ 桌面档必然超时。已改为"**左边缘连续两帧相同**"（两种视口都成立）；
 ② 断言里用 `jq -r` 取数组字段会**多行美化**，与断言字面量对不上 ⇒ 改用 `jq -c -r`（顺带发现用 `$(...)`
   捕获探针 stdout 会同时吃到 stderr 里的等待日志，故"动画已结束"的判据改成**比对量值前后两次读数**）。
+
+## 阶段 46（2026-09-23）：登录页纵向溢出（FR-108 / backlog R-7）+ README 补国内镜像拉取指引（FR-109 / backlog R-8）
+
+> **本批两条独立的问题**：① 登录页在任何视口下都多出一条纵向滚动条；② README 没告诉国内用户"拉镜像会失败、可换镜像站"。
+> 回归范围按 **D-46 ③**（样式 + 文档类，不必全量）：跑**受影响部分**（登录页相关既有验证 + 主界面冒烟）
+> + `npm test` + `ci-check`（先删 dist）；**另加**本阶段的双视口实测探针。
+
+### 1. FR-108 ① 复现：先量，再定位
+
+**改前原样输出**（`node tools/ac-stage46-probe.mjs measure …`，**等页面几何连续三次采样一致**后才量，避免中间态）：
+
+```
+geo_390  = {"innerWidth":390,"innerHeight":844,"loginTop":0,"loginHeight":940,"loginWidth":390,
+            "docScrollHeight":940,"docClientHeight":844,"overflowY":96,
+            "rootStyle":{"minHeight":"844px","height":"844px","padding":"48px 24px",
+                         "display":"flex","alignItems":"center","justifyContent":"center",
+                         "boxSizing":"content-box"}}
+geo_1600 = {"innerWidth":1600,"innerHeight":900,"loginTop":0,"loginHeight":996,"loginWidth":1600,
+            "docScrollHeight":996,"docClientHeight":900,"overflowY":96,
+            "rootStyle":{"minHeight":"900px","height":"900px","padding":"48px 24px",
+                         "display":"flex","alignItems":"center","justifyContent":"center",
+                         "boxSizing":"content-box"}}
+```
+
+**与 host_manger 基线的对账**：
+
+| 视口 | host_manger 基线（容器高 / 视口高 / 差） | 我实测 | 一致？ |
+| --- | --- | --- | --- |
+| 390×844 | 940 / 844 / **+96** | **loginHeight 940**，scrollHeight 940，innerHeight 844，差 **+96** | ✅ 完全一致 |
+| 1600×900 | 996 / 900 / **+96** | **loginHeight 996**，scrollHeight 996，innerHeight 900，差 **+96** | ✅ 完全一致 |
+
+### 2. FR-108 ② 根因（数字自己说话）
+
+`web/src/components/LoginPage.tsx` 的根容器是 antd `<Flex style={{ minHeight: '100vh', padding: '48px 24px' }}>`。
+实测它的计算样式是 **`boxSizing: "content-box"`**（本仓库**没有**全局 `box-sizing: border-box` 重置，`web/index.html` 也没有）：
+
+```
+content-box ⇒ height/minHeight 只算**内容盒**，padding 另加
+  height:100vh = 844 ⇒ 实际占用 = 844 + 48（上）+ 48（下）= **940** ⇒ 溢出 96  ✅ 与实测吻合
+  height:100vh = 900 ⇒ 实际占用 = 900 + 48 + 48       = **996** ⇒ 溢出 96  ✅ 与实测吻合
+```
+
+**这解释了基线表里"为什么两个视口的差都是 96"** —— 溢出量 = 上下 padding 之和（48×2），**与视口尺寸无关**；
+视口高度只是把 `100vh` 抬高，padding 永远额外再加 96px。
+
+**修法（最小、只动这一处样式）**：给同一个根容器加 `boxSizing: 'border-box'` ⇒
+`minHeight: 100vh` 变成**含 padding 的总高**，占用恰好等于视口高，不再溢出。
+居中、`padding: 48px 24px` 的留白、`minHeight: 100vh` 全部**原样保留**（视觉不变，AC-110 ③ 用 x/width ±2px 钉住）。
+
+### 3. FR-108 ③ 改后实测（与改前成对，同一探针）
+
+```
+geo_390  = {"innerHeight":844,"loginHeight":844,"docScrollHeight":844,"overflowY":0,
+            "title":{"x":24,"width":342},"userInput":{"x":55,"width":299},
+            "passInput":{"x":55,"width":280},"submit":{"x":24,"width":342},
+            "rootStyle":{"minHeight":"844px","padding":"48px 24px","boxSizing":"border-box",…}}
+geo_1600 = {"innerHeight":900,"loginHeight":900,"docScrollHeight":900,"overflowY":0,
+            "title":{"x":590,"width":420},"userInput":{"x":621,"width":377},
+            "passInput":{"x":621,"width":358},"submit":{"x":590,"width":420},
+            "rootStyle":{"minHeight":"900px","padding":"48px 24px","boxSizing":"border-box",…}}
+```
+
+| 项 | 改前 | 改后 | 结论 |
+| --- | --- | --- | --- |
+| 390 `#pm-login` 高度 | 940 | **844**（= 视口高） | ✅ ≤ 视口高 |
+| 390 `scrollHeight - innerHeight` | +96 | **0** | ✅ 无纵向滚动条 |
+| 1600 `#pm-login` 高度 | 996 | **900**（= 视口高） | ✅ ≤ 视口高 |
+| 1600 `scrollHeight - innerHeight` | +96 | **0** | ✅ 无纵向滚动条 |
+| `boxSizing` | content-box | **border-box** | ✅ 根因已修 |
+| `padding` | 48px 24px | 48px 24px（未变） | ✅ 留白不变 |
+| 390 标题 x/width | 24 / 342 | **24 / 342** | ✅ 逐像素相同 |
+| 390 用户名 x/width | 55 / 299 | **55 / 299** | ✅ |
+| 390 口令 x/width | 55 / 280 | **55 / 280** | ✅ |
+| 390 按钮 x/width | 24 / 342 | **24 / 342** | ✅ |
+| 1600 标题 x/width | 590 / 420 | **590 / 420** | ✅ |
+| 1600 用户名 x/width | 621 / 377 | **621 / 377** | ✅ |
+| 1600 口令 x/width | 621 / 358 | **621 / 358** | ✅ |
+| 1600 按钮 x/width | 590 / 420 | **590 / 420** | ✅ |
+
+> **只有 `top` 变了**（390 整块上移 48px、1600 上移 48px）：那正是"多出来的那截溢出被消掉"，
+> 不是布局变化 —— `x/width` 全部逐像素相同，说明居中与留白未动（AC-110 ③ 的判据就是 x/width ±2px）。
+
+### 4. FR-108 ④ 主界面冒烟（真浏览器，登录后）
+
+```
+main_390  = {"innerWidth":390,"innerHeight":844,"docScrollHeight":844,"docScrollWidth":390,"promptRows":1,"hasHeader":true}
+main_1600 = {"innerWidth":1600,"innerHeight":900,"docScrollHeight":900,"docScrollWidth":1600,"promptRows":1,"hasHeader":true}
+✅ ④ 两档均无纵向溢出、无横向滚动，且 `promptRows > 0`（有真实内容，不是"空白页所以不溢出"的假绿）
+```
+
+### 5. FR-109：README 镜像指引（纯文档）
+
+**落盘**：`README.md` 的 **部署方式 A 的 ① 拉取步骤**下方新增一段 `⚠️ 第 ① 步卡住或很慢？`（含"先从镜像站拉 → `docker tag` 回规范名 → 后续命令不变"的两步命令 + 为什么必须 tag 回规范名 + "站点可用性会变，故不写死某一家"）；
+**FAQ 新增 1 条** `**拉取镜像很慢或者失败怎么办？**`（两条路：换镜像站 + tag 回规范名 / 给 Docker 配代理，并给自检命令）。
+
+**AC-110 ⑤⑥⑦ 实测**：
+
+```
+✅ ⑤ 部署章节里出现「镜像」的行数 = 10（≥ 1）      ← grep -n '镜像' README.md 命中落在部署章节
+✅ ⑤ 部署章节里有拉取失败/慢的说明 = 1
+✅ ⑤ 部署章节教了 tag 回规范名 = 1                  ← docker tag 出现
+$ FAQ 新条目：212: **拉取镜像很慢或者失败怎么办？**
+✅ ⑤ FAQ 有含「拉取」+「失败/很慢」的问句 = 1
+$ FAQ 条目数：HEAD=10 → 现在=11
+✅ ⑤ FAQ 新增了恰好 1 条 = 11                      ← 与实际文档一致（批描述里的"现有 12 条"实测为 10，见下）
+✅ ⑤ 文中给出可换其它镜像站的说明 = 3（≥ 1）
+✅ ⑤ 未绑定任何具名公开加速站 = 0                   ← 未出现 1panel/dockerproxy/daocloud/… 等具体站
+✅ ⑥ grep -c 'ac-stage9.sh' README.md = 0          ← 沿用既有口径
+✅ ⑥ README 里引用的 deploy/ 文件都存在 = 0 个缺失
+✅ ⑦ Dockerfile / docker-compose.yml / workflows 未被改动 = 0
+```
+
+**与批次描述的一处不一致（如实报告）**：描述里说"FAQ 现有 12 条"，我实测 **HEAD 是 10 条**、改后 **11 条**。
+我**没有**按 12 去凑数，而是让断言**自数 HEAD 再 +1**（避免把外部给的数字当成事实写死）。
+不一致的原因我没有定论（可能是数法不同：FAQ 里另有不带 `？` 的小标题式段落，或统计时把"已知限制"也算进去了）——
+**以仓库里的实际数字为准**，如需对齐请 host_manger 指定口径。
+
+### 6. 回归范围与结果（按 D-46 ③ 分级选择）
+
+**选定范围（样式 + 文档类，不必全量）**：`bash tools/ac-stage46.sh`（含登录页双视口 + 视觉 ±2px + 主界面冒烟 4 档）
++ `npm test` + `ci-check`（先删 dist）。**理由**：本批只改了 1 处 CSS 属性（`web/src/components/LoginPage.tsx`）
+与 1 个文档文件（`README.md`），不涉及接口/数据/令牌/编辑器等链路；登录页与主界面冒烟已覆盖真实渲染路径。
+
+```
+npm test                417/417 → **422/422 fail 0**（+5：tests/stage46-login-overflow.test.ts；**未删任何断言**）
+rm -rf dist && bash tools/ci-check.sh   rc=0，6 项全绿
+                        ② 构建 rc=0（0 条 >500KB 告警）｜ ③a/③b 类型检查 0 错误
+                        ④ npm test rc=0 ℹ tests 422 ℹ pass 422 ℹ fail 0
+                        ⑤ 体积预算 rc=0 最大 vendor-antd-D0a34XA3.js = 470985 B（全部 js 合计 1306 KB）
+bash tools/ac-stage46.sh rc=0，✅ 52 / ❌ 0
+体积：仅加一个 CSS 属性 ⇒ gzip 量级不变，无需新增对账增量
+```
+
+**新断言（5 例）**：登录根容器必须 `boxSizing:'border-box'` 且 `minHeight`/`boxSizing` 在**同一个 style 对象**里；
+登录页只允许出现 **1 处** `100vh`（防止再次叠加）、**禁止** `calc(100vh - …)` 这类绕法；
+README 部署章节有镜像说明 + `docker tag` + 不写死站点；FAQ 恰好新增 1 条且既有条目不丢；不引导改 Dockerfile/CI。
+
+### 7. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| 登录页纵向溢出的修法（`boxSizing: 'border-box'` + 根因注释） | `web/src/components/LoginPage.tsx`（根容器 `style`） |
+| README 部署章节的镜像指引 | `README.md`「部署方式 A：Docker」① 步骤下方 |
+| README FAQ 新条目 | `README.md` FAQ 第 1 条 `**拉取镜像很慢或者失败怎么办？**` |
+| 单测（5 例新增） | `tests/stage46-login-overflow.test.ts` |
+| AC 工具（双视口几何 + 主界面冒烟） | `tools/ac-stage46.sh`、`tools/ac-stage46-probe.mjs`、`tools/ac-stage46-main-probe.mjs` |
+| 开发文档 | `docs/development.md`（验证脚本清单补 46）、`AGENTS.md`（英文两段：登录页必须 border-box / 镜像指引只教方法不绑定站点） |
+| 本阶段截图（过程产物，不入库） | `tmp/shots/stage46/{before,after}-{390,1600}.png`（**成对**：改前/改后 × 手机/桌面） |
+
+### 8. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | 登录页 `boxSizing: border-box`（FR-108） | 见下方交付回复 |
+| ② | README 部署章节 + FAQ 镜像指引（FR-109，纯文档） | 同上 |
+| ③ | 单测（+5）+ AC 脚本与双探针 | 同上 |
+| ④ | 文档（development.md / AGENTS）+ 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml` / `Dockerfile` / `docker-compose.yml` / 运维脚本；
+未动部署（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；未改登录逻辑与接口。
+
+**踩坑留痕（探针自身，都是"探针 bug 伪装成产品 bug"）**：
+① 选择器写成 `#pm-login` —— 实际根容器只有 `data-testid="pm-login"`（无 id）⇒ 一直等不到元素，先修选择器再量；
+② 起临时实例的 `mktemp -d` 目录在**跨 bash 调用时被回收** ⇒ 服务进程与日志一起消失，后续量到 000；
+   已改为"起服务与量测在**同一条命令**里完成"；
+③ 断言里把 FAQ 条数写死成批次描述给的 12/13，实测是 10/11 ⇒ 改成**自数 HEAD 再比对**；
+④ `jq -r` 取多字段拼串会与字面量对不上（沿用阶段 45 的教训，这里直接用字符串拼接断言）。
 
 ## 归档与当前状态的关系
 
