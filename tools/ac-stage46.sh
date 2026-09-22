@@ -85,10 +85,12 @@ if [ "$ONLY" = "all" ] || [ "$ONLY" = "readme" ]; then
   FAQ_Q=$(awk -v s="$FAQ_LINE" 'NR>=s && /^\*\*.*？\*\*$/ {print NR": "$0}' README.md | grep '拉取' | grep -E '失败|很慢' | head -1)
   echo "  \$ FAQ 新条目：$FAQ_Q"
   eq "⑤ FAQ 有含「拉取」+「失败/很慢」的问句" 1 "$(printf '%s' "$FAQ_Q" | grep -c '拉取')"
-  # FAQ 条目数：与 **HEAD 基线**比（自数一遍，不写死外部给的数字 —— 批描述里的 12 与实际不符）
+  # FAQ 条目数：与**本阶段起点提交**比（自数一遍，不写死外部给的数字 —— 批描述里的 12 与实际不符）
+  # ⚠️ 不能用 HEAD：README 的改动一旦提交，HEAD 就变成"改后"，断言会自指失效
+  BASELINE_REF='5dbd37a'
   FAQ_NOW=$(grep -c '^\*\*.*？\*\*$' README.md || true)
-  FAQ_BASE=$(git show HEAD:README.md | grep -c '^\*\*.*？\*\*$' || true)
-  echo "  \$ FAQ 条目数：HEAD=$FAQ_BASE → 现在=$FAQ_NOW"
+  FAQ_BASE=$(git show "$BASELINE_REF:README.md" | grep -c '^\*\*.*？\*\*$' || true)
+  echo "  \$ FAQ 条目数：起点($BASELINE_REF)=$FAQ_BASE → 现在=$FAQ_NOW"
   eq "⑤ FAQ 新增了恰好 1 条" "$((FAQ_BASE + 1))" "$FAQ_NOW"
   # ⑤ 不把某一具体镜像站当唯一方案：文中必须**存在**"可换其它站/方法性"的措辞（存在即可，不数条数）
   ge "⑤ 文中给出可换其它镜像站的说明" 1 "$(grep -c '不写死具体站点\|任一可用的镜像站\|站点可用性会变' README.md)"

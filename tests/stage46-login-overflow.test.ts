@@ -44,10 +44,17 @@ test('AC-110 ①（源码级）：不存在全局把登录页高度写死的其�
   assert.equal(/calc\(100vh/.test(login), false, '不得用 calc(100vh - …) 绕（应直接修正盒模型）');
 });
 
-/** git 里的 HEAD 版本（用于与"改动前"对比 FAQ 条数）。 */
-const headReadme = (): string => {
+/**
+ * **改动前**的 README 基线（用于"FAQ 只增不减"的对比）。
+ *
+ * ⚠️ 不能用 `HEAD`：本阶段的 README 改动一旦提交，`HEAD` 就变成"改后"了 ⇒ 断言会自己失效
+ * （自指的基线）。所以固定引用**本阶段的起点提交**（v57 规格提交，即本阶段开工前的树）。
+ */
+const BASELINE_README_REF = '5dbd37a';
+
+const baselineReadme = (): string => {
   try {
-    return execFileSync('git', ['show', 'HEAD:README.md'], { cwd: PROJECT_ROOT, encoding: 'utf8' });
+    return execFileSync('git', ['show', `${BASELINE_README_REF}:README.md`], { cwd: PROJECT_ROOT, encoding: 'utf8' });
   } catch {
     return '';
   }
@@ -80,12 +87,12 @@ test('AC-110 ⑤（文档级）：FAQ 新增一条「拉取…失败/很慢」�
   assert.equal(hit.length, 1, `FAQ 里应恰好有 1 条含「拉取」+「失败/很慢」的问句，实际：${JSON.stringify(hit)}`);
   assert.ok(questions.some((q) => q.includes('镜像')), '该条问句里应含「镜像」关键词（便于检索）');
 
-  // 与 HEAD 比：FAQ **只增不减**，且本次恰好 +1
-  const base = headReadme();
+  // 与**本阶段起点**比：FAQ **只增不减**，且本次恰好 +1
+  const base = baselineReadme();
   if (base !== '') {
     const baseFaq = base.slice(base.indexOf('## 常见问题（FAQ）'));
     const baseQuestions = [...baseFaq.matchAll(/^\*\*(.+？)\*\*$/gm)].map((m) => m[1] ?? '');
-    assert.equal(questions.length, baseQuestions.length + 1, `FAQ 条数应 +1（HEAD ${String(baseQuestions.length)} → 现 ${String(questions.length)}）`);
+    assert.equal(questions.length, baseQuestions.length + 1, `FAQ 条数应 +1（起点 ${String(baseQuestions.length)} → 现 ${String(questions.length)}）`);
     for (const q of baseQuestions) assert.ok(questions.includes(q), `既有 FAQ 条目不得被删除：${q}`);
   }
 
