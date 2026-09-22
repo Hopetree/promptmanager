@@ -6,7 +6,15 @@
 
 ## [未发布]
 
-- （无）
+### 修复（Fixed）
+
+- **用 CLI 创建的 token 现在也有加密密文**（`pm.mjs token create` / `pm token create --name …`）：
+  此前 CLI 路径漏传了加密器，导致这类 token 在界面上 **Token 列显示 `—`**、`pm token reveal <id>` 报
+  **`token_not_revealable`** —— 即"随时查看/复制"对 CLI 建的 token 不生效（而 CLI 正是文档里的引导路径）。
+  现在 CLI 与界面（HTTP 接口）**行为一致**：新建即可查看/复制。
+  密钥不可用时（`TOKEN_ENC_KEY` 写错或密钥文件读不到）**创建仍然成功**，只是那条 token 之后看不了，并在 stderr 给出提示。
+  ⚠️ **修复前用 CLI 建的 token 没有保存密文，无法回填/恢复**——需要看值请**撤销后重建**
+  （撤销行仍可查看与复制：撤销 = 立即失效，不是销毁）。
 
 ## [1.1.0] — 2026-09-22
 

@@ -279,9 +279,17 @@ node bin/pm.mjs get '会话交接' --json         # 检索（输出 JSON 数组�
 node bin/pm.mjs get --id 3 --json            # 按 id 取单条
 node bin/pm.mjs get --id 3                   # 人类可读
 node bin/pm.mjs render --id 3 --set 姓名=张三  # 渲染变量 → stdout 就是成品文本
-node bin/pm.mjs token list                   # 列出（不含明文）
+node bin/pm.mjs token list                   # 列出（不含明文；含 revealable）
 node bin/pm.mjs token create --name cli      # 设了 PM_API_URL+PM_API_TOKEN 走 HTTP；都没设时是本机引导
+node bin/pm.mjs token reveal <id>            # 查看明文（本机管理路径，读同一加密密钥）
 ```
+
+> **CLI 建的 token 与界面建的一样，可以随时查看/复制**：两条路径都做了 **AES-256-GCM 加密落库**（`token_enc`），
+> 所以界面「API 令牌」列表里能点「复制」，`pm token reveal <id>` 也能取到明文。
+> ⚠️ 只在**加密密钥不可用**时例外（`TOKEN_ENC_KEY` 写错、或密钥文件读不到）：此时**创建照样成功**（不阻断），
+> 但那条 token 之后**看不了**（stderr 会给出可读提示）—— 需要看值就撤销后重建。
+> ⚠️ **更早版本用 CLI 建的 token**（v1.1.0 修复前）当时没有保存密文，**无法恢复**；`reveal` 会返回
+> `token_not_revealable`（界面显示 `—`），需要看值请**撤销后重建**。
 
 服务端管理命令（**在服务所在主机上执行**）：
 
