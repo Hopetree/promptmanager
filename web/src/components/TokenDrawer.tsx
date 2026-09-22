@@ -24,6 +24,34 @@ import type { TokenSummary } from '../types';
 import { EmptyState } from './States';
 
 /**
+ * FR-107：**列宽下限来自列定义**，`scroll.x` 由它们**求和得出**（不再手写数值）。
+ *
+ * 为什么要有这几个常量（阶段 44 的教训）：当时 `<Table>` 上写的是硬编码 `scroll={{ x: 419 }}`，
+ * 那个值**小于 6 列的实际需求**（实测 `scrollWidth 457`）⇒ `tableLayout: fixed` 下前五列的定宽分完就没有剩余，
+ * **唯一没有 `width` 的「名称」列被算成 0 宽**（390 下 `left = right = 20`，表头第一列直接从「Token」开始）。
+ * 改成"每列一个 `minWidth`，`x` = 它们之和"之后：**改列宽时 `x` 自动跟着变**，
+ * 从根上消灭"硬编码小于实际需求"这一类 bug（D-45 ②）。
+ */
+const TOKEN_NAME_MIN_WIDTH = 60;
+const TOKEN_MASK_MIN_WIDTH = 104;
+const TOKEN_STATE_MIN_WIDTH = 104;
+const TOKEN_USE_MIN_WIDTH = 76;
+const TOKEN_LAST_USED_MIN_WIDTH = 123;
+const TOKEN_ACTION_MIN_WIDTH = 50;
+
+/**
+ * `scroll.x` = 各列最小宽度之和。宽度**够**时（桌面 640 / 容器 600）`min-width: 100%` 让表格撑满容器 ⇒ 无横滚；
+ * 宽度**不够**时（手机 390 / 容器 350）表格按这个总宽铺开 ⇒ 溢出并可横向滚动，且每列都 ≥ 自己的 `minWidth`。
+ */
+const TOKEN_TABLE_MIN_WIDTH =
+  TOKEN_NAME_MIN_WIDTH +
+  TOKEN_MASK_MIN_WIDTH +
+  TOKEN_STATE_MIN_WIDTH +
+  TOKEN_USE_MIN_WIDTH +
+  TOKEN_LAST_USED_MIN_WIDTH +
+  TOKEN_ACTION_MIN_WIDTH;
+
+/**
  * FR-100 ③：**真不可恢复**（`revealable === false`，即迁移前创建、当时未存密文）时 `—` 的悬停说明。
  * 只说事实与出路（重建），不写成"加载失败"那样的误导文案。
  */
@@ -54,7 +82,7 @@ interface TokenDrawerProps {
  * ⚠️ 服务端把 `/api/tokens*` 整段归为"仅会话"⇒ 只有浏览器会话能改权限（防令牌自我提权）。
  *
  * **FR-106（v55）移动端可用性**：抽屉在手机上被夹到视口宽（≈390）⇒ 6 列必然放不下。
- * ① 表格加 **`scroll={{ x: 419 }}`**（**数值**，不是 `max-content` —— 理由见 `<Table>` 上那段）——
+ * ① 表格加 **`scroll={{ x: TOKEN_TABLE_MIN_WIDTH }}`**（**由各列 `minWidth` 求和得出**，见文件顶部常量区）——
  *    这是**根因级**修法：antd 只有拿到 `scroll.x` 才渲染可滚动容器，
  *    否则内容溢出表格外、`scrollLeft` 推不动（实测 390 下 `scrollWidth 457 > clientWidth 350` 而滚动量恒为 0，
  *    最右列右边缘 477 > 390 ⇒ 两端列都够不着）；
@@ -240,12 +268,14 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
       dataIndex: 'name',
       key: 'name',
       /**
-       * FR-106 ⑤：名称列是唯一没有定宽的列 ⇒ 它必须**能被压到最小**，否则桌面会凭空长出横滚条。
-       * `minWidth: 0` 明确声明"可以压到 0"（rc-table 只在 `tableLayout: auto` 分支用这个值，
-       * 这里给 0 是为了让"名称列不参与最小宽度撑开"这件事在代码里显式可读；真正的宽度由 `scroll.x = 419`
-       * 与 `min-width: 100%` 一起决定 —— 见 `<Table>` 上的说明）。
+       * FR-107 ①（阶段 44 的漏网修复）：名称列是唯一**没有 `width`** 的列 ⇒ 它是被"挤"的那一列。
+       * ⚠️ 阶段 44 这里写的是 `minWidth: 0`，再配上硬编码的 `scroll={{ x: 419 }}`（小于 6 列实际需求）
+       * ⇒ antd 在 `tableLayout: fixed` 下分配完前五列的定宽后**已经没有剩余**，把本列算成了 **0 宽**
+       * （实测 390 下 `left = right = 20`、表头第一列直接从「Token」开始 —— 用户看到的就是"少了一列数据"）。
+       * 现在给它一个**可读下限 60px**（约 3 个汉字 + 省略号），并让 `scroll.x` 由各列 `minWidth` 求和得出
+       * （见 `TOKEN_TABLE_MIN_WIDTH`）⇒ 任何容器宽度下它都不会被压到 0。
        */
-      minWidth: 0,
+      minWidth: TOKEN_NAME_MIN_WIDTH,
       // FR-99 ②：显示前 20 字符 + 省略号；**完整名称进 `title`**（悬停看全）
       onCell: (token) => ({ title: token.name }),
       render: (value: string, token) => (
@@ -260,7 +290,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
     {
       title: 'Token',
       key: 'masked',
-      width: 104,
+      minWidth: TOKEN_MASK_MIN_WIDTH,
       /**
        * FR-99 ④ + FR-100：脱敏展示（前 5 + ... + 后 4）——**已撤销行同样显示掩码**。
        * 只有"真的取不到密文"（`revealable === false`：迁移前创建、未存密文的旧 token）才给 `—`，
@@ -293,7 +323,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
     {
       title: '状态',
       key: 'state',
-      width: 104,
+      minWidth: TOKEN_STATE_MIN_WIDTH,
       // FR-103：**不新增列** —— 权限并进「状态」列（`有效 · 只读` / `有效 · 读写` / 已撤销同理）
       // FR-105：**有效行**的这段权限文本**可点击**（真鼠标点 → 弹 只读/读写 两项菜单 → 选完该行立即变），
       //         仍然**不新增列**；**已撤销行保持纯文本**（撤销行只保留历史记录，只能删除，不提供改权限入口）。
@@ -336,7 +366,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
     {
       title: '使用',
       key: 'use',
-      width: 76,
+      minWidth: TOKEN_USE_MIN_WIDTH,
       render: (_value, token) => {
         /**
          * FR-100 ②：判断**只看 `revealable`**（不再看 `revoked_at`）——撤销行也有「复制」，
@@ -370,7 +400,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
       title: '最近使用',
       dataIndex: 'last_used_at',
       key: 'last_used_at',
-      width: 123,
+      minWidth: TOKEN_LAST_USED_MIN_WIDTH,
       render: (value: string | null) => (
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {formatDateTime(value)}
@@ -380,7 +410,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
     {
       title: '操作',
       key: 'action',
-      width: 50,
+      minWidth: TOKEN_ACTION_MIN_WIDTH,
       render: (_value, token) =>
         token.revoked_at === null ? (
           <Popconfirm title="撤销这个 token？" description="撤销后立即失效。" onConfirm={() => void revoke(token.id)}>
@@ -481,23 +511,29 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
           pagination={false}
           /**
            * FR-106 ①（**根因**）：必须给 `scroll.x`，antd 才会渲染 `.ant-table-content` 这个**可滚动容器**。
-           * 不给的话窄容器里内容直接溢出到表格外（390 下 `scrollWidth 714` 而 `scrollLeft` 推不动）⇒ 两端列都够不着。
+           * 不给的话窄容器里内容直接溢出到表格外（390 下 `scrollWidth 457` 而 `scrollLeft` 推不动）⇒ 两端列都够不着。
            *
-           * ⚠️ 这里**刻意不用 `'max-content'`**（虽然 BRIEF 的 D-44 提了它，但它会把桌面改坏 —— 实测链条见下）：
+           * ⚠️ 这里**刻意不用 `'max-content'`**（虽然 BRIEF 的 D-44 提了它，但它会把桌面改坏）：
            * `'max-content'` 会往表格元素写 `width: max-content`，而它是"内容不换行时的理想宽度"，
            * **不吃**单元格里的 `maxWidth: 100%` / `text-overflow: ellipsis`（那两个只在宽度已被外部限定时才裁剪）。
            * 结果：最长的那个名字（21 个汉字的夹具名）把名称列撑到 **257px** ⇒ 表格宽 **714 > 抽屉 600**
-           * ⇒ **1600×900 下冒出横滚条、最右列被推出抽屉**（正是 AC-108 ⑤ 要防的回归，实测 `scrollWidth 714 / clientWidth 600`）。
-           * 数值 `419` = 五个定宽列之和（Token 104 + 状态 104 + 使用 76 + 最近使用 123 + 操作 50）再留 12px 给名称列的
-           * 最小可读宽度 ⇒ 表格元素拿到 `width: 419px; min-width: 100%`：
-           *   · **宽容器（桌面 640）**：`min-width: 100%` 生效 ⇒ 表宽 = 容器宽 600，名称列自动吃掉剩余（**与加 scroll.x 之前逐像素一致**）；
-           *   · **窄容器（手机 390）**：容器只有 350 ⇒ 表宽 419 > 350 ⇒ **溢出并可横滚**，两端列都能滚到。
-           * 也就是说：**桌面零改动 + 移动端可达**，两个目标同时满足（AC-108 ① 与 ⑤ 各自用像素数钉住）。
+           * ⇒ **1600×900 下冒出横滚条、最右列被推出抽屉**（实测 `scrollWidth 714 / clientWidth 600`）。
            *
-           * `tableLayout="fixed"` 仍然必需：它让上面的列宽真正生效（合计 419 + 名称取剩余），
+           * ⚠️ **FR-107（本阶段）修的正是这里的"硬编码数值"**：阶段 44 写的是 `x: 419`，它**小于 6 列的实际需求**
+           * ⇒ `tableLayout: fixed` 下前五列的定宽分完已无剩余，**唯一没有 `width` 的「名称」列被算成 0 宽**
+           * （390 下实测 `left = right = 20`，表头第一列直接从「Token」开始 ⇒ 用户看到"少了一列数据"）。
+           * 现在改成 **`TOKEN_TABLE_MIN_WIDTH` = 各列 `minWidth` 之和**（见文件顶部常量区），于是：
+           *   · **宽容器（桌面 640 / 容器 600）**：总宽 517 < 600 ⇒ `min-width: 100%` 让它撑满 ⇒ 表宽 = 600、
+           *     **无横滚**，名称列自动吃掉剩余 **143px**（与加 `scroll.x` 之前逐像素一致）；
+           *   · **窄容器（手机 390 / 容器 350）**：总宽 517 > 350 ⇒ **溢出并可横滚**，且**每列都 ≥ 自己的 `minWidth`**
+           *     （名称列 60px 的下限就来自列定义，不会再被压成 0）。
+           * 关键差异：**这个值不是手写的，是列定义推导出来的** —— 以后改任何一列的宽度，`x` 自动跟着变
+           * （D-45 ② 要求的"禁止硬编码小于实际需求的 scroll.x"，用类型/结构而不是注释来保证）。
+           *
+           * `tableLayout="fixed"` 仍然必需：它让上面的列宽真正生效，
            * 而不是被 antd 按内容重新分配把「最近使用」挤到 ~73px 导致时间被裁。
            */
-          scroll={{ x: 419 }}
+          scroll={{ x: TOKEN_TABLE_MIN_WIDTH }}
           tableLayout="fixed"
           locale={{ emptyText: <EmptyState title="还没有 token" hint="创建一个给 CLI 或 MCP 用；之后可随时复制" /> }}
         />
