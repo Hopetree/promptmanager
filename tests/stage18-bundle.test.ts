@@ -71,6 +71,14 @@ const STAGE36_ACCOUNTED_DELTA = 679;
  * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。
  */
 const STAGE37_ACCOUNTED_DELTA = 247;
+/**
+ * 阶段 43（FR-105 令牌权限可改）的**已对账**增量：**实测** +246 B gzip。
+ * 依据（2026-09-22）：把改动前的 `web/src`（HEAD = 阶段 42 收尾 `774836e`）在同一 `node_modules` 下
+ * 重新 `npm run build:web`，总 gzip = **419,673 B**；本阶段完成后 = **419,919 B** ⇒ 差值 **246 B**。
+ * 构成：`TokenDrawer.tsx` 的「状态」列权限文本包进 antd `Dropdown`（两项菜单 + 手型/title + 只更新该行 state）
+ * 与 `api.ts` 的 `setTokenScope`。**无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。
+ */
+const STAGE43_ACCOUNTED_DELTA = 246;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -114,7 +122,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -124,7 +132,8 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE29_ACCOUNTED_DELTA +
     STAGE31_ACCOUNTED_DELTA +
     STAGE36_ACCOUNTED_DELTA +
-    STAGE37_ACCOUNTED_DELTA;
+    STAGE37_ACCOUNTED_DELTA +
+    STAGE43_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });
 
