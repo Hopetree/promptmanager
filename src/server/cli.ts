@@ -16,8 +16,10 @@ const USAGE = `用法：node bin/pm.mjs <命令> [选项]
   migrate                              执行 migrations/*.sql（幂等），输出 ok: schema at v<N>
   user set-password --username <u>     设置/新建用户口令（口令从 stdin 读，绝不打印）  [阶段 2]
   export --out <path>                  导出全量 JSON（与 GET /api/export 同格式；用于备份）
-  token create --name <n>              创建 API Token（明文在 stdout 最后一行；FR-94 起加密落库、可再查看）
-  token list                           列出 API Token（不含明文；含 revealable）
+  token create --name <n> [--scope read|write]
+                                       创建 API Token（明文在 stdout 最后一行；FR-94 起加密落库、可再查看）
+                                       --scope 缺省 read（只读：检索/查看/渲染）；write 才能改资源
+  token list                           列出 API Token（不含明文；含 revealable / scope）
   token reveal <id>                     查看 API Token 明文（本机管理路径，读同一加密密钥）
   token revoke <id>                     撤销 API Token（立即失效）
   get [<关键词>] [--id <N>] [--json]    经 HTTP API 检索 / 取单个 prompt（需 PM_API_URL+PM_API_TOKEN）
@@ -217,6 +219,8 @@ async function user(argv: string[]): Promise<number> {
 
 interface ParsedNameArgs {
   name?: string;
+  /** FR-103：`--scope read|write`（缺省 read） */
+  scope?: string;
   rest: string[];
   help: boolean;
   unknown: string[];
@@ -231,21 +235,35 @@ function parseNameArgs(argv: string[]): ParsedNameArgs {
       parsed.name = argv[i + 1];
       i += 1;
     } else if (arg.startsWith('--name=')) parsed.name = arg.slice('--name='.length);
+    else if (arg === '--scope') {
+      parsed.scope = argv[i + 1];
+      i += 1;
+    } else if (arg.startsWith('--scope=')) parsed.scope = arg.slice('--scope='.length);
     else if (arg.startsWith('--')) parsed.unknown.push(arg);
     else parsed.rest.push(arg);
   }
   return parsed;
 }
 
-function printTokenList(items: Array<{ id: number; name: string; created_at: string; last_used_at: string | null; revoked_at: string | null }>): void {
+function printTokenList(
+  items: Array<{
+    id: number;
+    name: string;
+    created_at: string;
+    last_used_at: string | null;
+    revoked_at: string | null;
+    scope: string;
+  }>,
+): void {
   if (items.length === 0) {
     process.stdout.write('(no tokens)\n');
     return;
   }
   for (const item of items) {
     const status = item.revoked_at === null ? 'active' : `revoked@${item.revoked_at}`;
+    // FR-103：列出权限（read=只读 / write=读写）
     process.stdout.write(
-      `id=${String(item.id)}  name=${item.name}  created=${item.created_at}  last_used=${item.last_used_at ?? 'never'}  status=${status}\n`,
+      `id=${String(item.id)}  name=${item.name}  scope=${item.scope}  created=${item.created_at}  last_used=${item.last_used_at ?? 'never'}  status=${status}\n`,
     );
   }
 }
@@ -323,8 +341,15 @@ async function tokenLocal(sub: string, argv: string[]): Promise<number> {
           `warn: 加密密钥不可用，这条 token 之后无法查看（鉴权不受影响）：${error instanceof Error ? error.message : String(error)}\n`,
         );
       }
-      const { summary, token: plaintext } = await tokens.createToken(handle.qe, parsed.name, cipher);
-      process.stderr.write(`ok: token created id=${String(summary.id)} name=${summary.name}（明文只显示这一次）\n`);
+      // FR-103：显式非法 scope 给用法错误（不静默降级）；缺省由服务层取 read
+      const scope = parsed.scope === undefined ? undefined : tokens.parseScope(parsed.scope);
+      if (parsed.scope !== undefined && scope === null) {
+        return usage(`--scope 只能是 read 或 write（收到 "${parsed.scope}"）`);
+      }
+      const { summary, token: plaintext } = await tokens.createToken(handle.qe, parsed.name, cipher, scope);
+      process.stderr.write(
+        `ok: token created id=${String(summary.id)} name=${summary.name} scope=${summary.scope}（明文只显示这一次）\n`,
+      );
       process.stdout.write(`${plaintext}\n`); // stdout 最后一行 = 明文（AC-22 ① 依赖）
       return 0;
     }
@@ -373,10 +398,18 @@ async function tokenOverHttp(sub: string, argv: string[], api: ApiEnv): Promise<
   try {
     if (sub === 'create') {
       if (parsed.name === undefined) return usage('缺少 --name <名字>（token create --name <n>）');
-      const response = await apiRequest('POST', '/api/tokens', { name: parsed.name });
+      if (parsed.scope !== undefined && parsed.scope !== 'read' && parsed.scope !== 'write') {
+        return usage(`--scope 只能是 read 或 write（收到 "${parsed.scope}"）`);
+      }
+      const response = await apiRequest('POST', '/api/tokens', {
+        name: parsed.name,
+        ...(parsed.scope === undefined ? {} : { scope: parsed.scope }),
+      });
       if (response.status !== 201) return fail(`创建 token 失败：${apiError(response)}`);
-      const body = response.json as { id: number; name: string; token: string };
-      process.stderr.write(`ok: token created id=${String(body.id)} name=${body.name}（明文只显示这一次）\n`);
+      const body = response.json as { id: number; name: string; token: string; scope: string };
+      process.stderr.write(
+        `ok: token created id=${String(body.id)} name=${body.name} scope=${body.scope}（明文只显示这一次）\n`,
+      );
       process.stdout.write(`${body.token}\n`);
       return 0;
     }

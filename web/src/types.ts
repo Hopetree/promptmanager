@@ -89,6 +89,8 @@ export interface TokenSummary {
   revoked_at: string | null;
   /** FR-94：明文是否还能再查看（= 库里存了密文）。存量 token 为 false（不可恢复，建议撤销后重建）。 */
   revealable: boolean;
+  /** FR-103：令牌权限 —— `read` 只读（检索/查看/渲染）、`write` 读写（还能改资源）。 */
+  scope: 'read' | 'write';
 }
 
 /** 创建 token 的响应：**明文只在这一个响应里出现一次**（BRIEF §5）。 */

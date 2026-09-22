@@ -164,7 +164,9 @@ export const api = {
 
   tokens: () => request<{ items: TokenSummary[] }>('GET', '/api/tokens'),
 
-  createToken: (name: string) => request<CreatedToken>('POST', '/api/tokens', { name }),
+  /** FR-103：新建令牌可指定权限；**不传 = 只读**（服务端缺省）。 */
+  createToken: (name: string, scope?: 'read' | 'write') =>
+    request<CreatedToken>('POST', '/api/tokens', scope === undefined ? { name } : { name, scope }),
 
   revokeToken: (id: number) => request<void>('DELETE', `/api/tokens/${String(id)}`),
   /** FR-94：查看 token 明文（**只允许会话 cookie**；Bearer 调会被 403）。 */

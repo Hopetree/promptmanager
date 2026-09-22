@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   Popconfirm,
+  Select,
   Space,
   Table,
   Tag,
@@ -36,6 +37,10 @@ interface TokenDrawerProps {
 /**
  * API Token 管理（FR-15 / FR-94 可查看 / FR-95 同步复制 / FR-96 硬删除 / FR-97 无创建弹窗 / **FR-99 固定 6 列** /
  * **FR-100 撤销行也显示值并可复制**）。
+ *
+ * **FR-103（v53）令牌权限两档**：新建时可选 `只读 / 读写`（**默认只读**）；列表**不新增列** ——
+ * 「状态」列显示成 `有效 · 只读` / `有效 · 读写`（已撤销同理）。权限**只作用于资源**：
+ * 只读可检索 / 查看 / 渲染；读写还能新建、修改、删除。
  *
  * **FR-100（v50）撤销 ≠ 销毁**：撤销只是"立即失效"，密文仍在库里（`revealable` 仍为 true）⇒
  * **已撤销行照常预取明文**：Token 列显示掩码、「使用」列给「复制」（与未撤销行完全一致）。
@@ -67,7 +72,7 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
   const [creating, setCreating] = useState(false);
   /** FR-95 ①：预取的明文（**只在内存**，抽屉关闭即清空）。 */
   const [plaintexts, setPlaintexts] = useState<Map<number, string>>(new Map());
-  const [form] = Form.useForm<{ name: string }>();
+  const [form] = Form.useForm<{ name: string; scope: 'read' | 'write' }>();
   /** 预取失败的 id（点「复制」时给出可读原因，而不是静默失败）。 */
   const prefetchFailed = useRef<Set<number>>(new Set());
 
@@ -133,11 +138,13 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
 
   const create = async (): Promise<void> => {
     const values = await form.validateFields();
+    // FR-103：权限缺省 read（表单初始值就是 read，用户不动就是只读）
     setCreating(true);
     try {
       // FR-97：不再弹明文 Modal —— 提示一句 + 刷新列表（新行可直接点「复制」）
-      await api.createToken(values.name);
+      await api.createToken(values.name, values.scope);
       form.resetFields();
+      // 文案保持不变（既有 AC-97/AC-99/AC-101 断言钉住它）；新建的权限在「状态」列立即可见
       message.success('已创建；点列表里的「复制」取明文');
       await load();
     } catch (error) {
@@ -241,9 +248,20 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
     {
       title: '状态',
       key: 'state',
-      width: 66,
-      render: (_value, token) =>
-        token.revoked_at === null ? <Tag color="green">有效</Tag> : <Tag color="default">已撤销</Tag>,
+      width: 104,
+      // FR-103：**不新增列** —— 权限并进「状态」列（`有效 · 只读` / `有效 · 读写` / 已撤销同理）
+      render: (_value, token) => {
+        const scopeText = token.scope === 'write' ? '读写' : '只读';
+        return token.revoked_at === null ? (
+          <Tag color="green" data-testid={`pm-token-state-${String(token.id)}`}>
+            有效 · {scopeText}
+          </Tag>
+        ) : (
+          <Tag color="default" data-testid={`pm-token-state-${String(token.id)}`}>
+            已撤销 · {scopeText}
+          </Tag>
+        );
+      },
     },
     {
       title: '使用',
@@ -339,12 +357,27 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           type="info"
           showIcon
           message="Token 与本人等价（单用户，不做权限分层）"
-          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机，点列表里的「复制」即可取用（列表里只显示脱敏预览）；若浏览器拦截自动复制，可用命令行 `pm token reveal <id>` 取明文。"
+          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机，点列表里的「复制」即可取用（列表里只显示脱敏预览）；若浏览器拦截自动复制，可用命令行 `pm token reveal <id>` 取明文。权限：只读可搜索 / 查看 / 渲染，读写还能新建、修改、删除；令牌管理与改口令只能用界面会话。"
         />
 
         <Form form={form} layout="inline" onFinish={() => void create()}>
           <Form.Item name="name" rules={[{ required: true, message: '给 token 起个名字' }]} style={{ flex: 1 }}>
             <Input placeholder="例如：dsh / mcp-cli" data-testid="pm-token-name" />
+          </Form.Item>
+          <Form.Item
+            name="scope"
+            initialValue="read"
+            rules={[{ required: true }]}
+            tooltip="只读：可搜索 / 查看 / 渲染；读写：还能新建、修改、删除"
+          >
+            <Select
+              style={{ width: 108 }}
+              data-testid="pm-token-scope"
+              options={[
+                { value: 'read', label: '只读' },
+                { value: 'write', label: '读写' },
+              ]}
+            />
           </Form.Item>
           <Form.Item>
             <Button
