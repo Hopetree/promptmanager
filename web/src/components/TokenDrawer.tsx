@@ -33,6 +33,11 @@ interface TokenDrawerProps {
   open: boolean;
   onClose: () => void;
   onUnauthorized: () => void;
+  /**
+   * FR-106：是否移动端（与 `SplitView` 同款断点，由 `Workspace` 下发）。
+   * 移动端的抽屉被夹到视口宽（390）⇒ 创建表单必须**竖排**，否则「名称」被权限选择 + 按钮挤到只剩 ~80px。
+   */
+  isMobile?: boolean;
 }
 
 /**
@@ -47,6 +52,15 @@ interface TokenDrawerProps {
  * → 选中后调 `PATCH /api/tokens/:id`，用返回的摘要**只更新那一行**（立即生效、不重载页面）。
  * **已撤销行不给入口**（与"已撤销只能删除"一致）；**仍然 6 列、无横向滚动**。
  * ⚠️ 服务端把 `/api/tokens*` 整段归为"仅会话"⇒ 只有浏览器会话能改权限（防令牌自我提权）。
+ *
+ * **FR-106（v55）移动端可用性**：抽屉在手机上被夹到视口宽（≈390）⇒ 6 列必然放不下。
+ * ① 表格加 **`scroll={{ x: 419 }}`**（**数值**，不是 `max-content` —— 理由见 `<Table>` 上那段）——
+ *    这是**根因级**修法：antd 只有拿到 `scroll.x` 才渲染可滚动容器，
+ *    否则内容溢出表格外、`scrollLeft` 推不动（实测 390 下 `scrollWidth 457 > clientWidth 350` 而滚动量恒为 0，
+ *    最右列右边缘 477 > 390 ⇒ 两端列都够不着）；
+ * ② `isMobile` 时创建表单 `layout="vertical"`（名称独占一行，不再被 108px 权限选择 + 按钮挤成 ~80px）；
+ * ③ Alert 描述去掉了那对 `**`（Alert 不渲染 Markdown，星号会原样显示）。
+ * 桌面 640 内 6 列刚好放得下 ⇒ **不出现**横向滚动条（AC-108 ⑤ 用 `scrollWidth === clientWidth` 钉住）。
  *
  * **FR-100（v50）撤销 ≠ 销毁**：撤销只是"立即失效"，密文仍在库里（`revealable` 仍为 true）⇒
  * **已撤销行照常预取明文**：Token 列显示掩码、「使用」列给「复制」（与未撤销行完全一致）。
@@ -71,7 +85,7 @@ interface TokenDrawerProps {
  * **安全**：明文只存在于**本组件的 React state**（内存）——不写 localStorage/sessionStorage/URL/日志；
  * **抽屉一关就清空**（见下面 `open === false` 的 effect + Drawer 的 `destroyOnHidden`）。
  */
-export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDrawerProps) {
+export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = false }: TokenDrawerProps) {
   const { message } = AntdApp.useApp();
   const [tokens, setTokens] = useState<TokenSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -225,6 +239,13 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       title: '名称',
       dataIndex: 'name',
       key: 'name',
+      /**
+       * FR-106 ⑤：名称列是唯一没有定宽的列 ⇒ 它必须**能被压到最小**，否则桌面会凭空长出横滚条。
+       * `minWidth: 0` 明确声明"可以压到 0"（rc-table 只在 `tableLayout: auto` 分支用这个值，
+       * 这里给 0 是为了让"名称列不参与最小宽度撑开"这件事在代码里显式可读；真正的宽度由 `scroll.x = 419`
+       * 与 `min-width: 100%` 一起决定 —— 见 `<Table>` 上的说明）。
+       */
+      minWidth: 0,
       // FR-99 ②：显示前 20 字符 + 省略号；**完整名称进 `title`**（悬停看全）
       onCell: (token) => ({ title: token.name }),
       render: (value: string, token) => (
@@ -406,11 +427,21 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           type="info"
           showIcon
           message="Token 与本人等价（单用户，不做权限分层）"
-          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机，点列表里的「复制」即可取用（列表里只显示脱敏预览）；若浏览器拦截自动复制，可用命令行 `pm token reveal <id>` 取明文。权限：只读可搜索 / 查看 / 渲染，读写还能新建、修改、删除；**有效令牌的权限可点「状态」列直接切换**（立即生效，不用重建令牌）；令牌管理与改口令只能用界面会话。"
+          description="用法：curl -H 'Authorization: Bearer <token>' …；明文加密保存在本机，点列表里的「复制」即可取用（列表里只显示脱敏预览）；若浏览器拦截自动复制，可用命令行 `pm token reveal <id>` 取明文。权限：只读可搜索 / 查看 / 渲染，读写还能新建、修改、删除；有效令牌的权限可点「状态」列直接切换（立即生效，不用重建令牌）；令牌管理与改口令只能用界面会话。"
         />
 
-        <Form form={form} layout="inline" onFinish={() => void create()}>
-          <Form.Item name="name" rules={[{ required: true, message: '给 token 起个名字' }]} style={{ flex: 1 }}>
+        {/*
+          * FR-106 ②：移动端抽屉只有 ~390 宽 ⇒ `layout="inline"` 会把「名称」挤成 ~80px（显示成「例如：…」）。
+          * 移动端改 **vertical**：名称独占一行（可用宽度 = 整行 ≈ 350），权限 + 按钮自动折到下一行。
+          * 桌面保持 `inline`（一行三件，一字不改）。
+          */}
+        <Form form={form} layout={isMobile ? 'vertical' : 'inline'} onFinish={() => void create()}>
+          <Form.Item
+            name="name"
+            rules={[{ required: true, message: '给 token 起个名字' }]}
+            /* 桌面：名称吃掉剩余宽度；移动端：独占一行（width 100% 由 vertical 布局给出） */
+            style={isMobile ? undefined : { flex: 1 }}
+          >
             <Input placeholder="例如：dsh / mcp-cli" data-testid="pm-token-name" />
           </Form.Item>
           <Form.Item
@@ -449,10 +480,24 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
           loading={loading}
           pagination={false}
           /**
-           * FR-99：**不设 scroll.x、不加 expandable** —— 6 列自适应容器宽度（无横向滚动、无折叠）。
-           * `tableLayout="fixed"` 是必需的：auto 布局下 antd 会按内容重新分配，把「最近使用」挤到 ~73px
-           * 导致时间文案被裁；固定布局才让上面的列宽真正生效（合计 419 + 名称取剩余）。
+           * FR-106 ①（**根因**）：必须给 `scroll.x`，antd 才会渲染 `.ant-table-content` 这个**可滚动容器**。
+           * 不给的话窄容器里内容直接溢出到表格外（390 下 `scrollWidth 714` 而 `scrollLeft` 推不动）⇒ 两端列都够不着。
+           *
+           * ⚠️ 这里**刻意不用 `'max-content'`**（虽然 BRIEF 的 D-44 提了它，但它会把桌面改坏 —— 实测链条见下）：
+           * `'max-content'` 会往表格元素写 `width: max-content`，而它是"内容不换行时的理想宽度"，
+           * **不吃**单元格里的 `maxWidth: 100%` / `text-overflow: ellipsis`（那两个只在宽度已被外部限定时才裁剪）。
+           * 结果：最长的那个名字（21 个汉字的夹具名）把名称列撑到 **257px** ⇒ 表格宽 **714 > 抽屉 600**
+           * ⇒ **1600×900 下冒出横滚条、最右列被推出抽屉**（正是 AC-108 ⑤ 要防的回归，实测 `scrollWidth 714 / clientWidth 600`）。
+           * 数值 `419` = 五个定宽列之和（Token 104 + 状态 104 + 使用 76 + 最近使用 123 + 操作 50）再留 12px 给名称列的
+           * 最小可读宽度 ⇒ 表格元素拿到 `width: 419px; min-width: 100%`：
+           *   · **宽容器（桌面 640）**：`min-width: 100%` 生效 ⇒ 表宽 = 容器宽 600，名称列自动吃掉剩余（**与加 scroll.x 之前逐像素一致**）；
+           *   · **窄容器（手机 390）**：容器只有 350 ⇒ 表宽 419 > 350 ⇒ **溢出并可横滚**，两端列都能滚到。
+           * 也就是说：**桌面零改动 + 移动端可达**，两个目标同时满足（AC-108 ① 与 ⑤ 各自用像素数钉住）。
+           *
+           * `tableLayout="fixed"` 仍然必需：它让上面的列宽真正生效（合计 419 + 名称取剩余），
+           * 而不是被 antd 按内容重新分配把「最近使用」挤到 ~73px 导致时间被裁。
            */
+          scroll={{ x: 419 }}
           tableLayout="fixed"
           locale={{ emptyText: <EmptyState title="还没有 token" hint="创建一个给 CLI 或 MCP 用；之后可随时复制" /> }}
         />

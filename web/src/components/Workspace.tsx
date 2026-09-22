@@ -841,7 +841,13 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       )}
       {tokensOpen && (
         <Suspense fallback={null}>
-          <LazyTokenDrawer open onClose={() => setTokensOpen(false)} onUnauthorized={handleUnauthorized} />
+          {/* FR-106：移动端抽屉被夹到视口宽 ⇒ 把 isMobile 传进去，让它把创建表单改成竖排并让表格可横滚 */}
+          <LazyTokenDrawer
+            open
+            onClose={() => setTokensOpen(false)}
+            onUnauthorized={handleUnauthorized}
+            isMobile={isMobile}
+          />
         </Suspense>
       )}
       {aboutOpen && (
