@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v50 |
+| 版本 | v51 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -976,6 +976,26 @@
     ⑤ **操作列与删除逻辑不变**：有效行 → 撤销；已撤销行 → 删除（只有已撤销才能删）。
   - **产品口径（用户已明确）**：**撤销 = 立即失效，不是销毁** —— 值仍留在库里、也仍可核对/复制，这正是用户要的语义（"撤销的 token 可能还在别处用着，需要核对值"）。
   - **不改**：接口与数据模型、6 列结构、抽屉宽度、FR-95（预取/同步写/关抽屉即清/明文不落持久存储）、FR-96/97/99。
+
+- FR-101 **FIX：用 CLI（`pm.mjs token create`）建的 token 没有密文 ⇒ 之后看不到值、也不能复制（host_manger 2026-09-22 在写"推送提示词技能"时实测发现）**——
+  **现象**：CLI 建的 token 在界面令牌列表里 **Token 列显示 `—`**、`pm token reveal <id>` 报 **`error: token_not_revealable`**；
+  即 **FR-94 的"随时查看/复制"对 CLI 建的 token 不生效** —— 而 CLI 正是项目文档里"设置口令/建首个 token"的**引导路径**。
+  - **实测证据（测试环境 8767，查库）**：**界面建的** `mcp-qwp` **有密文** ✅；**CLI 建的** `skill-push-selftest` / `skill-push-selftest2` **无密文** ✗；
+    加密密钥文件存在（`<DATA_DIR>/token-enc.key`，65 字节）⇒ **不是密钥问题**。
+  - **根因（已定位到唯一一处）**：`src/server/cli.ts` 的 `token create` 调用 **`tokens.createToken(handle.qe, parsed.name)`** ——
+    **没有传第三个参数 `cipher`**；而 `src/services/tokens.ts` 的 `createToken(qe, name, cipher?)` 在 `cipher === undefined` 时
+    **直接 `token_enc = null`**（HTTP 路由 `src/server/routes/tokens.ts` 传了 `cipherOrUndefined()`，所以界面建的是好的）。
+    **全仓 `createToken(` 调用点只有两处**（CLI 与 HTTP 路由）⇒ 修 CLI 这一处即可。
+  - **要求**：
+    ① **CLI 也传 cipher**：照 HTTP 路由的做法**惰性解析**（`loadTokenCipher(config)` 抛错时降级为 `undefined`，**不让创建失败**）；
+    ② **绝不改变 CLI 既有契约**：`token create` 的 **stdout 最后一行仍是明文**（`AC-22 ①` 依赖）、`ok: token created id=…` 仍写 stderr、
+       `token list` / `token revoke` / `token reveal` 行为不变；
+    ③ **密钥不可用时与 HTTP 路行为一致**：**创建照样成功**、该行 `token_enc` 为 NULL（之后"看不了"）、
+       并有**可读的 stderr 提示**（`createToken` 内部已有那条 warn，保持/沿用即可），**不得崩、不得打印明文或密钥**；
+    ④ **存量数据不回填**（无明文可加密）：之前用 CLI 建的 token 仍旧"看不了"——在 `CHANGELOG` 的 **[未发布]** 段与本文档注明
+       「**需要看值就撤销后重建**」；
+    ⑤ **文档同步**：`docs/api.md` 的 CLI 小节（§4）注明"**CLI 建的 token 与界面建的一样可随时查看/复制**"。
+  - **不改**：`createToken` 的签名与语义、HTTP 路的行为、`token_enc` 的加密方案与密钥来源（FR-94 / D-35 不变）。
 
 ## 5. 技术约束（硬性）
 
@@ -2086,6 +2106,22 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
     明文不落 `localStorage`/`sessionStorage`/URL。
   - ⑧ **视觉**：亮 / 暗各一张截图并**识图**（撤销行的掩码与「复制」按钮确实可见）。
 
+- **AC-103 CLI 建的 token 也能查看/复制（v51 新增；真实查库 + 两路一致性）**
+  - ① **CLI 新建即带密文**：`node bin/pm.mjs token create --name <n>` → **直接查库**：该行 `token_enc IS NOT NULL`、
+    且**不是明文**（**不以 `pm_` 前缀开头**、长度符合 base64 密文）；贴原样查询输出。
+  - ② **两路一致**：同一实例上，**CLI 建的**与**接口建的** token 在 `GET /api/tokens` 里**都是 `revealable: true`**（贴两行）；
+    `POST /api/tokens/:id/reveal`（带**会话 cookie**）返回的明文 **== CLI 创建时 stdout 的明文（逐字）**。
+  - ③ **CLI reveal 通**：`node bin/pm.mjs token reveal <id>` 的 stdout **== 创建时明文（逐字）**（改前是 `error: token_not_revealable`）。
+  - ④ **既有契约不破**：`token create` 的 **stdout 最后一行仍是明文**（贴证据）；`ok: token created id=…` 仍在 **stderr**；
+    `token list` / `token revoke` 行为不变（贴 `--help`/输出对照）。
+  - ⑤ **密钥不可用时与 HTTP 路一致**：把密钥文件临时移走（或换成错密钥）→ CLI **创建仍成功**（rc=0、不崩）、
+    该行 `token_enc IS NULL`、**stderr 有可读提示**；恢复密钥后新建的 token 又有密文（贴三态）。
+  - ⑥ **存量不回填、语义不回归**：之前的无密文行仍显示 `—`、`reveal` 仍返回 `token_not_revealable`；
+    **已撤销行仍可查看/复制**（FR-100 不回归）。
+  - ⑦ **文档**：`docs/api.md` §4（CLI）有"CLI 建的 token 可随时查看/复制"的说明；`CHANGELOG.md` 的 **`[未发布]`** 段记一条
+    （含"此前用 CLI 建的 token 无密文、需要看值请撤销重建"）。
+  - ⑧ **回归**：`npm test` 全绿（**只增不减**；token 相关既有断言同步更新，不得删断言了事）；`ci-check`（先删 dist）全绿。
+
 ## 9. 已定决策（不要再问）
 
 - **D-1 技术栈**：Node 24 + TypeScript + SQLite 单文件 + React/Vite 前端（**UI 用 Ant Design 组件库**），**单进程单端口**（前端产物同进程托管）。
@@ -2229,6 +2265,12 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   ④ 安全影响如实记录：能拿到浏览器会话的人本来就能 reveal/复制**有效** token，因此让**已撤销** token 也可见**没有扩大攻击面**
      （撤销行的价值恰恰是"核对哪里还在用它"）；明文仍只在内存、关抽屉即清。
 
+- **D-40（v51）CLI 建 token 的加密口径** —— 由 host_manger 定：
+  ① **与 HTTP 路完全对齐**：CLI 也用 `loadTokenCipher(config)` **惰性解析**，失败即降级为 NULL（**创建永不因密钥失败**）；
+  ② **不动** `createToken` 签名、不动 HTTP 路、不动加密方案与密钥来源；
+  ③ **不动 CLI 的输出契约**（stdout 最后一行 = 明文，stderr 放提示）；
+  ④ **存量无密文行不回填**（没有明文可加密）——文档写明"要看值就撤销重建"。
+
 ## 10. 边界与停止条件
 
 - 遇到本文件未覆盖、且会影响交付的决策 → 写入 `QUESTIONS.md` 并**停手**，不要猜。
@@ -2285,6 +2327,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 | **阶段 37** | **API 令牌列表折叠排版（FR-98：折叠态只留 名称/状态/创建时间/使用〔复制+显示〕；展开态含 明文 + 最近使用 + 操作〔撤销，已撤销则删除〕；两种展开入口；抽屉 880→≤640 且无横向滚动）** | **AC-100** + 不得回归（AC-1…AC-99） |
 | **阶段 38** | **API 令牌列表改固定 6 列、去掉折叠（FR-99：`名称 / Token / 状态 / 使用 / 最近使用 / 操作`；名称取前 20 字符 + 省略号且 title 存全名；Token 脱敏 `前5...后4`；操作列"有效→撤销 / 已撤销→删除"不变；抽屉 ≤640 无横向滚动）** | **AC-101**（AC-100 作废）+ 不得回归（AC-1…AC-99 除 AC-100） |
 | **阶段 39** | **撤销后的 token 仍显示值并支持复制（FR-100：去掉预取过滤里的 revoked 条件 + 「使用」列对撤销行也给「复制」；不可恢复的旧 token 仍 `—` 且带原因提示；服务端不改）** | **AC-102** + 不得回归（AC-1…AC-99、AC-101） |
+| **阶段 40** | **FIX CLI 建的 token 没有密文（FR-101：`src/server/cli.ts` 的 `token create` 漏传 cipher ⇒ 界面看不到值、CLI reveal 报 `token_not_revealable`；修法=照 HTTP 路惰性解析 cipher；不动既有契约、不回填存量）** | **AC-103** + 不得回归（AC-1…AC-102） |
 | **阶段 12** | **导航归位 + 信息克制（用户反馈）**：使用视图只留"用"（顶栏去管理项、左栏只作筛选）、解释性文案下线并收进「设置/关于」、卡片去内部 id、状态条移出使用视图 | **AC-37、AC-38、AC-39、AC-40** + 不得回归（AC-33/33b/34/35/36） |
 | **阶段 11** | **使用优先改造（用户纠偏）**：一键复制（列表/卡片/编辑器/变量面板）× 使用·管理分离（默认使用视图、模式记忆）
   × 快捷（`/`、`Ctrl+K`、`Esc`、双击、键盘选择）× 移动端大按钮 + 复制计入使用记录 | **AC-33、AC-34、AC-35、AC-36** + 不得回归（AC-13/20/21/29/31） |
@@ -2302,6 +2345,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v51 2026-09-22（host_manger 写"推送提示词技能"时实测发现 ⇒ 用户指示派活修）**：新增 **FR-101**（**FIX CLI 建的 token 没有密文**：`src/server/cli.ts` 调 `createToken(qe, name)` **漏传 cipher** ⇒ `token_enc` 为 NULL ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`；修法=照 HTTP 路的 `cipherOrUndefined()` 惰性解析，**创建永不因密钥失败**）+ **AC-103**（真实查库 / 两路 revealable 一致 / CLI reveal 逐字相同 / 既有 stdout 契约不破 / 密钥缺失三态 / 存量不回填 / 文档与 CHANGELOG[未发布]）+ **D-40** + **阶段 40**。
 - **v50 2026-09-22（用户：撤销 token 也要能看到值并复制）**：新增 **FR-100**（撤销 ≠ 销毁：撤销行**照常预取明文** ⇒ Token 列显示掩码、「使用」列**给「复制」**；**服务端不改**〔`revealToken` 本来就不看 `revoked_at`、`revealable = token_enc !== NULL`〕；真正无密文的旧 token 仍 `—` + `title` 说明原因；操作列与删除逻辑不变）+ **AC-102** + **D-39** + **阶段 39**。
 - **v49 2026-09-22（用户推翻折叠方案，改固定 6 列）**：新增 **FR-99**（列 = `名称 / Token / 状态 / 使用 / 最近使用 / 操作`；**去掉折叠**与全部展开相关 testid；**名称取前 20 字符 + 省略号 + title 存全名**；**Token 脱敏 `前5...后4`**（来源=预取明文，取不到给 `—`）；操作列"有效→撤销、已撤销→删除"**逻辑不变**；抽屉 ≤640 无横向滚动）+ **AC-101** + **D-38**；并**明确标注 AC-100（v48 的折叠排版验收）作废**、其"无横向滚动/名称不被挤压"目标并入 AC-101。
 - **v48 2026-09-22（用户：token 列表排版折叠）**：新增 **FR-98**（折叠态只留 `名称/状态/创建时间/使用`〔使用=复制+显示〕；展开态含**明文 + 最近使用 + 操作**〔有效行撤销、已撤销行删除，逻辑不变〕；**两种展开入口**〔「显示」按钮 + 每行箭头，后者是「删除」可达的必要条件〕；抽屉 **880 → ≤640** 且**无横向滚动**）+ **AC-100** + **D-37** + **阶段 37**。
