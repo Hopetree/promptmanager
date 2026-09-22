@@ -21,6 +21,12 @@ import { formatDateTime, maskToken, truncateTokenName } from '../pure';
 import type { TokenSummary } from '../types';
 import { EmptyState } from './States';
 
+/**
+ * FR-100 ③：**真不可恢复**（`revealable === false`，即迁移前创建、当时未存密文）时 `—` 的悬停说明。
+ * 只说事实与出路（重建），不写成"加载失败"那样的误导文案。
+ */
+const UNREVEALABLE_HINT = '迁移前创建的令牌没有保存可恢复的密文，无法查看；可撤销后重建';
+
 interface TokenDrawerProps {
   open: boolean;
   onClose: () => void;
@@ -28,7 +34,12 @@ interface TokenDrawerProps {
 }
 
 /**
- * API Token 管理（FR-15 / FR-94 可查看 / FR-95 同步复制 / FR-96 硬删除 / FR-97 无创建弹窗 / **FR-99 固定 6 列**）。
+ * API Token 管理（FR-15 / FR-94 可查看 / FR-95 同步复制 / FR-96 硬删除 / FR-97 无创建弹窗 / **FR-99 固定 6 列** /
+ * **FR-100 撤销行也显示值并可复制**）。
+ *
+ * **FR-100（v50）撤销 ≠ 销毁**：撤销只是"立即失效"，密文仍在库里（`revealable` 仍为 true）⇒
+ * **已撤销行照常预取明文**：Token 列显示掩码、「使用」列给「复制」（与未撤销行完全一致）。
+ * 用户理由："撤销的 token 可能还在别处用着，需要核对值"。
  *
  * **FR-99（v49，用户推翻 FR-98 的折叠方案）**：**固定 6 列、没有折叠** ——
  * `名称 / Token / 状态 / 使用 / 最近使用 / 操作`；行展开（箭头 / `expandedRowRender` / 相关 testid）**全部移除**。
@@ -77,7 +88,11 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
     try {
       const response = await api.tokens();
       setTokens(response.items);
-      const revealable = response.items.filter((token) => token.revealable && token.revoked_at === null);
+      /**
+       * FR-100：**去掉 `revoked_at === null`** —— 已撤销的行也要预取明文（撤销 ≠ 销毁，值仍留库、仍需核对）。
+       * 只按 `revealable` 过滤：迁移前创建、没存密文的旧 token 本来就取不到，不浪费请求。
+       */
+      const revealable = response.items.filter((token) => token.revealable);
       const failed = new Set<number>();
       const results = await Promise.all(
         revealable.map(async (token) => {
@@ -194,12 +209,20 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       title: 'Token',
       key: 'masked',
       width: 104,
-      // FR-99 ④：脱敏展示（前 5 + ... + 后 4）；明文取不到 ⇒ —
+      /**
+       * FR-99 ④ + FR-100：脱敏展示（前 5 + ... + 后 4）——**已撤销行同样显示掩码**。
+       * 只有"真的取不到密文"（`revealable === false`：迁移前创建、未存密文的旧 token）才给 `—`，
+       * 并带上 `title` **说明原因**（FR-100 ③：不留白、不误导成"加载失败"）。
+       */
       render: (_value, token) => {
         const plaintext = plaintexts.get(token.id);
         if (plaintext === undefined) {
           return (
-            <Typography.Text type="secondary" data-testid={`pm-token-mask-${String(token.id)}`}>
+            <Typography.Text
+              type="secondary"
+              data-testid={`pm-token-mask-${String(token.id)}`}
+              title={UNREVEALABLE_HINT}
+            >
               —
             </Typography.Text>
           );
@@ -227,9 +250,17 @@ export default function TokenDrawer({ open, onClose, onUnauthorized }: TokenDraw
       key: 'use',
       width: 76,
       render: (_value, token) => {
-        // 已撤销 / 不可查看 ⇒ `—`（语义不变）；没有「显示」入口了（FR-99 移除折叠）
-        if (token.revoked_at !== null || !token.revealable) {
-          return <Typography.Text type="secondary">—</Typography.Text>;
+        /**
+         * FR-100 ②：判断**只看 `revealable`**（不再看 `revoked_at`）——撤销行也有「复制」，
+         * 行为与未撤销行**完全一致**（点击同步写剪贴板、点击不发请求）。
+         * 真正没有密文的旧 token ⇒ `—` + `title` 说明原因（与 Token 列口径一致）。
+         */
+        if (!token.revealable) {
+          return (
+            <Typography.Text type="secondary" data-testid={`pm-token-use-${String(token.id)}`} title={UNREVEALABLE_HINT}>
+              —
+            </Typography.Text>
+          );
         }
         const plaintext = plaintexts.get(token.id);
         return (
