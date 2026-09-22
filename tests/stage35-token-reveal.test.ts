@@ -35,14 +35,15 @@ function rowOf(fx: Fixture, id: number): { token_hash: string; token_enc: string
   );
 }
 
-test('AC-96 ①：迁移到 schema v4，api_tokens 有 token_enc 列，存量行为 NULL', async () => {
+test('AC-96 ①：迁移到 schema v5，api_tokens 有 token_enc 列，存量行为 NULL', async () => {
   const fx = await makeFixture();
   try {
     const version = readDb(
       fx,
       (db) => (db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v,
     );
-    assert.equal(version, 4, '迁移必须到 v4');
+    // 阶段 42（FR-103/FR-104）新增 005 ⇒ 当前版本 5；本用例只关心 token_enc 列，版本号随之更新
+    assert.equal(version, 5, '迁移必须到 v5');
     const columns = readDb(fx, (db) => db.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>);
     assert.ok(columns.some((column) => column.name === 'token_enc'), 'api_tokens 必须有 token_enc 列');
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import type { Fixture } from './helpers.ts';
 import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
 
 interface TokenRow {
@@ -17,6 +18,17 @@ async function createToken(
   name = 'ac',
 ): Promise<{ statusCode: number; body: any }> {
   const res = await fx.app.inject({ method: 'POST', url: '/api/tokens', headers: { cookie }, payload: { name } });
+  return { statusCode: res.statusCode, body: res.json() };
+}
+
+/** FR-103：带权限建令牌（测试里要"能写"的令牌时必须显式要 write —— 缺省是只读）。 */
+async function createTokenWithScope(
+  fx: Fixture,
+  cookie: string,
+  name: string,
+  scope: 'read' | 'write',
+): Promise<{ statusCode: number; body: any }> {
+  const res = await fx.app.inject({ method: 'POST', url: '/api/tokens', headers: { cookie }, payload: { name, scope } });
   return { statusCode: res.statusCode, body: res.json() };
 }
 
@@ -115,14 +127,38 @@ test('Token 接口的 400/404/401 与 logout 语义', async () => {
     assert.equal((await fx.app.inject({ method: 'DELETE', url: '/api/tokens/999999', headers: { cookie } })).statusCode, 404);
     assert.equal((await fx.app.inject({ method: 'DELETE', url: '/api/tokens/not-a-number', headers: { cookie } })).statusCode, 404);
 
-    // logout 只对 cookie 会话有意义：Bearer 请求 → 401（不是 204）
+    /**
+     * FR-103（v53）变更：登出属于"**不属于资源**"的类别 ⇒ 令牌**一律不可**，且错误码统一为
+     * **403 `session_required`**（不再是 401）—— 401 是"没认证"，403 是"认证了但这条通道不该调这个端点"。
+     * 断言语义不变（Bearer 依然不能登出 cookie 会话），只更新错误码与理由。
+     */
     const created = await createToken(fx, cookie, 'logout-测试');
     const logoutWithToken = await fx.app.inject({
       method: 'POST',
       url: '/api/logout',
       headers: bearer(created.body.token as string),
     });
-    assert.equal(logoutWithToken.statusCode, 401, 'Bearer 不能用来登出 cookie 会话');
+    assert.equal(logoutWithToken.statusCode, 403, 'Bearer 不能用来登出 cookie 会话');
+    assert.equal((logoutWithToken.json() as { error: string }).error, 'session_required');
+
+    // FR-103：令牌管理端点（列表 / 新建 / 撤销 / 硬删 / reveal）同样一律仅会话
+    const writeToken = (await createTokenWithScope(fx, cookie, 'write-测试', 'write')).body.token as string;
+    for (const [method, url] of [
+      ['GET', '/api/tokens'],
+      ['POST', '/api/tokens'],
+      ['DELETE', '/api/tokens/1'],
+      ['DELETE', '/api/tokens/1/permanent'],
+      ['POST', '/api/tokens/1/reveal'],
+    ] as const) {
+      const res = await fx.app.inject({
+        method,
+        url,
+        headers: bearer(writeToken),
+        ...(method === 'POST' && url === '/api/tokens' ? { payload: { name: '自繁殖尝试' } } : {}),
+      });
+      assert.equal(res.statusCode, 403, `${method} ${url} 必须仅会话`);
+      assert.equal((res.json() as { error: string }).error, 'session_required', `${method} ${url} 错误码`);
+    }
 
     // 会话 cookie 登出仍然 204
     assert.equal((await fx.app.inject({ method: 'POST', url: '/api/logout', headers: { cookie } })).statusCode, 204);

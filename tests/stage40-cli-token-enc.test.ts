@@ -154,11 +154,16 @@ test('AC-103 ①（源码级）：CLI 与 HTTP 两处调用点都用 cipher，�
   const createBlock = cliSrc.slice(cliSrc.indexOf("if (sub === 'create')"), cliSrc.indexOf("if (sub === 'list')"));
   assert.ok(/loadTokenCipher\(handle\.config\)/.test(createBlock), 'CLI 必须解析密钥');
   assert.ok(/try \{[\s\S]*loadTokenCipher[\s\S]*\} catch/.test(createBlock), '密钥解析必须 try/catch（创建绝不因密钥失败）');
-  assert.ok(/createToken\(handle\.qe, parsed\.name, cipher\)/.test(createBlock), 'CLI 必须把 cipher 传给 createToken');
+  // 阶段 42（FR-103）给 createToken 追加了第 4 个参数 scope ⇒ 断言同步更新（"必须传 cipher"的原意不变）
+  assert.ok(/createToken\(handle\.qe, parsed\.name, cipher, scope\)/.test(createBlock), 'CLI 必须把 cipher 传给 createToken');
   assert.ok(/warn: 加密密钥不可用/.test(createBlock), '密钥不可用时必须写可读 stderr 提示');
   assert.ok(/process\.stdout\.write\(`\$\{plaintext\}\\n`\)/.test(createBlock), 'stdout 最后一行仍必须是明文（AC-22 ① 依赖）');
   // HTTP 路保持原样（FR-101 明确"不改 HTTP 路"）
-  assert.ok(/createToken\(app\.qe, name, cipherOrUndefined\(\)\)/.test(routeSrc), 'HTTP 路仍传 cipherOrUndefined()');
+  // 阶段 42（FR-103）HTTP 路追加了 scope 参数 ⇒ 断言同步更新（"必须传 cipher"的原意不变）
+  assert.ok(
+    /createToken\(app\.qe, name, cipherOrUndefined\(\), scope\)/.test(routeSrc),
+    'HTTP 路仍传 cipherOrUndefined()',
+  );
   // 全仓只有这两处 createToken 调用点
   const calls = [
     ...cliSrc.matchAll(/createToken\(/g),
@@ -167,8 +172,15 @@ test('AC-103 ①（源码级）：CLI 与 HTTP 两处调用点都用 cipher，�
   assert.equal(calls.length, 2, 'createToken 调用点应恰好两处（CLI + HTTP 路由）');
 });
 
-test('AC-103 ①（源码级）：createToken 的签名与"无 cipher 则 NULL"的语义未被本阶段改动', () => {
+test('AC-103 ①（源码级）：createToken 的"无 cipher 则 NULL"语义未被改动（cipher 仍可选）', () => {
   const service = readFileSync(path.join(PROJECT_ROOT, 'src', 'services', 'tokens.ts'), 'utf8');
-  assert.ok(/export async function createToken\(\s*qe: QueryEngine,\s*rawName: string \| undefined,\s*cipher\?: TokenCipher,?\s*\)/.test(service), 'createToken 签名必须保持不变（cipher 仍可选）');
+  /**
+   * 阶段 42（FR-103）给签名**追加了第 4 个可选参数 `rawScope`**（令牌权限）—— 这是新需求要求的变化，
+   * 所以断言同步更新为"前三个参数与可选性不变、加密默认值仍是 NULL"（本用例的原意：FR-101 的加密语义没被破坏）。
+   */
+  assert.ok(
+    /export async function createToken\(\s*qe: QueryEngine,\s*rawName: string \| undefined,\s*cipher\?: TokenCipher,\s*rawScope\?: unknown,?\s*\)/.test(service),
+    'createToken 签名：cipher 与 rawScope 都必须是可选参数',
+  );
   assert.ok(/let tokenEnc: string \| null = null;/.test(service), '仍以 NULL 为默认值');
 });

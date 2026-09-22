@@ -6,8 +6,17 @@ async function authed(fx: Awaited<ReturnType<typeof makeFixture>>): Promise<stri
   return cookieOf(await login(fx.app));
 }
 
+/**
+ * FR-103（v53）：新建令牌**缺省只读**，而本文件的用例要覆盖"令牌取用 + 用令牌做写操作（导入 / 删除）"，
+ * 所以夹具显式要 `write`。只读令牌的用法与归因在 `tests/stage42-token-scope.test.ts` 里单独验。
+ */
 async function tokenOf(fx: Awaited<ReturnType<typeof makeFixture>>, cookie: string, name = 'usage'): Promise<string> {
-  const res = await fx.app.inject({ method: 'POST', url: '/api/tokens', headers: { cookie }, payload: { name } });
+  const res = await fx.app.inject({
+    method: 'POST',
+    url: '/api/tokens',
+    headers: { cookie },
+    payload: { name, scope: 'write' },
+  });
   assert.equal(res.statusCode, 201, res.body);
   return (res.json() as { token: string }).token;
 }

@@ -108,9 +108,16 @@ test('Token 子命令：配了 PM_API_URL + PM_API_TOKEN 就走 HTTP，且连不
     const server = await fx.app.listen({ host: '127.0.0.1', port: 0 });
     const base = server.replace(/\/$/, '');
 
+    /**
+     * FR-103（v53）变更：**令牌管理一律"仅会话"** ⇒ 用令牌走 HTTP 调 `token list` 现在是
+     * **403 `session_required`**（令牌能枚举令牌就等于能自我繁殖）。
+     * 这条断言的**原意**（"配了 PM_API_URL 就走 HTTP、绝不静默回退直连本地库"）因此更强了：
+     * 错误来自服务端的 HTTP 403，且 stdout **没有**本地库里的令牌列表。
+     */
     const overHttp = await runCli(['token', 'list'], dir, { PM_API_URL: base, PM_API_TOKEN: token });
-    assertCliOk(overHttp, 'CLI 退出码');
-    assert.match(overHttp.stdout, /http-路径/, '应通过 HTTP 列出 token');
+    assert.equal(overHttp.code, 1, `令牌调令牌管理必须失败：stdout=${overHttp.stdout}`);
+    assert.match(overHttp.stderr, /HTTP 403 session_required/, '必须是服务端的 403 session_required');
+    assert.ok(!overHttp.stdout.includes('http-路径'), '不得回退直连 DB 后把本地 token 列出来');
     assert.match(overHttp.stderr, /http/i, '应显式提示走了 HTTP 通道');
 
     // 关键：配了 PM_API_URL 但服务不可达 → 必须报错，不许静默读本地库
