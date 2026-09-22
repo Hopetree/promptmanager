@@ -303,7 +303,27 @@ async function tokenLocal(sub: string, argv: string[]): Promise<number> {
     close = handle.close;
 
     if (sub === 'create') {
-      const { summary, token: plaintext } = await tokens.createToken(handle.qe, parsed.name);
+      /**
+       * FR-101：**CLI 建的 token 也要有密文**（否则界面 Token 列显示 `—`、`token reveal` 报 token_not_revealable），
+       * 与 HTTP 路（`routes/tokens.ts` 的 `cipherOrUndefined()`）**完全对齐**：**惰性解析**密钥、
+       * 失败就降级为 undefined —— **创建永不因密钥失败**（`createToken` 内部会写一条不含明文的 stderr warn）。
+       */
+      const { loadTokenCipher } = await import('../services/token-crypto.js');
+      let cipher;
+      try {
+        cipher = loadTokenCipher(handle.config);
+      } catch (error) {
+        cipher = undefined;
+        /**
+         * 密钥不可用时**必须有可读提示**（AC-103 ⑤）：此时 `createToken` 拿到的是 undefined，
+         * 它内部那条 warn 只在"拿到了 cipher 但加密失败"时才会响 ⇒ 这里补一条。
+         * ⚠️ 只写原因（路径/长度等），**绝不**打印明文或密钥本身。
+         */
+        process.stderr.write(
+          `warn: 加密密钥不可用，这条 token 之后无法查看（鉴权不受影响）：${error instanceof Error ? error.message : String(error)}\n`,
+        );
+      }
+      const { summary, token: plaintext } = await tokens.createToken(handle.qe, parsed.name, cipher);
       process.stderr.write(`ok: token created id=${String(summary.id)} name=${summary.name}（明文只显示这一次）\n`);
       process.stdout.write(`${plaintext}\n`); // stdout 最后一行 = 明文（AC-22 ① 依赖）
       return 0;
