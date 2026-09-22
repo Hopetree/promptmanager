@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v52 |
+| 版本 | v53 |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -1015,6 +1015,39 @@
     ④ **移动端**（详情抽屉那条路径）表现一致；
     ⑤ **不要引入多余请求**：只在"版本真的变了"时重拉（例如以 `prompt.version_no` 变化为信号），**不得**变成每次渲染都拉。
   - **不改**：接口与数据模型（纯前端）；版本面板的既有能力（对比 / 详情 / 备注 / 回滚）。
+
+- FR-103 **令牌权限：只读 / 读写两档，且**只作用于资源**（用户 2026-09-22 定调："可以把token做成只读，读写两种吗，并且都只针对资源" ⇒ 用户："按你的建议来"）**——
+  **现状（host_manger 实测）**：`Bearer` 令牌是**全权** —— 除 `POST /api/tokens/:id/reveal`（仅会话）外，`GET /api/tokens`（**枚举令牌**）、
+  `POST /api/tokens`（**新建令牌，响应还带明文** ⇒ **令牌可自我繁殖**）、`DELETE /api/tokens/:id` 与 `.../permanent`、**`POST /api/password`**（改口令）
+  **用令牌都能调**。⇒ 一处泄漏 = 永久全权，且攻击者可**再造新钥匙**（撤销泄漏的那把也没用）。
+  - **① 数据**：新增迁移 **`005_token-scope.sql`**：`api_tokens` 加 **`scope TEXT`**（取值 **`'read'` / `'write'`**）；
+    **存量行一律置 `'write'`**（保持既有 MCP / 技能令牌可用）；**新建由代码显式写入，缺省 `'read'`**（最小权限）。
+  - **② 三类边界（本 FR 的核心，必须逐条照做）**：
+    - **资源读**（`read` 可用）：`GET /api/prompts*`（列表 / 详情 / `versions` / `variables`）、`GET /api/folders`、`GET /api/tags`、
+      `GET /api/export*`、`GET /api/usage`，**以及 `POST /api/prompts/:id/render` 与 `POST /api/render/markdown`**
+      —— ⚠️ **渲染类 POST 只渲染、不改资源，必须归"读"**，否则 **MCP 的 `prompt_render` 会被只读令牌误伤**。
+    - **资源写**（**仅 `write` 可用**）：`POST/PUT/PATCH/DELETE /api/prompts*`（建 / 改 / 排序 / 批量 / 回滚 / 删）、
+      `POST/PUT/PATCH/DELETE /api/folders*`、`POST/PUT/DELETE /api/tags*`、导入（import）。
+    - **不属于资源 ⇒ 一律"仅会话"（任何令牌都不可，与 scope 无关）**：`GET/POST/DELETE /api/tokens*`（列表 / 新建 / 撤销 / 硬删 / reveal）、
+      **`POST /api/password`（改口令）**、`POST /api/logout`。
+  - **③ 实现**：`resolveApiToken()` 返回值加上 `scope` → 鉴权门把 `scope` 挂到 `principal`；
+    对"资源写"端点校验不满足 → **`403 insufficient_scope`**（**与 401 语义分开**；消息写清"该令牌是只读，需要读写令牌"）；
+    "不属于资源"的端点 → **`403 session_required`**（复用既有错误码语义）。
+  - **④ `/mcp`**：沿用**同一套 scope** —— MCP 三个工具本来就是只读 ⇒ **只读令牌即可全部可用**；即便给的是读写令牌，MCP 也**只暴露只读工具**。
+  - **⑤ 界面**：新建令牌时**可选权限**（**默认"只读"**，文案写清"只读：可搜索 / 查看 / 渲染；读写：还能新建、修改、删除"）；
+    令牌列表**不新增列** —— **「状态」列显示成 `有效 · 只读` / `有效 · 读写` / `已撤销 · 只读` / `已撤销 · 读写`**（保住 6 列布局）。
+  - **⑥ CLI**：`pm token create --scope read|write`（**缺省 `read`**）并在输出里回显权限；`pm token list` 显示 `scope`；
+    `pm token reveal` 仍是**本机管理路径**（不经 HTTP，不需要会话）。
+  - **⑦ 文档**：`docs/api.md` 增"令牌权限（scope）"小节 + 错误码表补 `insufficient_scope` / `session_required` 的适用面；
+    `README.md`（用户向）一句"令牌分**只读**/**读写**两种，**只读给 MCP / agent 用**"；`AGENTS.md` 加一行英文。
+  - **非目标（明确不做）**：OAuth / OIDC、逐条 prompt 的 ACL、第三档 `admin`（"管理令牌"用会话就够）、IP 限制、有效期。
+
+- FR-104 **取用记录带上 `token_id`（让"谁取的"可归因；与 FR-103 同一个迁移）**——
+  **现状**：`usage_events(id, prompt_id, channel, used_at)` **没有 token_id** ⇒ 出事只能看到"有人取用了某条提示词"，**不知道是哪个令牌**。
+  - **要求**：`005_token-scope.sql` 里**一并**给 `usage_events` 加 **`token_id INTEGER NULL`**；
+    **用令牌取用时记录该令牌 id**；**会话（cookie）取用记 `NULL`**；
+    `GET /api/usage` 的返回里**带上 `token_id`**（能被查出来）。
+  - **不改**：取用记录的既有语义（**列表 / 搜索不记**；`get` / `render` 记）；`channel` 字段与含义不变；界面**暂不展示** token_id（非目标）。
 
 ## 5. 技术约束（硬性）
 
@@ -2152,6 +2185,27 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
     **不得**因此重复请求 `GET /api/prompts/:id/versions`（贴服务端日志计数）。
   - ⑦ **回归**：`npm test` 全绿（**只增不减**）；`ci-check`（先删 dist）全绿；版本面板的对比/详情/备注/回滚功能逐条手测仍可用。
 
+- **AC-105 令牌权限两档（v53 新增；逐类端点实测 HTTP 码）**
+  - ① **迁移**：`npm run migrate` → `ok: schema at v5`；`api_tokens` 有 `scope`；**存量行 `scope = 'write'`**（贴查库输出）。
+  - ② **只读令牌**：`GET /api/prompts` **200**；`POST /api/prompts`、`PUT /api/prompts/:id`、`DELETE /api/prompts/:id`、
+    `PATCH /api/prompts/order`、`POST /api/folders`、`POST /api/tags` → **各 403 `insufficient_scope`**（贴 6 条）。
+  - ③ **渲染类 POST 对只读令牌必须可用**（关键回归）：`POST /api/prompts/:id/render`、`POST /api/render/markdown` → **200**。
+  - ④ **读写令牌**：读 200 + 写（建/改/删）成功（201/200/204）。
+  - ⑤ **令牌管理一律仅会话**：用**读写**令牌调 `GET /api/tokens`、`POST /api/tokens`、`DELETE /api/tokens/:id`、
+    `DELETE /api/tokens/:id/permanent`、`POST /api/tokens/:id/reveal`、**`POST /api/password`** → **全部 403 `session_required`**（贴 6 条）。
+  - ⑥ **`/mcp` 用只读令牌**：`prompt_search` / `prompt_get` / `prompt_render` 三个工具**全部可用**（真客户端握手）。
+  - ⑦ **默认只读**：界面**真鼠标新建令牌（不动权限选项）** → 查库为 `read`，且用它 `POST /api/prompts` 得 **403**；
+    CLI `pm token create`（不带 `--scope`）→ 同样为 `read`；`--scope write` → 可写。
+  - ⑧ **界面**：令牌列表**「状态」列**显示 `有效 · 只读` / `有效 · 读写`（已撤销行同理）；**列数仍是 6**（不新增列）；
+    新建令牌处有权限选择且**默认只读**（贴截图并识图）。
+  - ⑨ **回归**：`npm test` 全绿（**只增不减**，既有用令牌的用例同步更新、**不得删断言**）；`ci-check`（先删 dist）全绿。
+- **AC-106 取用归因（v53 新增）**
+  - ① 迁移后 `usage_events` 有 **`token_id`** 列（贴 `PRAGMA table_info`）。
+  - ② **用只读令牌**取用（`GET /api/prompts/:id`）→ 新记录的 `token_id` **= 该令牌 id**（贴查库输出）。
+  - ③ **会话（cookie）**取用 → `token_id` 为 **NULL**。
+  - ④ 回归：**列表 / 搜索不记**取用（既有语义不变）。
+  - ⑤ `GET /api/usage` 返回里**带 `token_id`**（能查出"哪个令牌取的"）。
+
 ## 9. 已定决策（不要再问）
 
 - **D-1 技术栈**：Node 24 + TypeScript + SQLite 单文件 + React/Vite 前端（**UI 用 Ant Design 组件库**），**单进程单端口**（前端产物同进程托管）。
@@ -2307,6 +2361,14 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   ② 若实现方认为"从 Workspace 显式下发一个刷新信号"更清晰，**也可以**（但必须同样满足 AC-104 ⑥ 的"无多余请求"）；
   ③ **不动**接口、数据模型与版本面板的既有能力；**不改** 回滚路径的现有行为。
 
+- **D-42（v53）令牌权限与归因的取舍（用户："按你的建议来"）** —— 由 host_manger 定：
+  ① **存量令牌 = `write`**（不弄坏既有 MCP / 技能令牌）；**新建缺省 = `read`**（最小权限，要写入得显式选"读写"）；
+  ② **两档只作用于资源**；**令牌管理与改口令/登出一律"仅会话"**（掐掉"令牌自我繁殖 / 互相撤销 / 用令牌改口令"）；
+  ③ **渲染类 POST 归"读"**（否则 MCP 的 `prompt_render` 被误伤）；
+  ④ **列表不新增列**：权限并进「状态」列（`有效 · 只读/读写`），保住 6 列布局；
+  ⑤ **同一个迁移**里给 `usage_events` 加 `token_id`（归因基础；界面暂不展示）；
+  ⑥ **不做**：OAuth/OIDC、逐条 ACL、第三档 admin、IP 限制、有效期（有效期列为后续可选）。
+
 ## 10. 边界与停止条件
 
 - 遇到本文件未覆盖、且会影响交付的决策 → 写入 `QUESTIONS.md` 并**停手**，不要猜。
@@ -2365,6 +2427,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 | **阶段 39** | **撤销后的 token 仍显示值并支持复制（FR-100：去掉预取过滤里的 revoked 条件 + 「使用」列对撤销行也给「复制」；不可恢复的旧 token 仍 `—` 且带原因提示；服务端不改）** | **AC-102** + 不得回归（AC-1…AC-99、AC-101） |
 | **阶段 40** | **FIX CLI 建的 token 没有密文（FR-101：`src/server/cli.ts` 的 `token create` 漏传 cipher ⇒ 界面看不到值、CLI reveal 报 `token_not_revealable`；修法=照 HTTP 路惰性解析 cipher；不动既有契约、不回填存量）** | **AC-103** + 不得回归（AC-1…AC-102） |
 | **阶段 41** | **FIX 编辑保存后返回详情，版本历史仍是旧的（FR-102：`PromptDetail` 的 `versionKey` 只在回滚时自增；`Workspace.refresh()` 只重载列表/文件夹/标签；`backToDetail()` 不重拉 ⇒ 版本面板停在保存前；修法=以 `prompt.version_no` 变化为刷新信号）** | **AC-104** + 不得回归（AC-1…AC-103） |
+| **阶段 42** | **令牌权限两档（FR-103：`scope=read/write`，**只作用于资源**；资源写仅 write 可用→403 `insufficient_scope`；**令牌管理与改口令一律仅会话**；渲染类 POST 归读；`/mcp` 沿用同一 scope；界面状态列显示权限、新建默认只读）** + **取用归因（FR-104：`usage_events.token_id`）** | **AC-105、AC-106** + 不得回归（AC-1…AC-104） |
 | **阶段 12** | **导航归位 + 信息克制（用户反馈）**：使用视图只留"用"（顶栏去管理项、左栏只作筛选）、解释性文案下线并收进「设置/关于」、卡片去内部 id、状态条移出使用视图 | **AC-37、AC-38、AC-39、AC-40** + 不得回归（AC-33/33b/34/35/36） |
 | **阶段 11** | **使用优先改造（用户纠偏）**：一键复制（列表/卡片/编辑器/变量面板）× 使用·管理分离（默认使用视图、模式记忆）
   × 快捷（`/`、`Ctrl+K`、`Esc`、双击、键盘选择）× 移动端大按钮 + 复制计入使用记录 | **AC-33、AC-34、AC-35、AC-36** + 不得回归（AC-13/20/21/29/31） |
@@ -2382,6 +2445,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v53 2026-09-22（用户定调"令牌做只读/读写两档、且只针对资源"⇒"按你的建议来"）**：新增 **FR-103**（`005_token-scope.sql` 加 `scope`，**存量=write / 新建缺省 read**；**资源读**含渲染类 POST、**资源写**仅 write、**令牌管理与改口令/登出一律仅会话**；403 `insufficient_scope` 与 403 `session_required` 语义分开；`/mcp` 沿用同一 scope；界面**状态列**显示 `有效 · 只读/读写`（不新增列）、新建默认只读；CLI `token create --scope`）+ **FR-104**（同一迁移给 `usage_events` 加 `token_id`；令牌取用记 id、会话取用记 NULL、`GET /api/usage` 带出）+ **AC-105 / AC-106** + **D-42** + **阶段 42**。
 - **v52 2026-09-22（用户报障：编辑后返回详情看不到新版本）**：新增 **FR-102**（**FIX 状态刷新漏了**：`PromptDetail.tsx:267/269` 的 `versionKey` 只在**回滚**时自增；`Workspace.tsx:700` 的 `onSaved` 只调 `refresh()`（`:245`），而它只驱动**列表/文件夹/标签**重载（`:198/203/230`）；`backToDetail()`（`:354`）是 `setSelected(editing)` **不重拉**；编辑器是 Drawer、详情面保持挂载 ⇒ 不重挂载 ⇒ 版本面板停在保存前。要求：保存后回详情（不刷新页面）版本列表即时更新、与刷新后一致、详情版本号与列表一致、回滚不回归、移动端一致、**不引入多余请求**）+ **AC-104** + **D-41** + **阶段 41**。
 - **v51 2026-09-22（host_manger 写"推送提示词技能"时实测发现 ⇒ 用户指示派活修）**：新增 **FR-101**（**FIX CLI 建的 token 没有密文**：`src/server/cli.ts` 调 `createToken(qe, name)` **漏传 cipher** ⇒ `token_enc` 为 NULL ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`；修法=照 HTTP 路的 `cipherOrUndefined()` 惰性解析，**创建永不因密钥失败**）+ **AC-103**（真实查库 / 两路 revealable 一致 / CLI reveal 逐字相同 / 既有 stdout 契约不破 / 密钥缺失三态 / 存量不回填 / 文档与 CHANGELOG[未发布]）+ **D-40** + **阶段 40**。
 - **v50 2026-09-22（用户：撤销 token 也要能看到值并复制）**：新增 **FR-100**（撤销 ≠ 销毁：撤销行**照常预取明文** ⇒ Token 列显示掩码、「使用」列**给「复制」**；**服务端不改**〔`revealToken` 本来就不看 `revoked_at`、`revealable = token_enc !== NULL`〕；真正无密文的旧 token 仍 `—` + `title` 说明原因；操作列与删除逻辑不变）+ **AC-102** + **D-39** + **阶段 39**。
