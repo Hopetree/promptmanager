@@ -129,7 +129,11 @@ test('AC-97 ①（源码级）：抽屉打开时**预取**明文，点「复制�
   // 预取：load() 里对 revealable 行并发调 revealToken
   assert.ok(/api\.revealToken\(token\.id\)/.test(drawer), 'load() 必须预取明文（revealToken）');
   assert.ok(/Promise\.all\(/.test(drawer), '预取必须并发（Promise.all）');
-  assert.ok(/revealable && token\.revoked_at === null/.test(drawer), '只预取可查看且未撤销的行');
+  /**
+   * ⚠️ v50（FR-100）变更：预取**不再排除已撤销行**（撤销 ≠ 销毁，撤销行也要显示掩码并可复制）
+   * ⇒ 这条断言**同步改写**为"只按 revealable 过滤"，语义随之更新，不是删掉覆盖。
+   */
+  assert.ok(/filter\(\(token\) => token\.revealable\)/.test(drawer), '预取只按 revealable 过滤（含已撤销行）');
 
   // 同步复制：点击处理器里，writeClipboard 之前不得出现 await
   const handlerStart = drawer.indexOf('const copyPlaintext = (id: number): void => {');

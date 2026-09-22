@@ -71,7 +71,12 @@ test('AC-101 ④：使用列只有「复制」（预取 + 同步写 + 点击不�
   const useCol = drawer.slice(drawer.indexOf("title: '使用'"), drawer.indexOf("title: '最近使用'"));
   assert.ok(/pm-token-copy-/.test(useCol), '有效行必须有「复制」');
   assert.equal(/pm-token-show-/.test(useCol), false, '「显示」按钮已随折叠移除');
-  assert.ok(/token\.revoked_at !== null \|\| !token\.revealable/.test(useCol), '已撤销或不可查看 → `—`');
+  /**
+   * ⚠️ v50（FR-100）变更：「使用」列判断**只看 revealable**（撤销行也给「复制」）；
+   * 这条断言随之**同步改写**为"只有真正取不到密文的行才 `—`"，不是删掉覆盖。
+   */
+  assert.ok(/if \(!token\.revealable\) \{/.test(useCol), '只有 revealable=false 才 `—`（撤销行照常给「复制」）');
+  assert.equal(/token\.revoked_at !== null \|\| !token\.revealable/.test(useCol), false, '不得再把 revoked_at 作为「使用」列的排除条件');
   const handler = drawer.slice(drawer.indexOf('const copyPlaintext'), drawer.indexOf('const revoke'));
   const writeAt = handler.indexOf('writeClipboard(plaintext)');
   assert.ok(writeAt > 0, '必须调用 writeClipboard(内存里的明文)');
