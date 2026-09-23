@@ -1,6 +1,6 @@
 {
   "name": "promptmanager",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "轻量 Prompt 管理器：单进程自托管（Node + SQLite + React/antd）",
   "type": "module",
