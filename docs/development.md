@@ -153,6 +153,7 @@ bash tools/ac-stage44.sh       # 移动端令牌页可用（真视口 390×844 �
 bash tools/ac-stage45.sh       # 移动端令牌表不丢列（逐列宽度全 >0、名称列 ≥60px、表头首列是「名称」；等抽屉动画结束再量）
 bash tools/ac-stage46.sh       # 登录页无纵向溢出（双视口几何 + 视觉不变 ±2px + 主界面冒烟）+ README 镜像指引可检索
 bash tools/ac-stage47.sh       # 版本对比默认「上一版 ↔ 最新」（3 版/单版两场景 + 手动改 + 视图切换）+ 令牌页「创建时间」列（双视口 7 列 + PC 无横滚 + 改权限不回归）
+bash tools/ac-stage48.sh       # 令牌「状态」列配色（亮/暗双主题 backgroundColor 两两不等 + 真鼠标改权限时文字与底色同步变）
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # 2000 条中文夹具（直接写库，触发器同步 FTS）

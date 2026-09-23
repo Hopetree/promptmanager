@@ -81,6 +81,14 @@
   `docker tag` back to the canonical name" (or configure a Docker proxy). **Never name one specific mirror
   site as the only option** - those endpoints expire; teach the method only, and do not tell users to edit
   `Dockerfile` / `docker-compose.yml` / the workflows.
+- **Token scope must be distinguishable by colour, not just by text** (FR-112): the `状态` column renders
+  `有效 · 只读` / `有效 · 读写` / `已撤销 · …` from `TOKEN_SCOPE_TAG_COLOR` (read=`green`, write=`gold`) and
+  `TOKEN_REVOKED_TAG_COLOR` (`default`). **Never hard-code a single `color` on both branches** - that is
+  exactly the old bug: `scope` only changed the *text*, so read/write had an identical `backgroundColor`
+  (measured `rgb(246,255,237)` in light, `rgb(22,35,18)` in dark). Use **antd preset colour names**, never
+  hex/rgb literals: presets come in theme-aware bg+fg pairs, so light and dark both work. Keep the semantic
+  ordering (write must look *heavier* than read) and do **not** use red for read - red means "danger /
+  revoked" in this product. `tools/ac-stage48.sh` asserts the three states are pairwise different in both themes.
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)
