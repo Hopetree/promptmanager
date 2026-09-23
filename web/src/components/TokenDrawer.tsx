@@ -36,6 +36,8 @@ const TOKEN_NAME_MIN_WIDTH = 60;
 const TOKEN_MASK_MIN_WIDTH = 104;
 const TOKEN_STATE_MIN_WIDTH = 104;
 const TOKEN_USE_MIN_WIDTH = 76;
+/** FR-111：创建时间列 —— 与「最近使用」同一套时间文本（`YYYY/MM/DD HH:mm`）⇒ 同宽 */
+const TOKEN_CREATED_MIN_WIDTH = 123;
 const TOKEN_LAST_USED_MIN_WIDTH = 123;
 const TOKEN_ACTION_MIN_WIDTH = 50;
 
@@ -48,6 +50,7 @@ const TOKEN_TABLE_MIN_WIDTH =
   TOKEN_MASK_MIN_WIDTH +
   TOKEN_STATE_MIN_WIDTH +
   TOKEN_USE_MIN_WIDTH +
+  TOKEN_CREATED_MIN_WIDTH +
   TOKEN_LAST_USED_MIN_WIDTH +
   TOKEN_ACTION_MIN_WIDTH;
 
@@ -95,11 +98,11 @@ interface TokenDrawerProps {
  * 用户理由："撤销的 token 可能还在别处用着，需要核对值"。
  *
  * **FR-99（v49，用户推翻 FR-98 的折叠方案）**：**固定 6 列、没有折叠** ——
- * `名称 / Token / 状态 / 使用 / 最近使用 / 操作`；行展开（箭头 / `expandedRowRender` / 相关 testid）**全部移除**。
+ * `名称 / Token / 状态 / 使用 / 创建时间 / 最近使用 / 操作`（**FR-111 起 7 列**）；行展开（箭头 / `expandedRowRender` / 相关 testid）**全部移除**。
  * - **名称**：显示**前 20 个字符**，超出加省略号；**完整名称进单元格 `title`**（悬停看全）；
  * - **Token**：**脱敏** = 前 5 + `...` + 后 4（如 `pm_96...7LU8`），数据来自抽屉打开时**预取到内存的明文**；
  *   取不到明文的行（`revealable=false` 的旧令牌 / 已撤销行）显示 `—`；**页面上不出现完整明文**；
- * - **宽度**：抽屉 **620**、**无横向滚动**（名称按**字符**截断，不靠列宽自由收缩）。
+ * - **宽度**：抽屉 **720**（FR-111 由 640 加宽，理由见 `width` 处注释）、桌面**无横向滚动**（名称按**字符**截断，不靠列宽自由收缩）。
 
  *
  * **FR-95 为什么必须"预取 + 同步写"**：真实环境是内网 HTTP（`http://192.168.0.228:8767`）⇒
@@ -397,6 +400,23 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
       },
     },
     {
+      /**
+       * FR-111：**创建时间**列（放在「最近使用」左边 —— 两列都是"时间"，挨着才好横向比对；
+       * 且它比「最近使用」更稳定，靠左更符合"先看是什么时候建的、再看最近用过没"）。
+       * 数据来自 `api_tokens.created_at`（**迁移 002 就有，无需新迁移**，D-47 ④）。
+       * 格式**必须**与「最近使用」一致 ⇒ 复用同一个 `formatDateTime`（同一套 Intl 写法、同一个空值占位 `—`）。
+       */
+      title: '创建时间',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      minWidth: TOKEN_CREATED_MIN_WIDTH,
+      render: (value: string | null) => (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid={`pm-token-created-${String(value ?? '')}`}>
+          {formatDateTime(value)}
+        </Typography.Text>
+      ),
+    },
+    {
       title: '最近使用',
       dataIndex: 'last_used_at',
       key: 'last_used_at',
@@ -441,8 +461,17 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
       onClose={onClose}
       /* FR-95 ⑤：关闭即卸载内容 ⇒ 页面文本里不再残留明文（配合上面的清缓存 effect） */
       destroyOnHidden
-      /* FR-99：6 列（名称/Token/状态/使用/最近使用/操作）在 640 内不横向滚动（判据见 AC-101 ⑦） */
-      width={640}
+      /**
+       * FR-111 ②：**加宽到 720**（FR-99 时是 640）。
+       *
+       * 为什么是 720：7 列的**定宽部分**合计 `104+104+76+123+123+50 = 580`；桌面下要"7 列都看清且不横滚"，
+       * 名称列至少还要留 ~100px 才不至于一进列表就全是省略号 ⇒ 表格内容宽约 `580+100 = 680`，
+       * 抽屉 body 左右各 20px 内边距 ⇒ 抽屉需 ≥ `680+40 = 720`。取 **720**：实测该宽度下
+       * 表格 `scrollWidth === clientWidth`（无横滚，见 AC-112 ③），名称列拿到约 100px
+       * （约 6 个汉字，够看清常见短名，更长的悬停有 `title` 看全），同时不至于吃掉主界面太多横向空间。
+       * ⚠️ 改这个值必须同时看 `TOKEN_TABLE_MIN_WIDTH`（各列 `minWidth` 之和）与 AC-112 ③ 的实测数字。
+       */
+      width={720}
       rootClassName="pm-tokens"
       title={
         <Space>
