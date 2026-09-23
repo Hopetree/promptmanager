@@ -276,7 +276,8 @@ test('AC-107 ⑥（源码级）：状态列权限文本可点击（Dropdown 两�
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
   const titles = [...drawer.matchAll(/title: '([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '最近使用', '操作'], '不得新增列（仍是 6 列）');
+  /** v58（FR-111）：用户要求新增「创建时间」⇒ 6 列 → 7 列（原意是"不得擅自改列"，同步为 7 列）。 */
+  assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '创建时间', '最近使用', '操作'], '列必须恰好这 7 列且顺序正确');
   assert.ok(/<Dropdown/.test(drawer), '有效行的权限文本必须可点击（antd Dropdown，不手搓）');
   assert.ok(/trigger=\{\['click'\]\}/.test(drawer), '点击触发');
   assert.ok(/\{ key: 'read', label: '只读' \}/.test(drawer) && /\{ key: 'write', label: '读写' \}/.test(drawer), '菜单两项');

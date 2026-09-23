@@ -20,8 +20,8 @@ test('AC-101 ①：列头**按顺序恰好 6 列** 名称/Token/状态/使用/�
   const titles = [...drawer.matchAll(/title: '([^']+)'/g)].map((match) => match[1]);
   assert.deepEqual(
     titles,
-    ['名称', 'Token', '状态', '使用', '最近使用', '操作'],
-    `列头必须恰好这六个且按此顺序（实际 ${JSON.stringify(titles)}）`,
+    ['名称', 'Token', '状态', '使用', '创建时间', '最近使用', '操作'],
+    `列头必须恰好这七个且按此顺序（实际 ${JSON.stringify(titles)}）`,
   );
 });
 
@@ -62,7 +62,8 @@ test('AC-101 ②③：名称按**字符**截断（20 + 省略号，完整名进 
 test('AC-101 ①⑦（v55 修订）：抽屉 ≤640、**必须**设 scroll.x、tableLayout=fixed（否则列宽会被 antd 重分配把时间挤裁）', () => {
   const width = /width=\{(\d+)\}/.exec(drawer);
   assert.ok(width !== null, '找不到 Drawer width');
-  assert.ok(Number(width[1]) <= 640, `抽屉宽度必须 ≤640（实际 ${width[1]}）`);
+  /** v58（FR-111）：列变 7 列后允许加宽到 720（用户明确允许；判据=PC 无横滚）。 */
+  assert.ok(Number(width[1]) >= 640 && Number(width[1]) <= 720, `抽屉宽度须在 640–720（实际 ${width[1]}）`);
   /**
    * ⚠️ **v55（FR-106）改写**：原文"不得设 scroll.x（要求无横向滚动）"是按 640 宽桌面得出的结论；
    * 手机 390 下抽屉被夹到视口宽，不给 `scroll.x` 会让表格**没有可滚动容器**（两端列都够不着）。

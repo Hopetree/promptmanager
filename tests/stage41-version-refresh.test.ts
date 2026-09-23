@@ -61,7 +61,13 @@ test('AC-104 ①（源码级）：版本表格**最新在上**（接口是升序
   assert.ok(/dataSource=\{\[\.\.\.versions\]\.reverse\(\)\}/.test(panel), '表格显示顺序必须翻转为"最新在上"（AC-104 ① 要求最上方 = 新版本号）');
   // 只翻转表格：`versions` 本身仍保持升序，供对比/详情视图使用（不改既有语义）
   assert.ok(/dataSource=\{versions\}/.test(panel) === false, '不得把原始升序数组直接交给表格');
-  assert.ok(/setFrom\(first\)/.test(panel) && /setTo\(last\)/.test(panel), '对比视图仍用升序的 first→last（旧→新 diff 方向不变）');
+  /**
+   * v58（FR-110）改写：原来钉的是 setFrom(first) / setTo(last) —— 而 first 取的是**升序数组的第一个**
+   * （= 最早版本），于是默认成了「最早 ↔ 最新」。用户要求默认「上一版 ↔ 最新」⇒
+   * 现在钉：from 取**倒数第二个**、to 取**最新**（方向仍是"旧→新"，只是起点从最早挪到上一版）。
+   */
+  assert.ok(/setFrom\(previous\)/.test(panel) && /setTo\(newest\)/.test(panel), '对比视图用 上一版→最新（旧→新方向不变）');
+  assert.ok(/items\[Math\.max\(0, result\.items\.length - 2\)\]/.test(panel), 'from 必须取倒数第二个版本（单版本时退化为第一个）');
 });
 
 test('AC-104 ④（源码级）：回滚路径仍会触发刷新（能力不变）', () => {

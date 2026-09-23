@@ -20,7 +20,12 @@ const drawer = raw
 
 test('FR-98 → FR-99：折叠方案已彻底清除（不再有 4 列口径与任何展开入口）', () => {
   const titles = [...drawer.matchAll(/title: '([^']+)'/g)].map((match) => match[1]);
-  assert.equal(titles.length, 6, `不得再是 4 列（实际 ${JSON.stringify(titles)}）`);
+  /**
+   * v58（FR-111）改写：原来是"恰好 6 列"（FR-99 固定 6 列的口径）；
+   * 用户要求新增「创建时间」⇒ 现在是 **7 列**。这里保留原意（"不得再退回 4 列折叠版"），
+   * 并把数量改为 7 —— 断言更严（多一列也要对得上），不是删断言。
+   */
+  assert.equal(titles.length, 7, `不得再是 4 列折叠版（实际 ${JSON.stringify(titles)}）`);
   assert.deepEqual(titles.slice(0, 4), ['名称', 'Token', '状态', '使用']);
   for (const gone of ['expandable', 'expandedRowRender', 'pm-token-expand-', 'pm-token-details-', 'pm-token-lastused-']) {
     assert.equal(drawer.includes(gone), false, `不得残留折叠实现：${gone}`);
@@ -30,7 +35,8 @@ test('FR-98 → FR-99：折叠方案已彻底清除（不再有 4 列口径与�
 test('FR-98 保留目标 ①：抽屉宽度 ≤ 640（历史 880 → 折叠版 620 → 6 列版 640）', () => {
   const width = /width=\{(\d+)\}/.exec(drawer);
   assert.ok(width !== null, '找不到 Drawer width');
-  assert.ok(Number(width[1]) <= 640, `抽屉宽度必须 ≤640（实际 ${width[1]}）`);
+  /** v58（FR-111）：列变 7 列后用户明确允许加宽（判据=7 列无横滚都看清），上限放宽到 720。 */
+  assert.ok(Number(width[1]) >= 640 && Number(width[1]) <= 720, `抽屉宽度须在 640–720（实际 ${width[1]}）`);
 });
 
 test('FR-98 保留目标 ②：名称不被挤压（按字符截断 + title 看全），不再靠折叠解决', () => {

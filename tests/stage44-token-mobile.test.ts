@@ -45,10 +45,11 @@ test("AC-108 ①（源码级）：表格**必须**有可滚动容器 —— 设�
   assert.ok(/tableLayout="fixed"/.test(drawer), '仍须 tableLayout="fixed"');
   // 列头与顺序不变（6 列）
   const titles = [...drawer.matchAll(/title: '([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '最近使用', '操作'], '6 列与顺序不得变');
-  // 抽屉宽度不变
+  /** v58（FR-111）：6 列 → 7 列（新增「创建时间」）；其余顺序不变。 */
+  assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '创建时间', '最近使用', '操作'], '7 列与顺序不得变');
+  // 抽屉宽度：v58（FR-111）列变 7 列后由 640 加宽到 720
   const width = /width=\{(\d+)\}/.exec(drawer);
-  assert.equal(width?.[1], '640', '抽屉宽度仍是 640');
+  assert.equal(width?.[1], '720', '抽屉宽度为 720（FR-111 加宽）');
 });
 
 test('AC-108 ②（源码级）：移动端把创建表单改成竖排，且 `isMobile` 由 Workspace 下发', () => {

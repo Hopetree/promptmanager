@@ -24,6 +24,7 @@ const MIN_WIDTH_CONSTS = [
   'TOKEN_MASK_MIN_WIDTH',
   'TOKEN_STATE_MIN_WIDTH',
   'TOKEN_USE_MIN_WIDTH',
+  'TOKEN_CREATED_MIN_WIDTH',
   'TOKEN_LAST_USED_MIN_WIDTH',
   'TOKEN_ACTION_MIN_WIDTH',
 ];
@@ -46,7 +47,7 @@ test('AC-109 ①（源码级）：`scroll.x` 由各列 `minWidth` **求和得出
   assert.ok(sumExpr !== '', '必须能定位 TOKEN_TABLE_MIN_WIDTH 的求和表达式');
   assert.equal(/\d/.test(sumExpr), false, `求和表达式里不得出现字面数字：${sumExpr.trim()}`);
   const parts = [...sumExpr.matchAll(/([A-Z][A-Z0-9_]*)/g)].map((m) => m[1]);
-  assert.deepEqual(parts, MIN_WIDTH_CONSTS, '求和必须恰好覆盖六列的最小宽度常量（顺序 = 列顺序）');
+  assert.deepEqual(parts, MIN_WIDTH_CONSTS, '求和必须恰好覆盖七列的最小宽度常量（顺序 = 列顺序）');
 });
 
 test('AC-109 ①（源码级）：名称列有可读下限 ≥ 60px；六列都声明了 `minWidth`', () => {
@@ -68,9 +69,11 @@ test('AC-109 ①（源码级）：名称列有可读下限 ≥ 60px；六列都�
 
 test('AC-109 ①（源码级）：表头 6 列顺序与语义不变，抽屉宽度不变，fixed 布局不变', () => {
   const titles = [...drawer.matchAll(/title: '([^']+)'/g)].map((m) => m[1]);
-  assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '最近使用', '操作'], '6 列与顺序不得变（名称仍是第一列）');
+  /** v58（FR-111）：6 列 → 7 列（新增「创建时间」）；名称仍是第一列。 */
+  assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '创建时间', '最近使用', '操作'], '7 列与顺序不得变（名称仍是第一列）');
   const width = /width=\{(\d+)\}/.exec(drawer);
-  assert.equal(width?.[1], '640', '抽屉宽度仍是 640');
+  /** v58（FR-111）：列变 7 列后允许加宽到 720。 */
+  assert.equal(width?.[1], '720', '抽屉宽度为 720（FR-111 加宽）');
   assert.ok(/tableLayout="fixed"/.test(drawer), '仍须 tableLayout="fixed"');
 });
 
