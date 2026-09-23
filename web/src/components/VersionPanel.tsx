@@ -107,12 +107,21 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
         const result = await api.versions(promptId);
         if (!alive) return;
         setVersions(result.items);
-        const first = result.items[0]?.version_no ?? null;
-        const last = result.items[result.items.length - 1]?.version_no ?? null;
-        setFrom(first);
-        setTo(last);
-        setDetailNo(last);
-        if (first !== null && last !== null) await loadDiff(first, last);
+        /**
+         * FR-110：默认对比 pair = **倒数第二个版本 ↔ 最新版本**（"这次比上次改了什么"）。
+         *
+         * ⚠️ 别再用"数组两端"来取（旧代码是 `items[0]` ↔ `items[n-1]`）：接口是**按 version_no 升序**返回的
+         * （见 `src/db/prompt-versions.ts` 的 `selectVersions`，`.orderBy('version_no', 'asc')`）
+         * ⇒ `items[0]` 是**最早**版本，于是默认 diff 头部成了 `--- v1` / `+++ v3`（用户看到的就是"最早 vs 最新"）。
+         * 这里显式取 `length - 2`（= 上一版）作为 from；**只有 1 个版本时** `Math.max(0, -1) = 0`
+         * ⇒ 退化成 **v1 ↔ v1**（diff 为空，不报错、不空白），符合 FR-110 ②。
+         */
+        const newest = result.items[result.items.length - 1]?.version_no ?? null;
+        const previous = result.items[Math.max(0, result.items.length - 2)]?.version_no ?? null;
+        setFrom(previous);
+        setTo(newest);
+        setDetailNo(newest);
+        if (previous !== null && newest !== null) await loadDiff(previous, newest);
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           onUnauthorized();
