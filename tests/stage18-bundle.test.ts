@@ -79,6 +79,15 @@ const STAGE37_ACCOUNTED_DELTA = 247;
  * 与 `api.ts` 的 `setTokenScope`。**无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。
  */
 const STAGE43_ACCOUNTED_DELTA = 246;
+/**
+ * 阶段 48（FR-112 令牌状态列配色）的**已对账**增量：**实测** +89 B gzip。
+ * 依据（2026-09-23）：把改动前的 `web/src`（HEAD = 阶段 47 收尾）在同一 `node_modules` 下重新 `npm run build:web`，
+ * 总 gzip = **420,053 B**；本阶段完成后 = **420,142 B** ⇒ 差值 **89 B**。
+ * 构成：`TokenDrawer.tsx` 引入 `TOKEN_SCOPE_TAG_COLOR`（read=green / write=gold）与 `TOKEN_REVOKED_TAG_COLOR`
+ * 两个常量 + 渲染处改用变量取色（原来两处都写死 `color="green"`；新增的 `gold` 走 antd preset 的 CSS-in-JS 分支）。
+ * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。
+ */
+const STAGE48_ACCOUNTED_DELTA = 89;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -122,7 +131,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -133,7 +142,8 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE31_ACCOUNTED_DELTA +
     STAGE36_ACCOUNTED_DELTA +
     STAGE37_ACCOUNTED_DELTA +
-    STAGE43_ACCOUNTED_DELTA;
+    STAGE43_ACCOUNTED_DELTA +
+    STAGE48_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });
 
