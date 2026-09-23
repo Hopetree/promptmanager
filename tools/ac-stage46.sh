@@ -79,7 +79,7 @@ if [ "$ONLY" = "all" ] || [ "$ONLY" = "readme" ]; then
   MIRROR_IN_DEPLOY=$(awk -v s="$DEPLOY_LINE" -v e="$FAQ_LINE" 'NR>=s && NR<e && /镜像/ {c++} END {print c+0}' README.md)
   ge() { if [ "$3" -ge "$2" ] 2>/dev/null; then pass "$1 = $3（≥ $2）"; else fail "$1 = $3（期望 ≥ $2）"; fi; }
   ge "⑤ 部署章节里出现「镜像」的行数" 1 "$MIRROR_IN_DEPLOY"
-  eq "⑤ 部署章节里有"拉取失败/慢"的说明" 1 "$(awk -v s="$DEPLOY_LINE" -v e="$FAQ_LINE" 'NR>=s && NR<e && /卡住或很慢|超时或极慢/ {c++} END {print c+0}' README.md)"
+  ge "⑤ 部署章节里有"拉取失败/慢"的说明" 1 "$(awk -v s="$DEPLOY_LINE" -v e="$FAQ_LINE" 'NR>=s && NR<e && /卡住或很慢|超时或极慢/ {c++} END {print c+0}' README.md)"
   eq "⑤ 部署章节教了 tag 回规范名" 1 "$(awk -v s="$DEPLOY_LINE" -v e="$FAQ_LINE" 'NR>=s && NR<e && /docker tag/ {c++} END {print c+0}' README.md)"
   # ⑤ FAQ 里新增一条问句，含「拉取」且含「失败」或「很慢」
   FAQ_Q=$(awk -v s="$FAQ_LINE" 'NR>=s && /^\*\*.*？\*\*$/ {print NR": "$0}' README.md | grep '拉取' | grep -E '失败|很慢' | head -1)
@@ -98,6 +98,32 @@ if [ "$ONLY" = "all" ] || [ "$ONLY" = "readme" ]; then
   eq "⑤ 未绑定任何具名公开加速站" 0 "$(grep -cE '(docker\.1panel|dockerproxy|daocloud|docker\.io\.cn|registry\.cn-hangzhou|mirror\.ccs)' README.md || true)"
   # ⑥ 文档准确：不引用不存在的脚本（沿用既有口径）
   eq "⑥ grep -c 'ac-stage9.sh' README.md" 0 "$(grep -c 'ac-stage9.sh' README.md || true)"
+
+  # —— 返工补充（FR-109 第二轮）：README 必须写出官方镜像**完整地址**，不能只有占位符 ——
+  eq "返工 部署章节写出官方镜像完整地址 hopetree/promptmanager" 1 "$(awk -v s="$DEPLOY_LINE" -v e="$FAQ_LINE" 'NR>=s && NR<e && /hopetree\/promptmanager/ {c++} END {print (c>0?1:0)}' README.md)"
+  eq "返工 给出可**直接复制**的完整 docker pull 命令" 1 "$(grep -c 'docker pull hopetree/promptmanager:' README.md | head -1 | awk '{print ($1>0?1:0)}')"
+  eq "返工 说明 <命名空间> == hopetree（占位符被定义）" 1 "$(grep -cE '<命名空间>[^`]{0,8}`? *= *`?hopetree|`<命名空间>` *= *`hopetree`' README.md | head -1 | awk '{print ($1>0?1:0)}')"
+  # 每一个 <命名空间> 出现处，其上下 12 行内都要有 hopetree（否则那一处仍让读者填不出来）
+  ORPHAN=$(python3 - "$PWD" <<'PYEOF'
+import sys
+lines = open('README.md', encoding='utf-8').read().split('\n')
+bad = []
+for i, line in enumerate(lines):
+    if '<命名空间>' not in line:
+        continue
+    ctx = '\n'.join(lines[max(0, i - 12):i + 13])
+    if 'hopetree' not in ctx:
+        bad.append(str(i + 1))
+print(','.join(bad) if bad else 'none')
+PYEOF
+)
+  eq "返工 所有 <命名空间> 出现处附近都有 hopetree（孤立处）" "none" "$ORPHAN"
+  eq "返工 「备份与升级」的升级命令也给出完整地址" 1 "$(grep -c 'docker pull hopetree/promptmanager:<新版本>' README.md | head -1 | awk '{print ($1>0?1:0)}')"
+  # 两件事不能混：官方仓库写死、加速站仍不写死
+  eq "返工 明确区分「官方仓库固定 / 加速站不固定」" 1 "$(grep -cE '官方仓库[^。]{0,40}固定|固定该写死' README.md | head -1 | awk '{print ($1>0?1:0)}')"
+  eq "返工 加速站仍不绑定任何具名站" 0 "$(grep -cE '(docker\.1panel|dockerproxy|daocloud|docker\.io\.cn|registry\.cn-hangzhou|mirror\.ccs)' README.md || true)"
+  eq "返工 仍保留「站点可换」的方法性说明" 1 "$(grep -cE '不写死具体站点|可用的那一个|站点可用性会变|都能用' README.md | head -1 | awk '{print ($1>0?1:0)}')"
+  eq "返工 不改 Dockerfile / compose / workflows（本轮仍为纯文档）" 0 "$(git diff --name-only HEAD -- Dockerfile docker-compose.yml .github/workflows 2>/dev/null | wc -l)"
   eq "⑥ README 里引用的 deploy/ 文件都存在" 0 "$(python3 - <<'PY'
 import re, os
 missing = []

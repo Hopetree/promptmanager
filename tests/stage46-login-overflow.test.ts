@@ -100,6 +100,58 @@ test('AC-110 ⑤（文档级）：FAQ 新增一条「拉取…失败/很慢」�
   assert.ok(/不写死具体站点|可用的那一个|都能用/.test(faq), 'FAQ 答案里也要说明"用你能用的那一个"');
 });
 
+test('AC-110 ⑤ 返工（文档级）：README 必须写出官方镜像**完整地址**，不能只有占位符', () => {
+  /**
+   * 返工原因：上一版把"教方法、不绑定加速站"做对了，但**整份 README 从头到尾没有出现镜像的完整地址**
+   * —— 全是 `<命名空间>` 占位符 ⇒ 读者拿到文档不知道 `<命名空间>` 该填什么，照着部不出来。
+   * README 是给用户看的部署文档，而我们镜像**已公开发布**在 Docker Hub 上 ⇒ 地址必须写死在文档里。
+   *
+   * ⚠️ 别把两件事搞混：**官方仓库 `hopetree/promptmanager` 是固定的（该写死）**；
+   * **加速站/镜像站会过期（不该写死某一家）** —— 后者由下一条用例守住。
+   */
+  const readme = read('README.md');
+  const deployStart = readme.indexOf('## 部署方式 A：Docker');
+  assert.ok(deployStart >= 0, '必须能定位部署章节');
+  const deploy = readme.slice(deployStart, readme.indexOf('## 部署方式 B'));
+
+  // ① 部署章节里必须出现官方镜像的完整地址
+  assert.ok(deploy.includes('hopetree/promptmanager'), '部署章节必须写出官方镜像完整地址 hopetree/promptmanager');
+  // ② 必须有可**直接复制**的完整命令（不能只给占位符写法）
+  assert.ok(/docker pull hopetree\/promptmanager:\S+/.test(deploy), '必须给出一条可直接复制的 docker pull 完整命令');
+  // ③ 必须说明 `<命名空间>` 就是 hopetree（占位符要被定义，否则读者仍填不出来）
+  assert.ok(/`<命名空间>`\s*=\s*`hopetree`|<命名空间>[^\n]{0,24}hopetree|hopetree[^\n]{0,24}<命名空间>/.test(deploy),
+    '必须把 `<命名空间>` 与 hopetree 的对应关系写清楚');
+
+  // ④ 文档里每一个 `<命名空间>` 的出现处附近都要有 hopetree 的线索（否则那处仍会让人困惑）
+  const lines = readme.split('\n');
+  const confusing = lines
+    .map((line, i) => ({ line, i }))
+    .filter(({ line }) => line.includes('<命名空间>'))
+    .filter(({ i }) => {
+      const context = lines.slice(Math.max(0, i - 12), i + 13).join('\n');
+      return !context.includes('hopetree');
+    })
+    .map(({ line, i }) => `${String(i + 1)}: ${line.trim()}`);
+  assert.deepEqual(confusing, [], `以下 <命名空间> 出现处附近没有 hopetree 的说明：\n${confusing.join('\n')}`);
+});
+
+test('AC-110 ⑤ 返工（文档级）：官方仓库写死、**加速站仍不写死**（两件事不能混）', () => {
+  const readme = read('README.md');
+  // 官方仓库：允许且要求在文档里固定出现
+  assert.ok(readme.includes('hopetree/promptmanager'), '官方仓库地址应固定写在文档里');
+  // 加速站：仍不得绑定任何具名站
+  const named = /(docker\.1panel|dockerproxy|daocloud|docker\.io\.cn|registry\.cn-hangzhou|mirror\.ccs)/;
+  assert.equal(named.test(readme), false, '不得把某个具体加速站写进文档（它们会过期）');
+  // 并且必须保留"站点可换"的方法性说明
+  assert.ok(/不写死具体站点|可用的那一个|站点可用性会变|都能用/.test(readme), '仍须说明"加速站用你能用的那一个"');
+  // 明确区分两件事（防止后来者"顺手"把加速站也写死，或反过来把官方地址改回占位符）
+  assert.ok(/官方仓库[^\n]{0,40}固定的|固定该写死/.test(readme), '应明确"官方仓库固定、加速站不固定"的区分');
+
+  // 升级一节也要能给读者可照抄的地址
+  const upgrade = readme.slice(readme.indexOf('### 备份与升级'), readme.indexOf('## 常见问题'));
+  assert.ok(upgrade.includes('hopetree/promptmanager'), '「备份与升级」一节的升级命令应给出完整地址');
+});
+
 test('AC-110 ⑥⑦（文档级）：不引用不存在的脚本；不引导用户改 Dockerfile / compose / CI', () => {
   const readme = read('README.md');
   assert.equal(readme.includes('ac-stage9.sh'), false, '沿用既有口径：不得引用不存在的脚本');
