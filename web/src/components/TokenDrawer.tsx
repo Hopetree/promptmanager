@@ -55,6 +55,28 @@ const TOKEN_TABLE_MIN_WIDTH =
   TOKEN_ACTION_MIN_WIDTH;
 
 /**
+ * FR-112：**状态列的 Tag 配色** —— 只读 / 读写 / 已撤销 **三态背景色两两不同**，让人一眼分辨权限。
+ *
+ * 旧代码的毛病：两个分支都写死 `color="green"`，`scope` 只用来改**文字**（`scopeText`），
+ * 所以「有效 · 只读」和「有效 · 读写」的 `backgroundColor` **完全相同**
+ * （亮色实测都是 `rgb(246, 255, 237)`，暗色都是 `rgb(22, 35, 18)`）—— 用户要的"看颜色分辨"落空了。
+ *
+ * 现在按用户反馈的语义选色（**读写权限更大 ⇒ 更重/更显眼**）：
+ * - **只读 = `green`**（原有色，保留）：绿色是"可用/正常"的默认观感，**低调**；
+ * - **读写 = `gold`（琥珀/橙）**：比绿色更"暖、更醒目"，一眼就是"权限更高那一档"；
+ *   且**刻意避开红色系** —— 本产品里红色会被读成"危险/已撤销"（BRIEF FR-112 ② 明确禁止用红色表达只读，
+ *   这里也一并不用红表达读写：读写只是"权限更大"，不是"危险"）；
+ * - **已撤销 = `default`**（`theme.ts` 里定制成中性靛蓝淡底 `rgba(94,106,210,0.14)` + 主色文字）：
+ *   与绿/金都不同色系，撤销 ≠ 只读、不会混。
+ *
+ * 三态在**亮/暗两套主题**下都由 antd 的 preset Tag 自动配对（底色 + 文字色一起给），
+ * 所以不用自己写死十六进制，也就不会出现"亮色能分、暗色分不出"的问题。
+ */
+export const TOKEN_SCOPE_TAG_COLOR = { read: 'green', write: 'gold' } as const;
+/** 已撤销行固定中性色（与两种有效色都不撞）。 */
+export const TOKEN_REVOKED_TAG_COLOR = 'default';
+
+/**
  * FR-100 ③：**真不可恢复**（`revealable === false`，即迁移前创建、当时未存密文）时 `—` 的悬停说明。
  * 只说事实与出路（重建），不写成"加载失败"那样的误导文案。
  */
@@ -334,7 +356,8 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
         const scopeText = token.scope === 'write' ? '读写' : '只读';
         if (token.revoked_at !== null) {
           return (
-            <Tag color="default" data-testid={`pm-token-state-${String(token.id)}`}>
+            /* FR-112：已撤销保持中性（`default`）—— 与只读的绿、读写的金都一眼可分 */
+            <Tag color={TOKEN_REVOKED_TAG_COLOR} data-testid={`pm-token-state-${String(token.id)}`}>
               已撤销 · {scopeText}
             </Tag>
           );
@@ -353,7 +376,8 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
             }}
           >
             <Tag
-              color="green"
+              /* FR-112：只读=green（低调）/ 读写=gold（更重）—— 靠背景色即可分辨权限 */
+              color={token.scope === 'write' ? TOKEN_SCOPE_TAG_COLOR.write : TOKEN_SCOPE_TAG_COLOR.read}
               /* 指针变手型 + 悬停提示（AC-107 ⑥ 的可见入口） */
               style={{ cursor: 'pointer' }}
               title="点击切换：只读 ↔ 读写"
