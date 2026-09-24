@@ -1,9 +1,35 @@
-import { sql } from 'kysely';
+import { sql, type SqlBool } from 'kysely';
 import type { QueryEngine } from '../db/index.js';
 import { nowIso } from './auth.js';
 
 /** 使用记录的"通道"（BRIEF FR-19 固定取值）。 */
 export type UsageChannel = 'session' | 'token' | 'mcp';
+
+/**
+ * FR-114：使用记录的**事件类型**（`usage_events.kind`，迁移 006）——
+ * 用于区分"只是点开看了看"与"真的复制/渲染取用"：
+ * - `view`：**打开详情**（`GET /api/prompts/:id`）—— **留痕，但不计入取用**；
+ * - `copy`：**复制 / 渲染取用**（`POST /api/prompts/:id/render`）—— 计入；
+ * - `mcp` ：**MCP 取用**（`prompt_get` / `prompt_render` 经 `X-PM-Channel: mcp`）—— 计入。
+ */
+export type UsageKind = 'view' | 'copy' | 'mcp';
+
+/**
+ * **计入「取用 N 次」的事件类型**（D-50 ②）：只有这两种。
+ * ⚠️ 所有对外暴露的计数（详情/列表的 `use_count`、`/api/usage/summary` 的 total / by_channel /
+ * by_token / top）都必须用**同一套口径**，否则会出现"页面显示 3 次、统计说 5 次"的自相矛盾。
+ */
+export const COUNTED_KINDS: readonly UsageKind[] = ['copy', 'mcp'];
+
+/** 库里 `kind` 可能为 NULL（历史行/手工插入）⇒ 与服务层口径一致地当作 `copy`。 */
+export function normalizeKind(raw: unknown): UsageKind {
+  return raw === 'view' || raw === 'copy' || raw === 'mcp' ? raw : 'copy';
+}
+
+/** 由认证通道推导事件类型：MCP 通道算 `mcp`，其余（会话 / 令牌）算 `copy`。 */
+export function kindForChannel(channel: UsageChannel): UsageKind {
+  return channel === 'mcp' ? 'mcp' : 'copy';
+}
 
 export interface UsageStats {
   use_count: number;
@@ -30,8 +56,11 @@ export const DEFAULT_USAGE_DAYS = 30;
 export const MAX_USAGE_TOP = 20;
 
 /**
- * 写一条"取用"记录（FR-19 / D-17）：只记详情、渲染、MCP 取用；列表/搜索不记。
+ * 写一条使用记录（FR-19 / D-17 / **FR-114**）：打开详情（`view`，留痕不计数）、
+ * 渲染与复制（`copy`）、MCP 取用（`mcp`）；列表/搜索不记。
+ *
  * ⚠️ 这里**只**写 usage_events，绝不碰 prompts 行 ⇒ 不产生版本、不改 updated_at。
+ * `kind` 缺省 `'copy'` —— 与迁移 006 对存量行的回填口径一致（漏传也不会把"取用"记成不计数的）。
  */
 export async function recordUsage(
   qe: QueryEngine,
@@ -39,10 +68,12 @@ export async function recordUsage(
   channel: UsageChannel,
   /** FR-104：令牌通道传该令牌 id；cookie 会话传 null（会话没有"令牌"可归因）。 */
   tokenId: number | null = null,
+  /** FR-114：事件类型；**只有 `copy` / `mcp` 计入「取用 N 次」**，`view` 只留痕。 */
+  kind: UsageKind = 'copy',
 ): Promise<void> {
   await qe
     .insertInto('usage_events')
-    .values({ prompt_id: promptId, channel, used_at: nowIso(), token_id: tokenId })
+    .values({ prompt_id: promptId, channel, used_at: nowIso(), token_id: tokenId, kind })
     .execute();
 }
 
@@ -59,6 +90,12 @@ export async function usageStatsFor(qe: QueryEngine, promptIds: number[]): Promi
       eb.fn.max('used_at').as('last_used_at'),
     ])
     .where('prompt_id', 'in', promptIds)
+    /**
+     * FR-114：**只统计"真的取用"**（复制/渲染/MCP）—— 打开详情（`kind='view'`）留痕但不计数。
+     * `COALESCE` 是给"历史行 kind 为 NULL"兜底：迁移 006 已把存量行回填成 'copy'，
+     * 但手工插入的行仍可能是 NULL ⇒ 与服务层"NULL 视作 copy"的口径保持一致。
+     */
+    .where(sql<SqlBool>`coalesce(kind, 'copy') in ('copy', 'mcp')`)
     .groupBy('prompt_id')
     .execute();
 
@@ -81,16 +118,22 @@ export async function usageStatsOf(qe: QueryEngine, promptId: number): Promise<U
 export async function usageSummary(qe: QueryEngine, days: number): Promise<UsageSummary> {
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
 
+  // FR-114：summary 与 use_count **同一口径** —— 只统计"真的取用"（copy/mcp），
+  // 否则会出现"页面显示 N 次、统计说 M 次"的自相矛盾。
+  const counted = sql<SqlBool>`coalesce(kind, 'copy') in ('copy', 'mcp')`;
+
   const totals = await qe
     .selectFrom('usage_events')
     .select((eb) => eb.fn.countAll<number>().as('total'))
     .where('used_at', '>=', since)
+    .where(counted)
     .executeTakeFirstOrThrow();
 
   const channels = await qe
     .selectFrom('usage_events')
     .select((eb) => ['channel', eb.fn.countAll<number>().as('count')])
     .where('used_at', '>=', since)
+    .where(counted)
     .groupBy('channel')
     .execute();
 
@@ -104,6 +147,7 @@ export async function usageSummary(qe: QueryEngine, days: number): Promise<Usage
       eb.fn.max('e.used_at').as('last_used_at'),
     ])
     .where('e.used_at', '>=', since)
+    .where(sql<SqlBool>`coalesce(e.kind, 'copy') in ('copy', 'mcp')`)
     .groupBy(['e.prompt_id', 'p.title'])
     .orderBy(sql`count(*)`, 'desc')
     .orderBy(sql`max(e.used_at)`, 'desc')
@@ -122,6 +166,7 @@ export async function usageSummary(qe: QueryEngine, days: number): Promise<Usage
     .selectFrom('usage_events')
     .select((eb) => ['token_id', eb.fn.countAll<number>().as('count')])
     .where('used_at', '>=', since)
+    .where(counted)
     .groupBy('token_id')
     .orderBy(sql`count(*)`, 'desc')
     .execute();

@@ -87,6 +87,11 @@ export interface UsageEventsTable {
   channel: string; // 'session' | 'token' | 'mcp'
   used_at: string;
   token_id: number | null; // FR-104：令牌取用记该令牌 id；cookie 会话取用记 NULL（可归因"谁取的"）
+  /**
+   * FR-114：事件类型（迁移 006）—— `view` 打开详情（留痕**不计数**）/ `copy` 复制·渲染（计数）/
+   * `mcp` MCP 取用（计数）。可空：迁移已把存量行回填成 `copy`，服务层把 NULL 也视作 `copy`。
+   */
+  kind: string | null;
 }
 
 export interface PromptTagsTable {

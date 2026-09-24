@@ -79,6 +79,10 @@ export async function searchPrompts(qe: QueryEngine, params: PromptSearchParams)
   const custom = params.sort === 'custom';
 
   // 每个 prompt 一行；LEFT JOIN 不会放大行数
+  /**
+   * FR-114：列表里的 `use_count` 必须与详情**同一口径** —— 只统计"真的取用"（copy/mcp），
+   * 打开详情产生的 `kind='view'` 只留痕、不计入。`COALESCE` 给历史/手工插入的 NULL 行兜底（视作 copy）。
+   */
   const usage = qe
     .selectFrom('usage_events')
     .select((eb) => [
@@ -86,6 +90,7 @@ export async function searchPrompts(qe: QueryEngine, params: PromptSearchParams)
       eb.fn.countAll<number>().as('use_count'),
       eb.fn.max('used_at').as('last_used_at'),
     ])
+    .where(sql<SqlBool>`coalesce(kind, 'copy') in ('copy', 'mcp')`)
     .groupBy('prompt_id')
     .as('u');
 

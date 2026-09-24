@@ -14,7 +14,7 @@ import {
 } from '../../services/prompts.js';
 import { extractVariables, renderVariables } from '../../services/variables.js';
 import { diffVersions, listVersions, rollbackToVersion } from '../../services/versions.js';
-import { recordUsage } from '../../services/usage.js';
+import { kindForChannel, recordUsage } from '../../services/usage.js';
 import { currentPrincipal } from '../auth.js';
 import { parseBoundedInt, parsePositiveId } from '../params.js';
 
@@ -171,9 +171,14 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     const prompt = await getPrompt(app.qe, id);
     if (prompt === null) throw new NotFoundError();
 
-    // FR-19：打开详情算"取用"（列表/搜索不算）。先记后读 → 响应里的 use_count 含本次。
-    // FR-104：令牌取用记该令牌 id（会话取用记 NULL），让"谁取的"可归因。
-    await recordUsage(app.qe, id, currentPrincipal(request).channel, currentPrincipal(request).tokenId ?? null);
+    /**
+     * FR-114（用户原话「打开详情不要算，只有真的复制才是使用」）：
+     * 打开详情**只留痕**（`kind='view'`），**不计入 `use_count`** —— 由聚合侧只统计 copy/mcp 实现。
+     * 保留这条记录是为了不丢"谁在什么时候看过"的审计线索（D-50 ①）。
+     * FR-104：令牌访问记该令牌 id（会话记 NULL），让"谁看的"可归因。
+     */
+    const principal = currentPrincipal(request);
+    await recordUsage(app.qe, id, principal.channel, principal.tokenId ?? null, 'view');
     return (await getPrompt(app.qe, id)) ?? prompt;
   });
 
@@ -220,8 +225,18 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     const system = renderVariables(prompt.system_prompt, values);
     const missing = [...new Set([...user.missing, ...system.missing])];
 
-    // FR-19：渲染取用也记一条（渲染本身不写库，只有 usage 落一行）
-    await recordUsage(app.qe, id, currentPrincipal(request).channel, currentPrincipal(request).tokenId ?? null);
+    /**
+     * FR-19 + FR-114：渲染取用记一条，并**计入**取用。
+     * 事件类型由通道推导：MCP 通道 ⇒ `'mcp'`（MCP 取用仍算，D-50 ④），会话/令牌 ⇒ `'copy'`。
+     */
+    const renderPrincipal = currentPrincipal(request);
+    await recordUsage(
+      app.qe,
+      id,
+      renderPrincipal.channel,
+      renderPrincipal.tokenId ?? null,
+      kindForChannel(renderPrincipal.channel),
+    );
     return { user_prompt: user.text, system_prompt: system.text, missing };
   });
 
