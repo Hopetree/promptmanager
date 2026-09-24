@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v66b |
+| 版本 | v66c |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -3024,9 +3024,12 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   `/healthz` 响应 6500–7400ms**，主进程进入 **D 状态（不可中断 I/O）**卡死，
   最终需强杀进程树 + `systemctl kill -9` 才恢复。**本条纪律就是为避免重演。**
 - **必须**遵守：
-  1. **用 dsh 自己的开发环境**：自起临时实例 + **临时 `DATA_DIR`**，端口走 **8768 等备用端口**。
-     ⛔ **不得使用 8767** —— 那是 **host_manger 维护的测试环境**（`systemd promptmanager.service`、`/var/lib/promptmanager/pm.db`），**dsh 无权限、也不应动用**（分工见 MEMORY.md §0，2026-09-19 用户定）；
-     **一次只起一个实例**，用完即停，收尾确认进程已退出；
+  1. **用 dsh 自己的开发环境 —— 常驻服务 `promptmanager-dev.service`（端口 `8768`、数据 `/var/lib/promptmanager-dev`）**。
+     ⛔ **不得使用 8767** —— 那是 **host_manger 维护的测试环境**（`systemd promptmanager.service`、`/var/lib/promptmanager/pm.db`），**dsh 无权限、也不应动用**（分工见 MEMORY.md §0，2026-09-19 用户定）。
+     ⛔ **不要再用 `tmp/*-data` 那种一次性临时数据**（用户 2026-09-25 纠正：**开发环境应当持久、dsh 可跨会话积累数据，每次重新造数据浪费时间**）。
+     改完代码 `npm run build` 后 `systemctl restart promptmanager-dev` 即取新代码（服务跑的是**仓库的** `dist/server/index.js`）；
+     需要干净起点时用 `scripts/pm-dev-env-reset.sh`（**先备份**再重置），**不手删目录**；
+     **不要反复起停实例**，一次跑完即可；
   2. **串行**跑，**一次只开一个浏览器上下文**，用完即 `close()`；
   3. **禁止并行**多进程截图；禁止同时跑多个探针脚本；
   4. 每跑完一个界面，**顺手确认一次资源**（`free -m` 的 available、`uptime` 的 load）；
@@ -3075,7 +3078,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   为满足新要求而破坏它们即判不通过。
 - ⑤ **优先「不破坏布局」的解法**：能加宽/能隐藏就不要靠缩字号硬塞。
 - ⑥ **只做这 5 项**，不顺手改其它；发现问题记录但不修。
-- ⑦ **沿用 D-54 资源纪律**：**用 dsh 自己的开发环境**（临时实例 + 临时 `DATA_DIR` + 备用端口，**⛔ 不用 8767** —— 那是 host_manger 的测试环境）、**一次只起一个实例**、串行单上下文、熔断阈值。
+- ⑦ **沿用 D-54 资源纪律**：用 **dsh 自己的常驻开发环境** `promptmanager-dev.service`（**8768** / `/var/lib/promptmanager-dev`，**⛔ 不用 8767**、**⛔ 不用 `tmp/*-data` 临时数据**）、串行单上下文、熔断阈值；改完代码 build 后 **restart 服务**取新代码，不要反复起停实例。
 
 
 ## 10. 边界与停止条件
@@ -3164,6 +3167,14 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v66c 2026-09-25（用户第二次纠正：开发环境不该是临时数据）**：
+  用户原话：「**开发也不应该是临时数据，他开发应该可以自己积累数据没必要每次都临时，每次重新造数据浪费时间**」。
+  ⇒ **已建常驻开发环境**：`promptmanager-dev.service`，端口 **8768**，数据目录 **`/var/lib/promptmanager-dev`**（`Restart=on-failure`、开机自启）。
+  ⇒ 已把 dsh 原 `tmp/s54-data`（被 `.gitignore` 忽略、会随清理丢失）的**累积数据迁入**，**不让他白干**。
+  ⇒ 服务 `ExecStart` 跑**仓库的** `dist/server/index.js` ⇒ dsh 自验跑的是**自己的新代码**，**不碰 8767**。
+  ⇒ 提供 `scripts/pm-dev-env-reset.sh`（**先备份**再重置，不手删目录）作为干净起点出口。
+  ⇒ **D-54 ② 与 D-55 ⑦ 已同步改口径**；连带修正阶段 53/55 派活提示词。
+  ⇒ **教训**：防过载 ≠ 可以用临时数据；**开发环境要的是「持久 + 可积累」**，把这两件事（归属权、持久性）一起想清楚再写口径。
 - **v66b 2026-09-25（用户纠正：环境分工，我写错了）**：
   上一条 v65 引入的 D-54 ② 与 v66 的 D-55 ⑦ 里，**错误地要求 dsh「复用测试环境 8767」**。
   **事实**（MEMORY.md §0，用户 2026-09-19 早已定）：**8767 是 host_manger 维护的测试环境**
