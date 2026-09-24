@@ -133,6 +133,13 @@ export const api = {
   render: (id: number, values: Record<string, string>) =>
     request<RenderResult>('POST', `/api/prompts/${String(id)}/render`, { values }),
 
+  /**
+   * FR-115：**记一次"复制"**（不含变量的提示词走本地剪贴板复制，需要显式告诉后端）。
+   * 只记账、不返回正文（正文前端已有）⇒ 与 `render` 一样服务端会记一条**计入型**取用。
+   * ⚠️ 不要改用 `getPrompt()` 来"顺带记账" —— 那是"打开详情"语义，会记成 `view`。
+   */
+  recordCopy: (id: number) => request<void>('POST', `/api/prompts/${String(id)}/copy`),
+
   renderMarkdown: (markdown: string) => request<{ html: string }>('POST', '/api/render/markdown', { markdown }),
 
   folders: () => request<{ items: Folder[] }>('GET', '/api/folders'),

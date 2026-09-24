@@ -22,7 +22,8 @@ export interface PromptCopier {
 
 /**
  * 「一键复制」的共用逻辑（FR-41a / **FR-113 修正**）：
- * - **无变量条目** → 直接复制**调用方传进来的** `prompt.user_prompt`（数据本来就在手里）；
+ * - **无变量条目** → 直接复制**调用方传进来的** `prompt.user_prompt`（数据本来就在手里），
+ *   复制成功后调一次 `POST /api/prompts/:id/copy` **记账**（FR-115：只记一次 `copy`，不取正文）；
  * - **含变量条目** → 打开填值对话框，点「复制结果」时走 `POST /api/prompts/:id/render` → 复制服务端渲染结果
  *   （**这一步记一次取用，保留**）。
  *
@@ -32,8 +33,8 @@ export interface PromptCopier {
  * 现在改成**复用已加载的数据**：列表/详情返回的 `Prompt` 本来就带 `user_prompt`
  * （服务端列表查询是 `selectAll('p')`），所以正文不必再取一次 ⇒ **一次复制只记一次**。
  *
- * 注意这**不是**"复制不记账"：用户复制任一条，必然已经过"点开该条"（详情 GET 记 1 次）或
- * "渲染一次"（render 记 1 次）—— 被修掉的是**重复的那一次**，不是全部。
+ * 两条路径**各自恰好记 1 条**：无变量 = `copy` 端点记 1 条；含变量 = `render` 记 1 条
+ * （弹窗阶段只 `GET …/variables`，**不记账**）。这样既不会 +2（FR-113），也不会 +0（FR-115）。
  */
 export function usePromptCopy(onUnauthorized: () => void): PromptCopier {
   const { message } = AntdApp.useApp();
@@ -72,9 +73,15 @@ export function usePromptCopy(onUnauthorized: () => void): PromptCopier {
         /**
          * FR-113：**直接用手里这条数据**，不要再 `GET /api/prompts/:id`。
          * 那个端点是"打开详情记取用"的同一路由 ⇒ 再调一次就多记一条（用户报障的 +2）。
-         * 正文（`user_prompt`）在列表/详情响应里本来就有，所以这里零请求即可复制。
+         * 正文（`user_prompt`）在列表/详情响应里本来就有。
+         *
+         * FR-115：但**"本地复制"也需要告诉后端一次**，否则「取用 N 次」永远不涨（用户报障）。
+         * 所以复制**成功后**调一次 `POST /api/prompts/:id/copy` —— 它只记账、不返回正文，
+         * 记的是**计入型**（`copy`），**不是** `view`（绝不用 "打开详情" 来兼职记账）。
+         * 顺序：**先写剪贴板、后记账** —— 剪贴板写入需要用户激活，不能被网络请求拖过期。
          */
-        await copyText(prompt.user_prompt, '提示词');
+        const ok = await copyText(prompt.user_prompt, '提示词');
+        if (ok) await api.recordCopy(prompt.id);
       } catch (error) {
         handleError(error);
       } finally {

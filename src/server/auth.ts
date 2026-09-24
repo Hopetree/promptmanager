@@ -51,8 +51,17 @@ const SESSION_ONLY_PATHS = new Set<string>(['/api/password', '/api/logout']);
 const RESOURCE_READ_PREFIXES = ['/api/prompts', '/api/folders', '/api/tags', '/api/export', '/api/usage'];
 const RESOURCE_READ_EXTRA_PATHS = new Set<string>(['/api/me']);
 
-/** 类别 ①：**归"读"的 POST**（只渲染、不改资源）。 */
-const RESOURCE_READ_POST = [/^\/api\/prompts\/\d+\/render$/, /^\/api\/render\/markdown$/];
+/**
+ * 类别 ①：**归"读"的 POST**（只渲染/只记使用，**不改资源**）。
+ * - `/render`（渲染取用）、`/render/markdown`（Markdown 渲染）；
+ * - **`/copy`（FR-115）**：只"记一次复制"、不返回正文也不改资源 ⇒ 与渲染类同档，
+ *   这样**只读令牌**经 HTTP/MCP 也能记复制（口径与 render 一致）。
+ */
+const RESOURCE_READ_POST = [
+  /^\/api\/prompts\/\d+\/render$/,
+  /^\/api\/render\/markdown$/,
+  /^\/api\/prompts\/\d+\/copy$/,
+];
 
 function isSessionOnly(path: string): boolean {
   return SESSION_ONLY_PATHS.has(path) || SESSION_ONLY_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));

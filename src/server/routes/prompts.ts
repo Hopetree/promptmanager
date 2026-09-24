@@ -240,6 +240,33 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     return { user_prompt: user.text, system_prompt: system.text, missing };
   });
 
+  /**
+   * FR-115：**"记一次复制"的轻量端点** —— 只记账，**不返回正文**、**不渲染**、**不产生 `view`**。
+   *
+   * 为什么需要它：不含变量的提示词在界面上是"纯本地剪贴板"复制（阶段 49 为修"复制 +2"去掉了
+   * `GET /:id`）⇒ **后端没有任何记账点被触发** ⇒ 「取用 N 次」永远不涨（用户报障）。
+   *
+   * ⚠️ 为什么**不**复用既有接口（D-51 ② 明令）：
+   * - `GET /api/prompts/:id` —— 那是"打开详情"，会记成 `kind='view'`（与"打开详情"混淆）；
+   * - `POST …/render` —— 会**多做一次渲染**（用户既没填值、也不需要渲染结果），语义不符。
+   * 所以这里只做一件事：**记一条计入型取用**（`copy` / MCP 通道则 `mcp`），返回 204。
+   */
+  app.post('/api/prompts/:id/copy', async (request, reply) => {
+    const id = parsePositiveId((request.params as { id?: string }).id);
+    const prompt = await getPrompt(app.qe, id);
+    if (prompt === null) throw new NotFoundError();
+
+    const copyPrincipal = currentPrincipal(request);
+    await recordUsage(
+      app.qe,
+      id,
+      copyPrincipal.channel,
+      copyPrincipal.tokenId ?? null,
+      kindForChannel(copyPrincipal.channel),
+    );
+    return reply.code(204).send();
+  });
+
   app.delete('/api/prompts/:id', async (request, reply) => {
     const id = parsePositiveId((request.params as { id?: string }).id);
     await deletePrompt(app.qe, id);
