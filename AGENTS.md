@@ -97,6 +97,22 @@
   for this: that is the open-detail route and would log a `view`. The endpoint is classified as a
   **resource read** (like the render POSTs), so read-only tokens may call it. Order matters in the frontend:
   write the clipboard **first**, then record (clipboard writes need the user activation).
+- **The card footer shows folder + version + variable count, and nothing else** (FR-116): the card view's
+  meta line is `folderNameOf(folders, prompt.folder_id)` with a folder icon **first**, then `v{n}`, then
+  `变量 {n}`; **取用 count and the date were removed** (the table view keeps all of them - only the card
+  changes). A missing folder renders **「未分组」** (`CARD_FOLDER_FALLBACK`), never blank/`null`; the table
+  still says 「未归类」, so the two views intentionally differ in wording. **Do not add a `folder_name`
+  field to the API contract**: `Prompt.folder_id` stays a number and the name is mapped on the frontend from
+  the `folders` array `Workspace` already passes to `UseView` (the folder name is already in the DB, so
+  **no migration**). Adjacent items are separated by a visible **「·」** (`<span aria-hidden
+  className="pm-meta-sep">`) at a **6px** flex gap (was 10px), and the separator is **fainter** than the body
+  text via the dedicated `inkFaint` palette entry. Two traps: (1) "fainter" must be asserted as **contrast
+  against the card background**, not raw luminance - in dark mode a fainter colour has *lower* luminance than
+  the background, so a luminance comparison silently inverts; (2) the separator must never enter copied text -
+  it is `aria-hidden` + `user-select: none`, and the copy path only ever passes `prompt.user_prompt` into
+  `copyText`, never DOM text (`tools/ac-stage52-copy-probe.mjs` proves the clipboard receives the DB body
+  while the footer line does contain the `·`). **Change the gap only on that one Flex**: the card's internal
+  gaps (10px vertical, 4px tag row) and both other views stay as they are.
 - **A "usage" event means a real use, not a look** (FR-114): `usage_events.kind` (migration 006) is
   `view` (opening the detail - **recorded but not counted**) / `copy` (copy + render) / `mcp` (MCP render),
   defaulting to `copy`. **Every exposed count** - `use_count` on the detail, in the list, and every number in
