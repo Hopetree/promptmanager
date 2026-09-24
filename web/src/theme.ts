@@ -31,6 +31,8 @@ export function palette(prefersDark: boolean) {
     inkMuted: prefersDark ? '#d0d6e0' : '#3c4046',
     inkSubtle: prefersDark ? '#8a8f98' : '#6b7280',
     inkTertiary: prefersDark ? '#62666d' : '#9aa1ab',
+    /** FR-116 ⑥：卡片元信息分隔符「·」用 —— 必须**比正文（inkSubtle）更淡**，所以单独一档，不复用 inkTertiary。 */
+    inkFaint: prefersDark ? '#4a4d54' : '#c2c7d0',
     primary: '#5e6ad2',
     primaryHover: prefersDark ? '#828fff' : '#4b57c4',
     primaryActive: prefersDark ? '#4b57c4' : '#3f4bb0',
@@ -54,6 +56,7 @@ export function cssVars(prefersDark: boolean): Record<string, string> {
     '--pm-selected': p.selected,
     '--pm-ink': p.ink,
     '--pm-ink-subtle': p.inkSubtle,
+    '--pm-ink-faint': p.inkFaint,
     '--pm-success': p.success,
     '--pm-error': p.error,
     '--pm-font-mono': FONT_MONO,

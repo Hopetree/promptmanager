@@ -15,6 +15,21 @@
   box-shadow: inset 2px 0 0 var(--pm-primary);
 }
 
+/*
+ * ②b FR-116 ⑥：卡片底部元信息的**可见分隔符**「·」。
+ * 三条约束写死在样式里，避免后来者"顺手"放宽：
+ *  - 颜色取 `--pm-ink-faint`（比正文更淡，不抢内容）；
+ *  - `user-select: none` ⇒ 不被框选带走，也就不会混进任何"选中→复制"的路径；
+ *  - 配 `aria-hidden`（在 JSX 上）⇒ 屏幕阅读器读到的是「目录 v1 变量 2」，不是「· ·」。
+ * 注意：卡片底部的复制走 `prompt.user_prompt`（剪贴板内容里从来没有这一行），
+ * 所以分隔符在任何情况下都不会进入复制结果。
+ */
+.pm-meta-sep {
+  color: var(--pm-ink-faint);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* ③ 顶栏 / 侧栏的 hairline 分层（antd Layout 只给整体底色） */
 .pm-shell-sidebar {
   border-right: 1px solid var(--pm-hairline);

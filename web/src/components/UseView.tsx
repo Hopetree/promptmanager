@@ -29,7 +29,7 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { buildFolderTree, extractVariablesLocal, formatListDateTime, orderPrompts, promptExcerpt, viewModeOptions } from '../pure';
+import { buildFolderTree, extractVariablesLocal, folderNameOf, formatListDateTime, orderPrompts, promptExcerpt, viewModeOptions } from '../pure';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag as PromptTag } from '../types';
 import FavoriteStar from './FavoriteStar';
 import type { PromptMetaPatch } from './PromptDetail';
@@ -233,13 +233,27 @@ export default function UseView({
     </Tooltip>
   );
 
-  // 底部只留一行极简元信息（FR-42b）：版本 · 变量数 · 取用次数 · 更新时间（不再有内部 id）
+  /**
+   * FR-116：卡片底部元信息 = **所属目录（带图标、排最前、只要目录名）+ 版本 + 变量数**。
+   * 去掉了「取用数」与日期；相邻两项之间加**可见的「·」**，项间距由 10px 收到 6px。
+   *
+   * 两点刻意的实现约束（别顺手改）：
+   *  ① **分隔符是装饰，不是内容** —— 它必须是 `aria-hidden` + `user-select: none` 的独立元素，
+   *     且**不放进任何会被整行复制的容器**：卡片底部的复制走的是 `prompt.user_prompt`（剪贴板里
+   *     从来不含这一行），所以分隔符不可能混进复制结果（FR-116 ⑥）。
+   *  ② **只改这一处 gap** —— 卡片内部（标签区 gap=4、竖向 gap=10）与表格/分栏视图都不动；
+   *     `gap={6}` 只写在这一个 Flex 上。
+   */
   const metaLine = (prompt: Prompt) => (
-    <Flex gap={10} wrap align="center" style={{ fontSize: 11.5, color: token.colorTextTertiary }}>
+    <Flex gap={6} wrap align="center" style={{ fontSize: 11.5, color: token.colorTextTertiary }}>
+      <Flex align="center" gap={4} component="span" data-testid={`pm-card-folder-${String(prompt.id)}`}>
+        <FolderOpenOutlined aria-hidden style={{ fontSize: 11 }} />
+        <span>{folderNameOf(folders, prompt.folder_id)}</span>
+      </Flex>
+      <span aria-hidden className="pm-meta-sep">·</span>
       <span className="pm-mono">v{prompt.version_no}</span>
+      <span aria-hidden className="pm-meta-sep">·</span>
       <span>变量 {varCount(prompt)}</span>
-      <span>取用 {prompt.use_count}</span>
-      <span className="pm-mono">{formatListDateTime(prompt.updated_at)}</span>
     </Flex>
   );
 
