@@ -54,7 +54,17 @@ export default function AboutModal({ open, onClose }: AboutModalProps) {
 
   const online = health !== null;
   const version = health?.version ?? '—';
-  const address = typeof window === 'undefined' ? '' : `http://${window.location.host}`;
+  /**
+   * FR-117 / R-9：「访问地址」必须是**用户当前实际访问的地址**（协议 + 主机 + 端口）。
+   *
+   * 原实现写死 `http://` + `window.location.host` ⇒ 用户经 **HTTPS**（反向代理）访问时也显示
+   * `http://…`，而这一行**带复制按钮**，等于把错误协议发给用户。
+   *
+   * 取 `window.location.origin`：浏览器**自身**已知协议与主机端口（`scheme://host[:port]`），
+   * HTTP 直连与 HTTPS 反代都正确；**不写死任一协议**，也**不新增任何网络请求**。
+   * 复制按钮的 `copyable={{ text }}` 用的就是同一个 `address`，故"显示 = 复制内容"天然一致。
+   */
+  const address = typeof window === 'undefined' ? '' : window.location.origin;
 
   const usageLines = [
     '新建：点顶栏「＋新建」，填好标题与提示词后点「保存」才入库。',
