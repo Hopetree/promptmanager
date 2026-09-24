@@ -2494,8 +2494,13 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   - ② **复制计入**：做一次复制（含变量走"填值 → 复制结果"），该 prompt `use_count` **+1**，
      且新增记录 `kind='copy'`（贴库内记录 + `use_count` 前后值）。
   - ③ **渲染取用计入**：`POST /api/prompts/:id/render` 调用一次 ⇒ `use_count` +1、`kind='copy'`（可用接口直接验）。
-  - ④ **MCP 取用计入**：用只读令牌经 MCP 调 `prompt_get`（或 `prompt_render`）一次 ⇒ 该 prompt `use_count` +1、
-     记录 `kind='mcp'` 且 `token_id` 为该令牌 id（贴记录）。
+  - ④ **MCP 取用计入（口径已按 2026-09-23 用户拍板修正）**：
+    - **`prompt_render`（真的渲染取用）⇒ 计入**：用只读令牌经 MCP 调一次 ⇒ 该 prompt `use_count` +1、
+      记录 `kind='mcp'` 且 `token_id` 为该令牌 id（贴记录）。
+    - **`prompt_get`（取回正文看一眼）⇒ 不计入**：与"打开详情"同性质，**只留痕 `kind='view'`**、不进 `use_count`。
+    - **`prompt_search`⇒ 不记**（与列表/搜索同性质，本来就不记）。
+    - **口径依据**：用户的原则是"**只有真的复制/渲染才算使用**" ⇒ MCP 三个工具中只有 `prompt_render` 是"真取用"。
+      （⚠️ 本条为**规格修正**：初版 AC-115 ④ 曾写"`prompt_get` 或 `prompt_render` 都 +1"，与上述原则矛盾，已改。）
   - ⑤ **列表 / 搜索 / 翻页仍不记**：任意滚动与搜索后 `usage_events` 总数**不增**（贴前后总数）。
   - ⑥ **历史不重算**：迁移后**旧记录全部为 `kind='copy'`**（贴迁移前总条数与迁移后按 kind 分布的计数，
      证明**总数不变**且**旧数据没被删/改**）。
@@ -2721,7 +2726,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   ① **取用 = 复制 / 渲染取用 / MCP 取用**；**打开详情不算**（但留痕 `kind='view'`）。
   ② **新增 `usage_events.kind`**（`view` | `copy` | `mcp`），**缺省 `copy`**；`use_count` 只计 `kind in ('copy','mcp')`。
   ③ **历史不重算**：迁移把现有行一律置 `kind='copy'` ⇒ **老数字不变**（用户已确认接受"历史里混着打开记录"这一既成事实）。
-  ④ **MCP 仍算**（`kind='mcp'`）；`channel` / `token_id` 语义不动。
+  ④ **MCP 仍算**（`kind='mcp'`）—— 但**仅指 `prompt_render`**（真取用）；`prompt_get` 与"打开详情"同性质（只留痕 `view`，不计入），`prompt_search` 不记。`channel` / `token_id` 语义不动。
   ⑤ **界面文案不改**（仍「取用 N 次」）；**不新增列**、不改布局。
   ⑥ **回归范围**（按 D-46 ③）：本次涉及**数据层 + 逻辑** ⇒ 跑**受影响部分 + 全量 `npm test` + `ci-check`**，
      并**用旧库副本实测迁移**（AC-115 ⑨）。
