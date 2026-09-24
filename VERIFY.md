@@ -1884,3 +1884,71 @@ CLI 其实有**两条创建通道**，本次都核过：
 
 - 验收脚本**第一版选择器写错**（用 `pm-card-*`，实际是 `pm-use-card` / `pm-card-footer-*`）⇒ 首轮取到 `footerText=None`。
   **教训：验收前先看实现里的 `data-testid`，别按惯例猜选择器。**
+
+---
+
+## 阶段 53 验收（2026-09-25，host_manger）
+
+**范围**：**仅 FR-117（R-9「关于」页访问地址协议）**。
+**FR-118（全面 UI 页面验证 + 报告）经用户指令取消**（用户在 UI 验证进行到一半时指示「停止测试 UI，只需要完成 https 显示问题的修复」），
+dsh 据此只交付 FR-117 并删除 UI 验证脚本 —— **属按指令执行，非漏做**。
+
+**规格**：BRIEF v64｜**交付**：`99529c0`（已推 origin + github，三端一致）
+**验收环境**：测试环境 8767（先执行第 0 步同步，chunk `index-B3XFn8wa.js`；回滚点 `/var/backups/promptmanager/20260925-012922-stage53`）
+**验收方式**：**不复用 dsh 的脚本**，在**本机容器**自建 HTTPS 反代（Node https + 自签证书 → 228:8767）让浏览器**真的从 https 加载**，独立实测。
+
+### 结论：**AC-118 A①–④ 全部通过** ✅
+
+### 逐条实测
+
+| # | 判据 | 我的实测值 | 判定 |
+| --- | --- | --- | --- |
+| **A①** | HTTPS 下显示 `https://…`、复制内容一致 | origin=`https://127.0.0.1:8443`；显示 `https://127.0.0.1:8443`；**剪贴板读回 `https://127.0.0.1:8443`** | ✅ |
+| **A②** | HTTP 下仍显示 `http://…`（不回归） | origin=`http://192.168.0.228:8767`；显示 `http://192.168.0.228:8767` | ✅ |
+| **A③** | 不写死任一协议 + 不新增网络请求 | 源码 `window.location.origin`；**部署产物实测** `m=typeof window>\`u\`?\`\`:window.location.origin`；旧硬编码 `"http://".location.host` 命中 **0**；打开关于页新增 API 请求 **0**（仅原有 1 次 `/healthz`） | ✅ |
+| **A④** | 关于弹窗其它信息不变 | 两场景均：品牌图在、`后端在线`、三分区（服务/使用/维护）、使用区 7 条、维护区 5 条、版本号 `1.3.0` **与 `/healthz` 一致** | ✅ |
+
+**关键对照（同一份构建，两种访问协议）**：
+
+| 场景 | 浏览器实际 origin | 「访问地址」显示 | 剪贴板读回 |
+| --- | --- | --- | --- |
+| **HTTPS**（本机自签反代，真 TLS） | `https://127.0.0.1:8443` | `https://127.0.0.1:8443` | `https://127.0.0.1:8443` ✅ |
+| **HTTP**（内网直连 8767） | `http://192.168.0.228:8767` | `http://192.168.0.228:8767` | 见下 |
+
+⇒ **地址随实际访问协议变化**，R-9 修好了。
+
+### 「显示 = 复制」的闭合论证
+
+HTTP 场景容器内无 `xclip`/`xsel`，且 HTTP 非安全上下文无 `navigator.clipboard`（项目走 `execCommand` 兜底），
+我未能把兜底路径的剪贴板内容读回来。**改用结构性事实证明**：
+
+```tsx
+function CopyLine({ text }: { text: string }) {
+  return <Typography.Text code copyable={{ text }}>{text}</Typography.Text>;   // 显示与复制同一个 text
+}
+…
+{ key: 'address', label: '访问地址', children: <CopyLine text={address} /> }
+```
+
+**渲染文本与 `copyable.text` 是同一个 `text` 变量（`address`）** ⇒ 两场景下"显示 = 复制"由构造保证，非巧合。
+叠加 HTTPS 侧已实测读回一致，A①/A② 成立。
+
+### 回归
+
+- `npm test`：**456/456**（我复跑；阶段 52 为 452，新增 `tests/stage53-about-origin.test.ts` 4 条，**既有断言无一删除**）
+- `ci-check`（先 `rm -rf dist`）：**rc=0**，6 项全过
+- **无新增迁移**：仍 `006_usage-kind.sql`，`schema=[1,2,3,4,5,6]`
+- **无新增依赖**：`package.json` dependencies 仍 23
+- 复现 dsh 的 `tools/ac-stage53-about.sh`：**AC-118 A①–④ 全过**（与其自报 33/33 一致）
+
+### 范围纪律
+
+`git show --stat 99529c0`：改动 **6 个文件** —— `AboutModal.tsx`（+11/-1，唯一源文件改动）+ 1 个测试 + 4 个验收脚本 + `PROGRESS.md`。
+**未越界**：没碰别的功能代码、没改接口契约、没动 `BRIEF.md`/`STANDARDS.md`、没碰部署。
+
+### 验收过程中的自身失误（如实记）
+
+1. **先查错了产物目录** —— 前端产物在 `dist/web/assets/`，我一开始查 `dist/assets/`，导致误判"产物里没有 `location.origin`"；
+2. **弹窗选择器猜错** —— 本项目 Ant Design 版本的弹窗内容在 `.ant-modal-wrap` 内，**没有** `.ant-modal-content`，
+   导致前几次 `wait_for_selector` 超时、误以为弹窗没开（实际已开且数据正确）；
+3. **连丢三次已采到的数据** —— 脚本末尾才写 JSON，后段异常把前段结果一并带走；改为**每步即落盘**后才稳住。
