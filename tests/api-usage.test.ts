@@ -53,7 +53,12 @@ test('AC-27 ①②③：只记"取用"（详情/渲染），通道分 session/to
     const prompt = await createPrompt(fx, cookie, { title: '使用记录夹具', user_prompt: '你好 {{姓名}}' });
     const id = Number(prompt.id);
 
-    // ① token：两次详情 + 一次 render
+    /**
+     * ⚠️ **v61（FR-114）改写**：原为"两次详情 + 一次 render ⇒ token 通道 3 次"。
+     * 用户拍板「打开详情不要算」⇒ **只统计计入型（copy/mcp）**，那两次详情只剩留痕（kind='view'），
+     * 所以 summary 里 token 通道应为 **1**（只有 render 那一次）。
+     * 覆盖没有减弱：**两次详情确实留了痕**这一条由下面的"记录表 kind 分布"断言补上（原来没查过）。
+     */
     assert.equal((await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: bearer })).statusCode, 200);
     assert.equal((await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: bearer })).statusCode, 200);
     assert.equal(
@@ -61,32 +66,57 @@ test('AC-27 ①②③：只记"取用"（详情/渲染），通道分 session/to
       200,
     );
 
+    // 留痕仍在：3 条记录（2 次 view + 1 次 copy），但只有 copy 计入
+    const kinds = readDb(
+      fx,
+      (db) =>
+        db.prepare('SELECT kind, COUNT(*) AS n FROM usage_events WHERE prompt_id = ? GROUP BY kind ORDER BY kind').all(id) as Array<{ kind: string; n: number }>,
+    );
+    assert.deepEqual(
+      kinds.map((row) => `${row.kind}:${String(row.n)}`),
+      ['copy:1', 'view:2'],
+      `打开详情应留痕为 view、render 记为 copy：${JSON.stringify(kinds)}`,
+    );
+
     let s = await summary(fx, bearer, 7);
-    assert.equal(s.by_channel.token, 3, `token 通道应记 3 次：${JSON.stringify(s)}`);
+    assert.equal(s.by_channel.token, 1, `token 通道只应记"计入型"1 次（render）：${JSON.stringify(s)}`);
     assert.equal(s.top[0]?.prompt_id, id);
-    assert.equal(s.top[0]?.count, 3);
+    assert.equal(s.top[0]?.count, 1);
     assert.equal(s.top[0]?.title, '使用记录夹具');
     assert.ok(s.top[0]?.last_used_at?.endsWith('Z'));
 
-    // ② MCP 通道（阶段 6 交付管线，阶段 7 由 MCP server 用同一个头调用）
+    /**
+     * ② MCP 通道（阶段 6 交付管线，阶段 7 由 MCP server 用同一个头调用）
+     * ⚠️ **v61（FR-114）改写**：原来用 `GET /api/prompts/:id` + mcp 头来制造 MCP 取用；
+     * 现在"打开详情"只留痕不计入 ⇒ 改用真正计入的 **render**（MCP 的 prompt_render 正是这条路）。
+     */
     const beforeMcp = s.total;
     const mcpCall = await fx.app.inject({
-      method: 'GET',
-      url: `/api/prompts/${String(id)}`,
+      method: 'POST',
+      url: `/api/prompts/${String(id)}/render`,
       headers: { ...bearer, 'x-pm-channel': 'mcp' },
+      payload: { values: {} },
     });
     assert.equal(mcpCall.statusCode, 200);
     s = await summary(fx, bearer, 7);
     assert.equal(s.by_channel.mcp, 1);
     assert.equal(s.total, beforeMcp + 1);
 
-    // ③ 浏览器 cookie 通道
-    assert.equal((await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: { cookie } })).statusCode, 200);
+    /**
+     * ③ 浏览器 cookie 通道
+     * ⚠️ **v61（FR-114）改写**：原来用 cookie 的 GET 详情制造 session 取用；现在打开详情不计入
+     * ⇒ 改用 **render**（session 通道的计入型取用）。总数随之从 5 变为 **3**
+     * （token 1 次 render + session 1 次 render + mcp 1 次 render；两次 GET 详情只剩 view 留痕）。
+     */
+    assert.equal(
+      (await fx.app.inject({ method: 'POST', url: `/api/prompts/${String(id)}/render`, headers: { cookie }, payload: { values: {} } })).statusCode,
+      200,
+    );
     s = await summary(fx, { cookie }, 7);
     assert.equal(s.by_channel.session, 1);
-    assert.equal(s.by_channel.token, 3);
+    assert.equal(s.by_channel.token, 1);
     assert.equal(s.by_channel.mcp, 1);
-    assert.equal(s.total, 5);
+    assert.equal(s.total, 3);
   } finally {
     await fx.close();
   }
@@ -106,7 +136,13 @@ test('AC-27 ④：写 usage 不产生新版本、不改 updated_at；Prompt 对�
     assert.equal(prompt.last_used_at, null);
 
     const before = (await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: bearer })).json() as Record<string, any>;
-    assert.equal(before.use_count, 1, '本次取用应计入响应');
+    // v61（FR-114）：打开详情不计入 ⇒ 响应里的 use_count 仍是 0（但它确实留了一条 view）
+    assert.equal(before.use_count, 0, '打开详情**不计入** use_count（FR-114）');
+    assert.equal(
+      readDb(fx, (db) => (db.prepare('SELECT COUNT(*) AS n FROM usage_events WHERE prompt_id = ?').get(id) as { n: number }).n),
+      1,
+      '打开详情仍应**留痕**一条（kind=view）',
+    );
 
     await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: bearer });
     await fx.app.inject({ method: 'POST', url: `/api/prompts/${String(id)}/render`, headers: bearer, payload: { values: {} } });
@@ -114,14 +150,15 @@ test('AC-27 ④：写 usage 不产生新版本、不改 updated_at；Prompt 对�
     const after = (await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: bearer })).json() as Record<string, any>;
     assert.equal(after.version_no, before.version_no, 'version_no 必须不变');
     assert.equal(after.updated_at, before.updated_at, 'updated_at 必须不变');
-    assert.equal(after.use_count, 4, 'use_count 递增（含本次）');
+    /** v61（FR-114）：3 次打开（全 view）+ 1 次 render（copy）⇒ **只有 render 计入** ⇒ 1。 */
+    assert.equal(after.use_count, 1, 'use_count 只统计计入型（copy/mcp）');
     assert.ok(String(after.last_used_at).endsWith('Z'));
 
-    // 列表里也带这两个字段
+    // 列表里也带这两个字段（口径必须与详情一致）
     const list = (await fx.app.inject({ method: 'GET', url: '/api/prompts', headers: bearer })).json() as {
       items: Array<Record<string, any>>;
     };
-    assert.equal(list.items[0]?.use_count, 4);
+    assert.equal(list.items[0]?.use_count, 1, 'D-50：列表与详情的 use_count 必须同一口径');
     assert.ok(String(list.items[0]?.last_used_at).endsWith('Z'));
 
     // 列表/搜索本身不记录
@@ -147,9 +184,13 @@ test('AC-27 ⑤：?sort=recent_used —— 用过的在前、从未用过的排�
     await new Promise((resolve) => setTimeout(resolve, 5));
     const neverUsed = await createPrompt(fx, cookie, { title: '从未用过' });
 
-    await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(usedFirst.id)}`, headers: bearer });
+    /**
+     * ⚠️ **v61（FR-114）改写**：`sort=recent_used` 原来靠"打开详情"制造使用记录；
+     * 现在打开不计入 ⇒ 改用**真正计入的渲染取用**来制造（否则三个都"从未用过"，排序无意义）。
+     */
+    await fx.app.inject({ method: 'POST', url: `/api/prompts/${String(usedFirst.id)}/render`, headers: bearer, payload: { values: {} } });
     await new Promise((resolve) => setTimeout(resolve, 5));
-    await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(usedSecond.id)}`, headers: bearer });
+    await fx.app.inject({ method: 'POST', url: `/api/prompts/${String(usedSecond.id)}/render`, headers: bearer, payload: { values: {} } });
 
     const sorted = (await fx.app.inject({ method: 'GET', url: '/api/prompts?sort=recent_used', headers: bearer })).json() as {
       items: Array<{ id: number; title: string; use_count: number; last_used_at: string | null }>;
@@ -241,7 +282,8 @@ test('usage summary 的参数与认证：days 默认 30、非法 → 400、未�
     const token = await tokenOf(fx, cookie);
     const bearer = { authorization: `Bearer ${token}` };
     const prompt = await createPrompt(fx, cookie, { title: '删除级联' });
-    await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(prompt.id)}`, headers: bearer });
+    // v61（FR-114）：用 render（计入型）而非 GET 详情来制造一条统计记录
+    await fx.app.inject({ method: 'POST', url: `/api/prompts/${String(prompt.id)}/render`, headers: bearer, payload: { values: {} } });
 
     const def = (await fx.app.inject({ method: 'GET', url: '/api/usage/summary', headers: bearer })).json() as Summary;
     assert.equal(def.days, 30, 'days 默认 30');

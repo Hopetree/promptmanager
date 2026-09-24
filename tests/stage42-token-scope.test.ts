@@ -70,7 +70,7 @@ test('AC-105 ①：迁移到 v5；api_tokens 有 scope、usage_events 有 token_
     ).run('a'.repeat(64));
 
     const result = runMigrations(db);
-    assert.equal(result.version, 5, '迁移必须到 v5');
+    assert.equal(result.version, 6, '迁移必须到当前版本（阶段 50 起是 v6）');
     assert.ok(result.applied.includes('005_token-scope.sql'));
     const columns = (db.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>).map((r) => r.name);
     assert.ok(columns.includes('scope'), 'api_tokens 必须有 scope 列');
@@ -327,6 +327,28 @@ test('AC-106 ②③④⑤：取用归因 —— 令牌取用记 token_id、会�
     await fx.app.inject({ method: 'GET', url: '/api/prompts?q=AC106', headers: bearer(read.token) });
     const count = readDb(fx, (db) => (db.prepare('SELECT COUNT(*) AS n FROM usage_events WHERE prompt_id = ?').get(id) as { n: number }).n);
     assert.equal(count, 2, '列表 / 搜索不得记取用');
+
+    /**
+     * ⚠️ **v61（FR-114）**：上面那次"令牌 GET 详情"现在只留痕 `kind='view'`、**不计入**；
+     * 而 `by_token` 只统计计入型 ⇒ 这里再补一次**渲染取用**（令牌通道，计 `copy`），
+     * 让归因链路仍被真正覆盖（原意"能查出是哪个令牌取的"不变）。
+     */
+    await fx.app.inject({
+      method: 'POST',
+      url: `/api/prompts/${String(id)}/render`,
+      headers: bearer(read.token),
+      payload: { values: {} },
+    });
+    /**
+     * v61（FR-114）：`by_token` 只统计计入型，而上面那次"会话 GET 详情"已只留痕（view）
+     * ⇒ 再补一次**会话的渲染取用**（token_id = NULL），让"会话取用归因"这条仍被真正覆盖。
+     */
+    await fx.app.inject({
+      method: 'POST',
+      url: `/api/prompts/${String(id)}/render`,
+      headers: { cookie },
+      payload: { values: {} },
+    });
 
     // ⑤ GET /api/usage/summary 带 token_id 归因
     const summary = await fx.app.inject({ method: 'GET', url: '/api/usage/summary?days=1', headers: { cookie } });

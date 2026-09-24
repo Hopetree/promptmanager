@@ -47,11 +47,16 @@ test('AC-5①：POST 全字段 + 1 个标签 → 201 version_no=1，GET 逐字�
     for (const [field, actual, expected] of comparisons) {
       assert.deepEqual(actual, expected, `字段 ${field} 不一致`);
     }
-    // 阶段 6 起 Prompt 对象多了 FR-19 的只读字段：GET 详情本身算一次"取用"，
-    // 故 use_count 会比创建响应多 1（这是设计语义），其余字段必须完全一致。
-    assert.equal(fetched.use_count, 1, 'GET 详情算一次取用');
+    /**
+     * ⚠️ **v61（FR-114）改写**：原为"GET 详情算一次取用 ⇒ use_count 比创建响应多 1"。
+     * 用户拍板「打开详情不要算，只有真的复制才是使用」⇒ 打开详情现在**只留痕 kind='view'**、
+     * **不计入 use_count** ⇒ 这里应当是 0（与创建响应一致），其余字段仍必须完全一致。
+     * 覆盖没有减弱：真正"计入"的路径由 api-usage / stage50 的 render·复制·MCP 用例守着。
+     */
+    assert.equal(fetched.use_count, 0, '打开详情**不计入**取用（FR-114）');
     assert.equal(body.use_count, 0, '创建响应里还没有取用记录');
-    assert.ok(String(fetched.last_used_at).endsWith('Z'));
+    // v61（FR-114）：打开详情既不计数、也不产生"计入型"记录 ⇒ last_used_at 仍为 null
+    assert.equal(fetched.last_used_at, null, '未被真正取用过 ⇒ last_used_at 为 null');
     const withoutUsage = (obj: Record<string, unknown>) => {
       const clone = { ...obj };
       delete clone.use_count;

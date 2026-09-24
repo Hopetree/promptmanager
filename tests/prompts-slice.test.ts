@@ -44,9 +44,12 @@ test('POST /api/prompts：全字段落库并回读一致（version_no=1，tags �
 
     const got = await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(body.id)}`, headers: { cookie } });
     assert.equal(got.statusCode, 200);
-    // 阶段 6 起：GET 详情会记一次"取用"，故 use_count/last_used_at 与创建响应不同（设计语义）
+    /**
+     * ⚠️ **v61（FR-114）改写**：阶段 6 起"GET 详情记一次取用"，现用户拍板「打开详情不要算」⇒
+     * 打开详情只留痕（kind='view'）、不计入 ⇒ 这里的 use_count 与创建响应**同为 0**。
+     */
     const fetched = got.json() as Record<string, unknown>;
-    assert.equal(fetched.use_count, 1);
+    assert.equal(fetched.use_count, 0, '打开详情不计入取用（FR-114）');
     assert.equal(body.use_count, 0);
     const withoutUsage = (obj: Record<string, unknown>) => {
       const clone = { ...obj };

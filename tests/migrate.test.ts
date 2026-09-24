@@ -25,9 +25,9 @@ test('runMigrations 幂等：重复执行不报错，schema 版本稳定在当�
     const second = runMigrations(db);
     // 001 初始 schema + 002（阶段 6：api_tokens / usage_events）+ 003（阶段 22：prompts.sort_order）
     // + 004（阶段 35：api_tokens.token_enc）+ 005（阶段 42：api_tokens.scope / usage_events.token_id）
-    // ⇒ 当前 schema 版本 = 5
-    assert.equal(first.version, 5);
-    assert.equal(second.version, 5);
+    // ⇒ 当前 schema 版本 = 6（006_usage-kind.sql 是阶段 50 新增的取用事件类型）
+    assert.equal(first.version, 6);
+    assert.equal(second.version, 6);
     assert.equal(second.applied.length, 0, '第二次执行不应重复应用迁移');
     const rows = db
       .prepare("select name from sqlite_master where type = 'table' order by name")

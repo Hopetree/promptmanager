@@ -3,7 +3,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { PROJECT_ROOT, cookieOf, login, makeFixture } from './helpers.ts';
+import { PROJECT_ROOT, cookieOf, login, makeFixture, readDb } from './helpers.ts';
 
 /**
  * 这些用例用 **官方 TS SDK 客户端** 经 stdio 跑端到端，作为回归防线。
@@ -140,7 +140,25 @@ test('MCP：经 MCP 的取用计入 usage（channel=mcp），且不改 updated_a
     const summary = (await ctx.fx.app.inject({ method: 'GET', url: '/api/usage/summary?days=7', headers: { authorization: `Bearer ${ctx.token}` } })).json() as {
       by_channel: Record<string, number>;
     };
-    assert.ok((summary.by_channel.mcp ?? 0) >= 2, `mcp 通道应记到 >=2 次：${JSON.stringify(summary.by_channel)}`);
+    /**
+     * ⚠️ **v61（FR-114）改写**：原来断言 `mcp >= 2`（`prompt_get` + `prompt_render` 各一次）。
+     * 现在「打开详情」类读取**只留痕不计入** ⇒ `prompt_get`（MCP 版"打开详情"）落 `kind='view'`，
+     * 只有 `prompt_render` 计为 `kind='mcp'` ⇒ summary（只统计计入型）里 mcp 应为 **1**。
+     * 覆盖没有减弱：下面新增断言"两条记录都在，且 kind 分别是 view / mcp"（原来只看了汇总数字）。
+     */
+    assert.equal(summary.by_channel.mcp ?? 0, 1, `mcp 通道只应计入 render 那一次：${JSON.stringify(summary.by_channel)}`);
+    const kinds = readDb(
+      ctx.fx,
+      (db) =>
+        db
+          .prepare("SELECT kind, COUNT(*) AS n FROM usage_events WHERE channel = 'mcp' GROUP BY kind ORDER BY kind")
+          .all() as Array<{ kind: string; n: number }>,
+    );
+    assert.deepEqual(
+      kinds.map((row) => `${row.kind}:${String(row.n)}`),
+      ['mcp:1', 'view:1'],
+      `MCP 的 prompt_get 应留痕 view、prompt_render 应记 mcp：${JSON.stringify(kinds)}`,
+    );
 
     const after = (await ctx.fx.app.inject({ method: 'GET', url: `/api/prompts/${String(ctx.id)}`, headers: { authorization: `Bearer ${ctx.token}` } })).json() as Record<string, unknown>;
     assert.equal(after.updated_at, before.updated_at, 'MCP 取用不得改 updated_at');
