@@ -89,6 +89,14 @@
   hex/rgb literals: presets come in theme-aware bg+fg pairs, so light and dark both work. Keep the semantic
   ordering (write must look *heavier* than read) and do **not** use red for read - red means "danger /
   revoked" in this product. `tools/ac-stage48.sh` asserts the three states are pairwise different in both themes.
+- **Usage is recorded per *user action*, not per request** (FR-113): `GET /api/prompts/:id` records a usage
+  event (opening the detail counts as "取用"), and so does `POST /api/prompts/:id/render`; list/search record
+  nothing. So the copy path **must not** call `api.getPrompt()` just to obtain the body text - that is the
+  same counting route, and one copy would then log **two** events (measured +2: open + render). `usePromptCopy`
+  reuses the `prompt.user_prompt` it already holds (list rows are `selectAll('p')`), so copying a variable-free
+  prompt issues **zero** requests, and the with-variables path keeps exactly one event (the `render`).
+  When changing anything here, verify against the **database**, not the UI number - the drawer's 「取用 N 次」
+  does not refresh until the detail is reopened. `tools/ac-stage49.sh` does the DB accounting.
 - **API tokens are stored twice** (`api_tokens`): `token_hash` (sha256) is the only thing used for
   authentication, and `token_enc` (AES-256-GCM, key from `TOKEN_ENC_KEY` or `<DATA_DIR>/token-enc.key`, mode 600)
   exists only so the plaintext can be re-read via `POST /api/tokens/:id/reveal` (**session cookie only**)
