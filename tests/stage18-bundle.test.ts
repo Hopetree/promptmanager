@@ -98,6 +98,15 @@ const STAGE48_ACCOUNTED_DELTA = 89;
  * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 `vendor-antd` 470,985 B（AC-61 ① 不变）。
  */
 const STAGE52_ACCOUNTED_DELTA = 202;
+/**
+ * 阶段 55（FR-119 ~ FR-123 五项小修）的**已对账**增量：**实测** +116 B gzip。
+ * 依据（2026-09-25）：把本阶段改动前的 `web/src`（5 个文件 `git stash` 掉）在同一 `node_modules`
+ * 下重新 `npm run build:web`，总 gzip = **420,352 B**；本阶段完成后 = **420,468 B** ⇒ 差值 **116 B**。
+ * 构成：使用统计两处口径文案加长、空态两套文案 + `hasActiveFilter` 判定、分隔符色值改写（长度相当）、
+ * Token 掩码列 `104 → 120` 与 `whiteSpace: nowrap`、文件夹列 `width: 86 → minWidth: 110`。
+ * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 `vendor-antd` 470,985 B（AC-61 ① 不变）。
+ */
+const STAGE55_ACCOUNTED_DELTA = 116;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -141,7 +150,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -154,7 +163,8 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE37_ACCOUNTED_DELTA +
     STAGE43_ACCOUNTED_DELTA +
     STAGE48_ACCOUNTED_DELTA +
-    STAGE52_ACCOUNTED_DELTA;
+    STAGE52_ACCOUNTED_DELTA +
+    STAGE55_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });
 

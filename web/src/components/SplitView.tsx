@@ -17,6 +17,12 @@ interface SplitViewProps {
   isMobile: boolean;
   /** FR-59：列表"一条都没有"时显示品牌图形（72） */
   emptyWithBrandIcon: boolean;
+  /**
+   * FR-120：空态文案**由 UseView 统一下发**（只有那里知道是「库真的为空」还是「被搜索/筛选滤空」），
+   * 分栏视图不自己判断 —— 两处视图共用同一份文案，避免口径漂移。
+   */
+  emptyTitle: string;
+  emptyHint: string;
   /** 当前右栏选中的条目（null = 空态） */
   selected: Prompt | null;
   onSelect: (prompt: Prompt) => void;
@@ -55,6 +61,8 @@ export default function SplitView({
   tags,
   isMobile,
   emptyWithBrandIcon,
+  emptyTitle,
+  emptyHint,
   selected,
   onSelect,
   busy,
@@ -75,7 +83,7 @@ export default function SplitView({
     if (error !== null) return <ErrorState message={error} onRetry={onRetry} />;
     if (loading && data === null) return <LoadingState rows={6} label="正在读取 prompt…" />;
     if (items.length === 0) {
-      return <EmptyState title="还没有可用的 prompt" hint="点右上角「新建」写一条" withBrandIcon={emptyWithBrandIcon} />;
+      return <EmptyState title={emptyTitle} hint={emptyHint} withBrandIcon={emptyWithBrandIcon} />;
     }
     return (
       <div data-testid="pm-split-list">

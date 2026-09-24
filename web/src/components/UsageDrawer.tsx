@@ -98,7 +98,13 @@ export default function UsageDrawer({ open, onClose, onUnauthorized }: UsageDraw
                 column={1}
                 bordered
                 items={[
-                  { key: 'note', label: '口径', children: '只记"取用"（打开详情 / 渲染 / MCP 取用）；列表与搜索不计' },
+                  {
+                    key: 'note',
+                    label: '口径',
+                    // FR-119（R-9 修文案）：阶段 50 把"打开详情"改成只留痕不计数（COUNTED_KINDS=['copy','mcp']），
+                    // 这句说明没跟上。这里只**让文案追上已实现的口径**，口径本身不动。
+                    children: '只记"取用"（复制 / 渲染 / MCP 取用）；打开详情、列表与搜索都不计',
+                  },
                   { key: 'side', label: '副作用', children: '写使用记录不产生版本、不改 updated_at' },
                 ]}
               />
@@ -108,7 +114,15 @@ export default function UsageDrawer({ open, onClose, onUnauthorized }: UsageDraw
                 columns={columns}
                 dataSource={summary.top}
                 pagination={false}
-                locale={{ emptyText: <EmptyState title="窗口内没有取用记录" hint="浏览器打开详情 / 渲染 / MCP 取用都会计入" /> }}
+                locale={{
+                  emptyText: (
+                    // FR-119：与上方「口径」行**同一口径**（复制/渲染/MCP 才计入，打开详情不计）
+                    <EmptyState
+                      title="窗口内没有取用记录"
+                      hint="复制提示词 / 渲染 / MCP 取用都会计入；打开详情只留痕、不计入"
+                    />
+                  ),
+                }}
               />
             </Space>
           )}

@@ -31,8 +31,16 @@ export function palette(prefersDark: boolean) {
     inkMuted: prefersDark ? '#d0d6e0' : '#3c4046',
     inkSubtle: prefersDark ? '#8a8f98' : '#6b7280',
     inkTertiary: prefersDark ? '#62666d' : '#9aa1ab',
-    /** FR-116 ⑥：卡片元信息分隔符「·」用 —— 必须**比正文（inkSubtle）更淡**，所以单独一档，不复用 inkTertiary。 */
-    inkFaint: prefersDark ? '#4a4d54' : '#c2c7d0',
+    /**
+     * FR-121：卡片元信息分隔符「·」的颜色。
+     *
+     * 上一版（FR-116 定稿的 `#c2c7d0` / `#4a4d54`）实测对卡片底色只有 **1.70:1 / 2.25:1**，
+     * 低于"非文字装饰元素可辨识"的 3:1 底线，加上字宽仅 3px ⇒ 正常视距几乎看不见。
+     * 现值实测：**亮 3.26:1（#878f9b vs #ffffff）**、**深 3.51:1（#666a71 vs #0f1011）**，两套主题都达标。
+     * 仍**明显浅于正文**（正文 4.83:1 / 5.86:1），保留"更淡、不喧宾夺主"的设计意图。
+     * ⚠️ 本次**只调颜色**：字形「·」、宽度、`gap=6px`、`aria-hidden`、不可选中全部不动（D-55 ③）。
+     */
+    inkFaint: prefersDark ? '#666a71' : '#878f9b',
     primary: '#5e6ad2',
     primaryHover: prefersDark ? '#828fff' : '#4b57c4',
     primaryActive: prefersDark ? '#4b57c4' : '#3f4bb0',

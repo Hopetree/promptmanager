@@ -49,9 +49,11 @@ test('AC-87 ③：多标签不溢出 —— 标签容器 wrap + minWidth:0，且
   assert.ok(/minWidth:\s*0/.test(column), '标签容器必须 minWidth:0（flex 子项才能收缩而不是撑破列）');
   assert.ok(/width:\s*128/.test(column), '「标签」列宽必须仍是 128（BRIEF 明确不改列宽）');
   // 其它列的宽度一字未动（防止"顺手调列宽"）
+  // ⚠️ 「文件夹」列例外：阶段 55（FR-123）**按需求**把 `width: 86` 改成 `minWidth: 110`
+  //    （移动端该列过窄导致值折行）。这是**经需求授权的单点变更**、不是"顺手调列宽"，
+  //    故此处由"必须仍是 86"更新为"必须已是 minWidth:110 且不得再留 width:86"（AC-119 ⑪⑫）。
   for (const [title, width] of [
     ['标题', 210],
-    ['文件夹', 86],
     ['版本', 58],
     ['变量数', 66],
     ['取用次数', 74],
@@ -66,6 +68,11 @@ test('AC-87 ③：多标签不溢出 —— 标签容器 wrap + minWidth:0，且
       `列「${title}」的宽度必须仍是 ${String(width)}`,
     );
   }
+  const folderAt = useView.indexOf("title: '文件夹'");
+  assert.ok(folderAt >= 0, '找不到列「文件夹」');
+  const folderBlock = useView.slice(folderAt, folderAt + 400);
+  assert.match(folderBlock, /minWidth:\s*110/, '「文件夹」列必须给 minWidth:110（FR-123：移动端不折行）');
+  assert.equal(/width:\s*86/.test(folderBlock), false, '「文件夹」列不得再留 width:86（那正是移动端折行的原因）');
   // 数据与顺序不变：仍然是 tags 数组原序，没有排序/截断
   assert.equal(/tags\.slice|tags\.sort|\.reverse\(\)/.test(tagsColumn()), false, '标签内容与顺序不得改动');
 });

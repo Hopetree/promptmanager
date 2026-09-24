@@ -356,7 +356,13 @@ export default function UseView({
     {
       title: '文件夹',
       key: 'folder',
-      width: 86,
+      /**
+       * FR-123：移动端（≤440）这一列过窄，值会折成两行（`AI 协作` / `收`）。
+       * 表格用 `scroll={{ x: 'max-content' }}`（内容驱动列宽），窄视口下"文件夹"内容短 ⇒ 被挤窄。
+       * 给出 `minWidth` 兜底即可**不折行**，且不会撑宽桌面（桌面本来就按内容取到 ~116px）。
+       * 比"移动端隐藏"更合适：目录名是列表里重要的扫描信息，详情页虽有但列表看一眼更快。
+       */
+      minWidth: 110,
       render: (_v, prompt) => {
         const id = prompt.folder_id;
         if (id === null) return '未归类';
@@ -415,8 +421,24 @@ export default function UseView({
     },
   ];
 
+  /**
+   * FR-120：空态**必须区分「库真的为空」与「有数据、只是被搜索/筛选滤空」**。
+   *
+   * 判定依据是**当前是否带着搜索/筛选条件**（`hasActiveFilter`），不是"列表空"本身 ——
+   * 列表空在这两种情况下长得一模一样，靠它分不出来；而只看 `items.length` 才是"靠猜"。
+   * 带着筛选却一条不剩时，若仍写「还没有可用的 prompt」，用户会以为自己库是空的，
+   * 于是去「新建」⇒ 产生重复数据。
+   */
+  const hasActiveFilter = query !== '' || filters.folderId !== null || filters.tag !== null || filters.favorite;
   // "一条 prompt 都没有"（无搜索、无筛选）才显示品牌图形；只是筛不到时不显示
-  const trulyEmpty = query === '' && filters.folderId === null && filters.tag === null && !filters.favorite;
+  const trulyEmpty = !hasActiveFilter;
+  /** 空态文案：两处视图（卡片/表格、分栏）共用同一份，保证口径一致（AC-119 ⑥） */
+  const emptyTitle = hasActiveFilter ? '没有匹配的条目' : '还没有可用的 prompt';
+  const emptyHint = hasActiveFilter
+    ? query === ''
+      ? '当前筛选条件下没有条目，试试放宽筛选或清空搜索'
+      : `没有匹配「${query}」的条目`
+    : '点右上角「新建」写一条';
   /** FR-74 ①：表格行拖拽（与卡片/分栏同一套 dnd-kit 与同一接口；同目录内生效） */
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -435,8 +457,8 @@ export default function UseView({
 
   const empty = (
     <EmptyState
-      title="还没有可用的 prompt"
-      hint={query === '' ? '点右上角「新建」写一条' : `没有匹配「${query}」的条目`}
+      title={emptyTitle}
+      hint={emptyHint}
       withBrandIcon={trulyEmpty}
     />
   );
@@ -521,6 +543,9 @@ export default function UseView({
           tags={tags}
           isMobile={isMobile}
           emptyWithBrandIcon={trulyEmpty}
+          // FR-120：分栏视图的空态文案由这里**统一下发**，与卡片/表格视图同一口径（AC-119 ⑥）
+          emptyTitle={emptyTitle}
+          emptyHint={emptyHint}
           selected={selected}
           onSelect={onSelect}
           busy={busyId !== null}

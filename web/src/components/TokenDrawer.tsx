@@ -33,7 +33,16 @@ import { EmptyState } from './States';
  * 从根上消灭"硬编码小于实际需求"这一类 bug（D-45 ②）。
  */
 const TOKEN_NAME_MIN_WIDTH = 60;
-const TOKEN_MASK_MIN_WIDTH = 104;
+/**
+ * FR-122：Token 掩码**必须单行显示**。
+ * 掩码长度固定 = `TOKEN_MASK_PREFIX(5) + '...'(3) + TOKEN_MASK_SUFFIX(4)` = **12 个等宽字符**；
+ * 12px 等宽约 7.2px/字 ⇒ 文字 ~86px，加 antd `size="small"` 单元格内边距 ~16px ⇒ **需 ≥ 102px**。
+ * 原先取 104 属于"刚好压线"，实测仍会折行（`pm_1C...dco` / `**w`）⇒ 调到 **120**（留约 18px 余量）。
+ * ⚠️ 只**加宽 + 禁止断行**（见下方单元格 `whiteSpace: 'nowrap'`），**不缩字号**（D-55 ④⑤）。
+ * `TOKEN_TABLE_MIN_WIDTH` 是**求和推导**的，这里加宽会自动带大 `scroll.x`，
+ * 不会重演阶段 44/45「手写 x 小于实际需求 ⇒ 名称列被压成 0 宽」的坑。
+ */
+const TOKEN_MASK_MIN_WIDTH = 120;
 const TOKEN_STATE_MIN_WIDTH = 104;
 const TOKEN_USE_MIN_WIDTH = 76;
 /** FR-111：创建时间列 —— 与「最近使用」同一套时间文本（`YYYY/MM/DD HH:mm`）⇒ 同宽 */
@@ -335,10 +344,11 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
           );
         }
         return (
+          // FR-122：掩码单行显示，不折行（配合上面加宽的 TOKEN_MASK_MIN_WIDTH）
           <Typography.Text
             className="pm-mono"
             data-testid={`pm-token-mask-${String(token.id)}`}
-            style={{ fontSize: 12 }}
+            style={{ fontSize: 12, whiteSpace: 'nowrap' }}
           >
             {maskToken(plaintext)}
           </Typography.Text>
