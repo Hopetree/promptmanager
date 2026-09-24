@@ -156,6 +156,7 @@ bash tools/ac-stage47.sh       # 版本对比默认「上一版 ↔ 最新」（
 bash tools/ac-stage48.sh       # 令牌「状态」列配色（亮/暗双主题 backgroundColor 两两不等 + 真鼠标改权限时文字与底色同步变）
 bash tools/ac-stage49.sh       # 复制一次只记一次取用（查库对账四组：含变量复制 +1 / 不含变量 +0 / 打开详情 +1 / 列表搜索 0）
 bash tools/ac-stage50.sh       # 取用语义：打开详情只留痕(view)不计数 / render·MCP 计入(copy·mcp) / 旧库实测迁移(006)
+bash tools/ac-stage51.sh       # 复制记账四条分支：不含变量 +1 / 含变量弹窗不记 + 复制结果 +1 / 各两遍 +2 / 打开详情不计数
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # 2000 条中文夹具（直接写库，触发器同步 FTS）

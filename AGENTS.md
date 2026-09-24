@@ -89,6 +89,14 @@
   hex/rgb literals: presets come in theme-aware bg+fg pairs, so light and dark both work. Keep the semantic
   ordering (write must look *heavier* than read) and do **not** use red for read - red means "danger /
   revoked" in this product. `tools/ac-stage48.sh` asserts the three states are pairwise different in both themes.
+- **Copying must record exactly one event, on both paths** (FR-115): the with-variables path opens a dialog
+  (that step issues only `GET …/variables` and records **nothing**) and records on 「复制结果」 via
+  `POST …/render`; the **without-variables** path writes to the clipboard locally, so it must explicitly call
+  **`POST /api/prompts/:id/copy`** - a thin endpoint that only records (`copy`, or `mcp` on the MCP channel),
+  returns **204**, does no rendering and **never records `view`**. Do **not** "reuse" `GET /api/prompts/:id`
+  for this: that is the open-detail route and would log a `view`. The endpoint is classified as a
+  **resource read** (like the render POSTs), so read-only tokens may call it. Order matters in the frontend:
+  write the clipboard **first**, then record (clipboard writes need the user activation).
 - **A "usage" event means a real use, not a look** (FR-114): `usage_events.kind` (migration 006) is
   `view` (opening the detail - **recorded but not counted**) / `copy` (copy + render) / `mcp` (MCP render),
   defaulting to `copy`. **Every exposed count** - `use_count` on the detail, in the list, and every number in

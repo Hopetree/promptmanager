@@ -270,7 +270,13 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # �
 | --- | --- | --- |
 | 打开详情 `GET /api/prompts/:id` | **`view`** | ❌ **不计入**（只留痕，便于审计"谁看过"） |
 | 复制 / 渲染取用 `POST /api/prompts/:id/render` | **`copy`** | ✅ 计入 |
-| MCP 取用（`X-PM-Channel: mcp` 的 Bearer 调 render） | **`mcp`** | ✅ 计入 |
+| **不含变量的复制** `POST /api/prompts/:id/copy`（FR-115） | **`copy`** | ✅ 计入 |
+| MCP 取用（`X-PM-Channel: mcp` 的 Bearer 调 render/copy） | **`mcp`** | ✅ 计入 |
+
+> **`POST /api/prompts/:id/copy`（FR-115）**：**只记一次"复制"、不返回正文、不做渲染**（返回 `204`）。
+> 为什么需要它：不含变量的提示词在界面上是"本地剪贴板复制"，本身不发请求 ⇒ 需要显式告诉后端记一次；
+> 它**不是**"打开详情"（不会记 `view`），也**不是** render（不做多余渲染）。与两个渲染类 POST 同档归**资源读**，
+> 因此**只读令牌**也能调用。不存在的 id → `404`。
 
 ⇒ **所有对外计数（`GET /api/prompts/:id`、列表、`GET /api/usage/summary`）都只统计 `kind in ('copy','mcp')`**，
 且**同一口径**（否则会出现"页面显示 N 次、统计说 M 次"）。**列表与搜索不记任何记录**。
