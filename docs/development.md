@@ -158,6 +158,7 @@ bash tools/ac-stage49.sh       # 复制一次只记一次取用（查库对账�
 bash tools/ac-stage50.sh       # 取用语义：打开详情只留痕(view)不计数 / render·MCP 计入(copy·mcp) / 旧库实测迁移(006)
 bash tools/ac-stage51.sh       # 复制记账四条分支：不含变量 +1 / 含变量弹窗不记 + 复制结果 +1 / 各两遍 +2 / 打开详情不计数
 bash tools/ac-stage52.sh       # 卡片底部元信息：目录(带图标·最前·仅名字)+版本+变量数；无取用无日期；「·」分隔符+间距 6px；无目录=未分组
+bash tools/ac-stage54-ui.sh <baseUrl> <sid>  # 阶段 54 全面 UI 验证：18 界面 × PC1440×900/移动440×956 串行单上下文截图+量测（自带熔断检查）
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # 2000 条中文夹具（直接写库，触发器同步 FTS）
