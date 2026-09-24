@@ -264,8 +264,20 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # �
 
 ### 3.10 使用记录
 
-**只记"取用"**：`GET /api/prompts/:id`、`POST /api/prompts/:id/render`，以及带 `X-PM-Channel: mcp` 的 Bearer 调用；
-**列表与搜索不记**。写 usage **不产生版本、不改 `updated_at`**；**usage 不参与导入导出**。
+**取用 = "真的复制 / 渲染 / MCP 取用"，"打开详情"不算**（FR-114）。每条记录带**事件类型** `kind`：
+
+| 触发 | `kind` | 是否计入「取用 N 次」 |
+| --- | --- | --- |
+| 打开详情 `GET /api/prompts/:id` | **`view`** | ❌ **不计入**（只留痕，便于审计"谁看过"） |
+| 复制 / 渲染取用 `POST /api/prompts/:id/render` | **`copy`** | ✅ 计入 |
+| MCP 取用（`X-PM-Channel: mcp` 的 Bearer 调 render） | **`mcp`** | ✅ 计入 |
+
+⇒ **所有对外计数（`GET /api/prompts/:id`、列表、`GET /api/usage/summary`）都只统计 `kind in ('copy','mcp')`**，
+且**同一口径**（否则会出现"页面显示 N 次、统计说 M 次"）。**列表与搜索不记任何记录**。
+写 usage **不产生版本、不改 `updated_at`**；**usage 不参与导入导出**。
+
+> 迁移 `006_usage-kind.sql` 给 `usage_events` 加了 `kind`（缺省 `copy`），**存量记录一律置 `copy`** ——
+> 历史不重算、老数字不变（历史里混着一些"打开"记录属既成事实，无法回溯区分）。
 
 ```bash
 curl -s -H "Authorization: Bearer pm_…" 'http://127.0.0.1:8767/api/usage/summary?days=7'

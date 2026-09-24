@@ -89,6 +89,13 @@
   hex/rgb literals: presets come in theme-aware bg+fg pairs, so light and dark both work. Keep the semantic
   ordering (write must look *heavier* than read) and do **not** use red for read - red means "danger /
   revoked" in this product. `tools/ac-stage48.sh` asserts the three states are pairwise different in both themes.
+- **A "usage" event means a real use, not a look** (FR-114): `usage_events.kind` (migration 006) is
+  `view` (opening the detail - **recorded but not counted**) / `copy` (copy + render) / `mcp` (MCP render),
+  defaulting to `copy`. **Every exposed count** - `use_count` on the detail, in the list, and every number in
+  `GET /api/usage/summary` - must filter to `kind in ('copy','mcp')`, and they must all use the **same**
+  filter (otherwise the page and the stats disagree). Note `prompt_get` over MCP is MCP's "open detail", so it
+  is a `view`; only `prompt_render` counts as `mcp`. Existing rows were backfilled to `copy` on purpose:
+  history is **not** recomputed. Migration 006 also means the current schema is **v6**.
 - **Usage is recorded per *user action*, not per request** (FR-113): `GET /api/prompts/:id` records a usage
   event (opening the detail counts as "取用"), and so does `POST /api/prompts/:id/render`; list/search record
   nothing. So the copy path **must not** call `api.getPrompt()` just to obtain the body text - that is the

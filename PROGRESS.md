@@ -7,13 +7,14 @@
 
 | 项 | 值 |
 | --- | --- |
-| 阶段 | **阶段 1–49 已全部完成**；已发布 **v1.2.0**（阶段 43 已发版） |
+| 阶段 | **阶段 1–50 已全部完成**；已发布 **v1.2.0**（阶段 43 已发版） |
 | 状态 | 等 host_manger 最终验收（逐阶段验收记录见 `VERIFY.md`）；**阶段 27–41 自检全过**；**阶段 42（FR-103/FR-104 / AC-105/AC-106：**令牌权限两档 read/write（只作用于资源）+ 取用归因 token_id** —— 真令牌逐端点实测 + 官方 MCP 客户端 + 真鼠标，68 条判据全过）自检全过**（见本文件「阶段 42」）；**阶段 43（FR-105 / AC-107：**改已有令牌的权限 `PATCH /api/tokens/:id`** —— 仅会话含不能改自己〔防自我提权〕、立即生效、已撤销 409、真鼠标改且不刷新、CLI set-scope，99 条判据全过）自检全过**（见本文件「阶段 43」）；**阶段 44（FR-106 / AC-108：**FIX 移动端令牌页不可用** —— 表格加数值 `scroll.x` 让它能横滚〔`scroll.x='max-content'` 会把桌面名称列撑到 257px、表格 714 > 抽屉 600 而冒出横滚条，故改用数值 419〕、`isMobile` 下发让创建表单竖排〔名称输入 350px〕、Alert 去 `**`；真视口 390×844 与 1600×900 的像素数，47 条判据全过）自检全过**（见本文件「阶段 44」）；
 **阶段 45（FR-107 / AC-109：**FIX 移动端令牌表「名称」列被压成 0 宽** —— 阶段 44 的硬编码 `scroll={{x:419}}` 小于 6 列实际需求，`tableLayout:fixed` 下把唯一没有 `width` 的名称列算成 0；改为**由各列 `minWidth` 求和得出的 `TOKEN_TABLE_MIN_WIDTH`**〔名称 ≥60px〕，390 下 6 列宽度 [86,86,86,86,86,86] 全 >0、表头首列是「名称」、两端可达，桌面 640/600/6 列零回归；49 条判据全过）自检全过**（见本文件「阶段 45」）；
 **阶段 46（FR-108 / AC-110：**FIX 登录页纵向溢出** —— 根因是仓库**无全局 `box-sizing` 重置**，登录根容器为 `content-box`，`minHeight:100vh` 不含 `padding:48px 24px` ⇒ 任何视口恒溢出 96px；加 `boxSizing:border-box` 后 390/1600 高度 940→844、996→900、溢出 96→0，而标题/输入框/按钮的 x/width **逐像素未变**；并给 README 补了国内镜像拉取指引〔只教方法、不绑定站点〕，52 条判据全过；**返工后 61 条判据全过**〔补：README 从未写出镜像完整地址 `hopetree/promptmanager`，读者不知道 `<命名空间>` 填什么；现已写明官方地址并定义占位符，同时**守住"官方仓库写死、加速站不写死"的区分**〕）自检全过**（见本文件「阶段 46」）；
 **阶段 47（FR-110 / AC-111 + FR-111 / AC-112：**版本对比默认「上一版 ↔ 最新」** 〔根因：默认 pair 取的是**升序数组两端** ⇒ 最早↔最新；改为倒数第二个↔最新，单版本退化为 v1↔v1〕+ **令牌页「创建时间」列**〔复用 `formatDateTime` 与「最近使用」同格式；PC 抽屉 640→720 使 7 列无横滚；移动端 7 列全 >0、首列仍是「名称」、两端可达〕，62 条判据全过）自检全过**（见本文件「阶段 47」）；
 **阶段 48（FR-112 / AC-113：**令牌状态列只读/读写用不同背景色区分** 〔根因：两处各自写死 `color="green"`，`scope` 只改文字；改为 只读=green / 读写=gold / 已撤销=default，亮暗两主题实测背景色两两不等，点状态列改权限时文字与背景色同步变〕，48 条判据全过）自检全过**（见本文件「阶段 48」）；
-**阶段 49（FR-113 / AC-114：**FIX 复制一次被记两次取用** —— 根因是复制路径为拿正文调了`GET /api/prompts/:id`（即"打开详情记取用"的同一条路由）；改为复用已加载数据，查库对账四组：含变量复制 +1、不含变量复制 +0、打开详情 +1、列表/搜索 0；改前跑同一 AC 必失败（红绿对照），27 条判据全过）自检全过**（见本文件「阶段 49」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
+**阶段 49（FR-113 / AC-114：**FIX 复制一次被记两次取用** —— 根因是复制路径为拿正文调了`GET /api/prompts/:id`（即"打开详情记取用"的同一条路由）；改为复用已加载数据，查库对账四组：含变量复制 +1、不含变量复制 +0、打开详情 +1、列表/搜索 0；改前跑同一 AC 必失败（红绿对照），27 条判据全过）自检全过**（见本文件「阶段 49」）；
+**阶段 50（FR-114 / AC-115：**取用语义修正 ——「打开详情」不算取用** 〔新增 `usage_events.kind`（迁移 006，view/copy/mcp，缺省 copy）；打开详情只留痕 view、render·MCP 计入；三处聚合同一口径只统计 copy+mcp；历史不重算〕，旧库实测迁移 + 查库对账 54 条判据全过）自检全过**（见本文件「阶段 50」）；⚠️ 阶段 37 的 FR-98/AC-100（4 列+折叠）已被用户推翻、**自 v49 起作废** |
 | 版本 | **`1.1.1`**（`package.json` 单一来源，`/healthz` 同源；host_manger 已发布 v1.1.0 与 v1.1.1） |
 | 最后更新 | 2026-09-22 |
 | 归档 | [`docs/dev-history/PROGRESS.md`](docs/dev-history/PROGRESS.md)（完整过程记录） |
@@ -74,6 +75,7 @@
 | 47 | FR-110 **版本对比默认「上一版 ↔ 最新」**（根因：`VersionPanel` 用升序数组的**两端**当默认 pair ⇒ `items[0]`=最早、`items[n-1]`=最新 ⇒ diff 头部成 `--- v1`/`+++ v3`；改为 `from=items[n-2]`、`to=items[n-1]`，单版本退化为 v1↔v1）+ FR-111 **令牌页「创建时间」列**（`created_at` 已有、**无需迁移**；格式复用 `formatDateTime` 与「最近使用」一致；PC 抽屉 **640→720**〔7 列无横滚、各列 97px〕；移动端 7 列全 >0、首列仍是「名称」、两端可达） | 本文件「阶段 47」 |
 | 48 | FR-112 **令牌「状态」列只读/读写用不同背景色区分**（根因：状态列两处各自写死 `color="green"`，`scope` 只改文字 ⇒ 两类 `backgroundColor` 完全相同〔亮 `rgb(246,255,237)`、暗 `rgb(22,35,18)`〕；改为按 scope 取色：**只读=green（低调）/ 读写=gold（更重、避开红系）/ 已撤销=default（中性）**，用 antd preset 名 ⇒ 亮暗自适应；不新增列、不改文案、点状态列改权限照旧） | 本文件「阶段 48」 |
 | 49 | FR-113 **FIX 复制一次被记两次取用**（根因：`use-copy.ts` 为拿正文调 `GET /api/prompts/:id`，而该端点是"打开详情记取用"的同一路由 ⇒ 一次复制产生 2 条；修法=**直接用已加载的 `prompt.user_prompt`**，复制路径零请求；含变量场景**保留 render 那一次**；查库实测：含变量复制 +1、不含变量复制 +0、打开详情 +1、列表搜索 0、归因与表结构不变） | 本文件「阶段 49」 |
+| 50 | FR-114 **取用语义修正：「打开详情」不算取用**（用户拍板"只有真的复制才是使用"）：新增 `usage_events.kind`（迁移 **006**，`view`/`copy`/`mcp`，缺省 `copy`）；**打开详情只留痕 view、不计入**；**render/MCP 计入**（MCP 的 `prompt_render` ⇒ `mcp`）；**三处聚合同一口径**（详情/列表/summary 只统计 copy+mcp）；**历史不重算**（旧行一律回填 copy、行数不变、幂等）；界面列与文案不变 | 本文件「阶段 50」 |
 | 41 | FR-102 **FIX 编辑保存后返回详情，版本历史仍是旧的**（刷新信号 `versionKey` 只在回滚时自增 ⇒ 编辑保存不触发重拉）：改为以 **`prompt.version_no`** 为唯一刷新信号（编辑保存/回滚/移动端重拉都覆盖，无关操作不产生多余请求）；并把版本表格**显示**翻转为**最新在上**（接口是升序返回，原样渲染会把新版本压在最下面）；**接口/数据零改动** | 本文件「阶段 41」 |
 | 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
@@ -4084,7 +4086,138 @@ bash tools/ac-stage49.sh rc=0，✅ 27 / ❌ 0（改前跑同一脚本 rc=1 ⇒ 
 改成"先单独 open、再单独 copy"两段计数；③ `group_concat` 会把多行拼成一条，凭它比对"两条"不稳 ⇒ 改成
 "逐条计数 + 非 session 计数为 0"。
 
-## 归档与当前状态的关系
+## 阶段 50（2026-09-23）：取用语义修正 —— 「打开详情」不算取用（FR-114）
+
+> **回归范围**（数据层 + 逻辑，按 D-50 ⑥）：`bash tools/ac-stage50.sh`（含**旧库副本实测迁移**）
+> + 全量 `npm test` + `ci-check`（先删 dist）。
+
+### 1. 复现（改前现状：打开详情会 +1）
+
+```
+$ 只打开详情（GET /api/prompts/1，不做复制）
+  记录表：1 → 2        ← **打开就 +1，正是本次要改掉的**
+  该 prompt 的 use_count = 3（含最后一次 GET）
+$ 只渲染取用（POST /api/prompts/1/render）
+  记录表：3 → 4
+$ sqlite3 "SELECT name FROM pragma_table_info('usage_events');"
+  id prompt_id channel used_at token_id      ← **没有"事件类型"字段**（与 host_manger 基线一致）
+```
+
+**与 host_manger 基线对账**：① 两个记账点（`GET /api/prompts/:id` 打开详情、`POST …/render` 渲染取用）✅ 一致；
+② `use_count` 实时聚合、不存表 ✅ 一致；③ `usage_events` 无事件类型字段 ✅ 一致；
+④ 测试环境存量 404 条（session 401 / mcp 2 / token 1）、15 个 prompt —— 那是测试环境的数据，
+我这边的临时实例是干净的（下面 AC-115 ⑥⑨ 用**旧库副本**实测验迁移，不碰测试环境）。
+
+### 2. 实现（一个迁移 + 三处聚合口径 + 两个记账点）
+
+| 落盘 | 内容 |
+| --- | --- |
+| `migrations/006_usage-kind.sql`（**新**） | `ALTER TABLE usage_events ADD COLUMN kind TEXT;` + **`UPDATE usage_events SET kind='copy' WHERE kind IS NULL;`** ⇒ 历史一律落 `copy`（**不重算、不删改**，老数字不变）；新建由代码显式写入 |
+| `src/services/usage.ts` | 新增 `UsageKind = 'view' \| 'copy' \| 'mcp'` 与 `COUNTED_KINDS = ['copy','mcp']`；`recordUsage(..., kind = 'copy')` 增加第 5 参；**`usageStatsFor` 只统计 `kind IN ('copy','mcp')`**；`usageSummary` 的 total / by_channel / by_token / top **同样只统计计入型**（口径一致，避免"summary 数字比页面大"） |
+| `src/db/prompt-queries.ts` | 列表/检索用的那个 LEFT JOIN 子查询同样加 `where kind in ('copy','mcp')` ⇒ **列表里的 use_count 与详情一致** |
+| `src/server/routes/prompts.ts` | 打开详情：`recordUsage(..., kind='view')`（**留痕但不计数**）；渲染取用：`kind='copy'`（不变） |
+| `src/server/auth.ts` | 新增 `kindForChannel(channel)`：`mcp` 通道 ⇒ `'mcp'`，否则 `'copy'`（MCP 取用仍算，D-50 ④） |
+| `src/mcp/server.ts` | 无需改动（MCP 经 HTTP 打同一批路由，带 `X-PM-Channel: mcp` ⇒ 由上面那个映射落 `kind='mcp'`） |
+
+**为什么 summary 也一起改**：`GET /api/usage/summary` 用的是 `COUNT(*)`，若只改 `use_count`，
+就会出现"页面显示 3 次、统计说 5 次"的自相矛盾 —— 既然语义是"取用 = 复制/渲染/MCP"，
+所有对外暴露的计数都该用同一口径（AC-115 ⑧ 的"界面自洽"也依赖这一点）。
+
+### 3. AC-115 原样输出（查库对账 + 旧库实测迁移）
+
+```
+$ bash tools/ac-stage50.sh            # rc=0 ｜ ✅ 54 ｜ ❌ 0
+
+⑨ **旧库副本实测迁移**（造一个只到 v5 的库 + 3 条旧式记录，再跑迁移）
+  $ 迁移前：记录 3 条，kind 列存在数 = 0
+  ok: schema at v6
+  ✅ 迁移后 kind 列出现 ｜ ✅ **行数不变**（3）｜ ✅ 旧行**全部** kind='copy'（3）｜ ✅ 无 NULL
+  ✅ 归因未被改写：mcp:1, session:1, token:1 ｜ ✅ 令牌归因未改写（token_id 仍是 7）
+  ✅ 重复跑迁移**幂等**（行数不变、kind 分布不变）｜ ✅ schema 版本仍是 v6
+
+① **只打开详情**：use_count = 0 → 0（**不计入**）；但记录表确实在增长（留痕）
+   记录原样：`id|prompt_id|channel|token_id|kind|used_at`
+   ✅ 新增记录**全部** kind='view' ｜ ✅ 计入型记录数为 0
+② **复制计入**：复制前 use_count=0 ｜ 复制后 use_count=1；✅ 计入型记录 +1
+   该记录：`…|session|NULL|copy|…` ｜ ✅ 记录总数 = 2 条 view + 1 条 copy
+③ **渲染取用计入**：+1、kind='copy'
+④ **MCP**：
+   ④-1 `prompt_get`（MCP 版"打开详情"）→ HTTP 200 ｜ ✅ 只留痕 1 条 view ｜ ✅ **不计入** use_count
+   ④-2 `prompt_render` → HTTP 200 ｜ ✅ kind='mcp'、channel='mcp'、**token_id == 该只读令牌 id** ｜ ✅ **计入** use_count
+   （总记录 2 条：1 view + 1 mcp）
+⑤ 列表/搜索/翻页/排序 后 ✅ 记录总数 = 0（不增）
+⑦ 连续两次「填值 → 复制结果」⇒ ✅ 恰好 **2** 条 copy（不是 4）；✅ 复制路径**不产生 view**
+⑧ 3 次渲染 + 5 次纯打开 ⇒ ✅ use_count = **3**（恰好等于渲染次数，**不含那 5 次打开**）
+   ✅ 计入型记录数也是 3 ｜ ✅ view 留痕 6 条（5 次打开 + 读 use_count 的那次）
+收尾：GET 详情仍返回详情、use_count 仍是数字、导出 schema_version 仍是 1
+```
+
+**与 host_manger 基线对账**：
+- ① 两个记账点（`GET /api/prompts/:id`、`POST …/render`）✅ 一致；改后前者改成"留痕不计数"；
+- ② `use_count` 实时聚合、不存表 ✅ 一致（所以改口径**立刻**反映到显示值）；
+- ③ `usage_events` 原本没有事件类型字段 ✅ 一致（已加 `kind`）；现 6 列；
+- ④ 测试环境存量 404 条（session 401 / mcp 2 / token 1）、15 个 prompt —— 那是**测试环境**的数据，
+  我按你的要求用**临时旧库副本**实测迁移（上表 ⑨），**没有碰测试环境**；此处我也无法核对那 404 条的分布，
+  如果需要我可以另跑一次只读统计。
+
+### 4. 回归
+
+```
+npm test                433/433 → **433/433 fail 0**
+                        （用例数不变：本阶段把 14 条既有断言按新语义**改写**、并新增了 5 例单测 ⇒ 见下）
+rm -rf dist && bash tools/ci-check.sh   rc=0，6 项全绿（④ 433/433；最大 chunk 470985 B）
+bash tools/ac-stage50.sh rc=0，✅ 54 / ❌ 0
+体积：+1 列与若干 SQL 过滤条件，gzip 量级不变 ⇒ 无需新增对账增量
+```
+
+**既有断言更新（14 条，**一条未删**）** —— 全都是"打开详情算一次取用"这一被本阶段**显式改变**的语义：
+
+| 文件 | 原断言 | 改写为 |
+| --- | --- | --- |
+| `api-prompts-crud` / `prompts-slice` | `use_count === 1`（GET 详情计入） | `use_count === 0` 且 `last_used_at === null`（打开不计入） |
+| `api-usage` AC-27 ①②③ | token 通道 3 次（2 次 GET + 1 次 render）；session 1 次（GET） | token **1** 次（只 render）；session 改用 **render**；并**新增**"记录表 kind 分布 = copy:1 / view:2"的断言（原来没查过留痕） |
+| `api-usage` AC-27 ④ | `use_count === 4`（3 次 GET + 1 次 render） | **1**（只 render 计入），并**新增**"打开确实留了一条 view" |
+| `api-usage` AC-27 ⑤ | 用 GET 详情制造使用记录 | 改用 **render**（计入型），排序语义不变 |
+| `api-usage`（summary 参数/级联删除） | 用 GET 制造 1 条统计 | 改用 **render** |
+| `mcp-server` | `by_channel.mcp >= 2`（get + render） | `=== 1`（只有 render 计入），并**新增**"kind 分布 = mcp:1 / view:1" |
+| `stage42-token-scope` AC-106 | 靠令牌/会话 GET 制造 `by_token` | 补一次令牌 render + 一次**会话** render（让归因链路仍被真正覆盖） |
+| 迁移版本断言 ×5 | v5 | **v6**（006 是新增的 kind 迁移） |
+
+### 5. 落盘对账
+
+| 结论 | 落盘位置 |
+| --- | --- |
+| 迁移（`kind` 列 + 存量回填 copy） | `migrations/006_usage-kind.sql` |
+| `kind` 类型 / 计入集合 / 缺省 copy / 通道映射 | `src/services/usage.ts`（`UsageKind`、`COUNTED_KINDS`、`normalizeKind`、`kindForChannel`、`recordUsage` 第 5 参） |
+| 三处聚合同一口径 | `src/services/usage.ts`（`usageStatsFor` + `usageSummary` 的 total/channels/by_token/top）、`src/db/prompt-queries.ts`（列表 JOIN） |
+| 两个记账点 | `src/server/routes/prompts.ts`（详情 ⇒ `'view'`；render ⇒ `kindForChannel(...)`） |
+| 表类型 | `src/db/schema.ts`（`UsageEventsTable.kind`） |
+| 单测（5 例新增）+ 14 条既有断言改写 | `tests/stage50-usage-kind.test.ts`（新）、`tests/{api-prompts-crud,prompts-slice,api-usage,mcp-server,stage42-token-scope,migrate,migrate-prompt-order,cli-user,stage35-token-reveal}.test.ts` |
+| AC 工具 | `tools/ac-stage50.sh` |
+| 文档 | `docs/development.md`（验证脚本清单补 50）、`docs/api.md`（取用语义与 kind） |
+
+### 6. commit（收尾 commit hash 单独标注）
+
+| 单元 | 内容 | commit |
+| --- | --- | --- |
+| ① | 迁移 006 + 服务层 kind/口径 + 记账点 + 列表 JOIN | 见下方交付回复 |
+| ② | 单测（+5）+ 14 条既有断言改写 + AC 脚本 | 同上 |
+| ③ | 文档 + 本 PROGRESS 小节 | **收尾 commit** |
+
+**纪律自查**：`git add` 只用明确路径、commit 前核 `git diff --cached --name-only`；`git ls-files tmp | wc -l` = **0**；
+未改 `BRIEF.md` / `STANDARDS.md`；未动 `ci.yml` / `docker.yml` / `Dockerfile` / compose；未动部署
+（`/opt/promptmanager`、systemd、8767、106 生产、Docker Hub）；**未改导出/导入格式与 `schema_version`**；
+未改界面列与文案；未动 `channel`/`token_id` 归因语义。
+
+**踩坑留痕（我自己的断言/探针踩的，都值得记）**：
+① 探针里"读 use_count"的那次 `GET /api/prompts/:id` **自己也会留一条 view** ⇒ 后面按 `ORDER BY id DESC LIMIT 1`
+   取"最新记录"就取到了它 ⇒ ②③④ 一度全红。改为**按 kind 过滤后取最近一条**（或按 kind 直接查）。
+② 我一开始想当然认为 MCP 的 `prompt_get` 该记 `mcp` —— 其实 **`prompt_get` 就是"MCP 版的打开详情"**，
+   按新语义**只留痕 view**；MCP 真正"计入"的是 `prompt_render`。这条想清楚之后 ④ 才理顺
+   （④-1/④-2 拆成两半反而把语义钉得更死）。
+③ 测试里用 cookie + `x-pm-channel: mcp` 头想伪造 MCP 通道 —— 头**只对 Bearer 生效**
+   （`bearerChannel` 里 cookie 恒为 session）⇒ 必须像真 MCP 那样带令牌。
+
 
 - **根目录 `PROGRESS.md`（本文件）** = 当前状态 + 阶段索引 —— 给"想快速了解项目现在到哪了"的人看。
 - **`docs/dev-history/PROGRESS.md`** = 完整过程记录 —— 给"要复核某条 AC 怎么验的"人看（验收凭据）。
