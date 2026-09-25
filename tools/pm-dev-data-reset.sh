@@ -36,9 +36,11 @@ else
 fi
 
 echo "=== ② 清空并重建 ==="
+# 备份已在 ① 完成，这里才敢删。整目录删掉重建，避免残留 WAL/SHM 等文件。
+rm -rf "$DEV_DIR"
 mkdir -p "$DEV_DIR/media"
 chmod 750 "$DEV_DIR"
-echo "  $DEV_DIR 已重置"
+echo "  $DEV_DIR 已清空并重建（残留文件数 = $(find "$DEV_DIR" -type f | wc -l)）"
 echo "  （若实例正在跑，请自行重启它才会取到新数据）"
 
 cat <<EOT
