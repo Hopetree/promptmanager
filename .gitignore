@@ -9,8 +9,8 @@ _env/
 # 运行数据与临时产物
 data/
 tmp/
-dev-data/
 # dsh 开发环境的持久数据（2026-09-25 用户定：放项目下、不跨项目、不入 git）
+dev-data/
 var/
 out/
 *.log
