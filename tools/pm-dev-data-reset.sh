@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
 # 重置**开发环境的持久数据目录**（默认 <repo>/dev-data）。
 #
-# 做法：**不删除**。把原目录整体 `mv` 到项目内 `tmp/dev-data-trash/<时间戳>/`，
+# 做法：**不删除**。把原目录整体 `mv` 到项目内 `backups/dev-data-trash/<时间戳>/`，
 #       再重建一个空目录。可从 tmp 里原样取回。
 #       （用户 2026-09-25 定的口径：不做 rm；trash > rm。）
+#
+# 落点选 backups/ 而非 tmp/：tmp/ 会被工作区清理，旧数据留不住；
+#       backups/ 是归档区（已 gitignore），可长期留档。
 #
 # 用途：需要一个干净起点时。**不是日常必需** —— 开发数据是持久的，
 #       平时应直接复用 dev-data 里的既有数据，不要反复重造夹具。
@@ -61,7 +64,7 @@ case "$(basename "$DEV_DIR")" in
 esac
 
 TS=$(date +%Y%m%d-%H%M%S)
-TRASH="$REPO_ROOT/tmp/dev-data-trash/$TS"      # 旧数据挪到这里，可原样取回
+TRASH="$REPO_ROOT/backups/dev-data-trash/$TS"   # 旧数据挪到这里，可原样取回
 
 echo "仓库根：$REPO_ROOT"
 echo "待重置：$DEV_DIR"
