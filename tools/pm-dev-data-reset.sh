@@ -4,24 +4,67 @@
 # 用途：需要一个干净起点时。**不是日常必需** —— 开发数据是持久的，
 #       平时应直接复用 dev-data 里的既有数据，不要反复重造夹具。
 #
-# 注意：本脚本**只管 DATA_DIR，不管实例生命周期** ——
-#       实例（起哪个端口、何时起停）由 dsh 自己决定。
+# ⚠️ 本脚本会 `rm -rf` 目标目录，因此带**路径护栏**（见下）：
+#    目标必须位于**本仓库内**，且不是仓库根、不是文件系统根、不是系统目录。
+#    （护栏是 dsh 2026-09-25 提出的 —— 原版无校验，`PM_DEV_DATA_DIR=/var/lib/promptmanager`
+#      会把**测试环境数据**删掉。已加严：另拒仓库根本身、相对路径按仓库根解析。）
+#
+# 本脚本**只管 DATA_DIR，不管实例生命周期** —— 端口与起停由 dsh 自己决定。
 #
 # 用法：
 #   bash tools/pm-dev-data-reset.sh            # 交互确认
-#   bash tools/pm-dev-data-reset.sh --yes     # 跳过确认
-#   PM_DEV_DATA_DIR=/path/to/dir bash tools/pm-dev-data-reset.sh
+#   bash tools/pm-dev-data-reset.sh --yes     # 跳过确认（护栏仍然生效）
+#   PM_DEV_DATA_DIR=./tmp/xxx bash tools/pm-dev-data-reset.sh   # 仓库内任意目录（用于自测）
 set -euo pipefail
 
-# 仓库根 = 本脚本所在 tools/ 的上一级
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-DEV_DIR=${PM_DEV_DATA_DIR:-$REPO_ROOT/dev-data}
+DEV_DIR_IN=${PM_DEV_DATA_DIR:-$REPO_ROOT/dev-data}
+
+die() { echo "❌ 拒绝执行：$*" >&2; exit 1; }
+
+# ---- 路径归一：相对路径按「仓库根」解析（不受调用时 cwd 影响）；解析 .. 与符号链接 ----
+if [[ "$DEV_DIR_IN" = /* ]]; then
+  _p="$DEV_DIR_IN"
+else
+  _p="$REPO_ROOT/$DEV_DIR_IN"
+fi
+if command -v realpath >/dev/null 2>&1; then
+  DEV_DIR=$(realpath -m "$_p")
+else
+  DEV_DIR=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$_p")
+fi
+
+# ---- 护栏 ①：必须位于仓库内 ----
+case "$DEV_DIR" in
+  "$REPO_ROOT"/*) ;;
+  *) die "DEV_DIR 必须位于仓库内（$REPO_ROOT），当前解析为：$DEV_DIR" ;;
+esac
+
+# ---- 护栏 ②：不能是仓库根本身 ----
+[[ "$DEV_DIR" == "$REPO_ROOT" ]] && die "DEV_DIR 不能是仓库根：$DEV_DIR"
+
+# ---- 护栏 ③：显式拒绝高危路径（纵深防御，正常已被 ① 挡住）----
+case "$DEV_DIR" in
+  /|/root|/home|/var|/var/lib|/etc|/usr|/opt|/tmp)
+    die "危险路径：$DEV_DIR" ;;
+esac
+# 仓库内也不许拿掉工作区根级目录（如 ./backups、./tools）。
+# 注意：**不要把 dev-data 列进来** —— 它正是本脚本的合法默认目标。
+case "$(basename "$DEV_DIR")" in
+  .git|tools|bin|web|src|node_modules|backups|scripts|docs|tests|migrations)
+    die "拒绝重置仓库根级目录：$DEV_DIR" ;;
+esac
+
 TS=$(date +%Y%m%d-%H%M%S)
 BK="$REPO_ROOT/backups/dev-data/$TS-reset"
 
+echo "仓库根：$REPO_ROOT"
+echo "待重置：$DEV_DIR"
+echo "备份到：$BK"
+echo
+
 if [[ "${1:-}" != "--yes" ]]; then
-  echo "⚠️  这会清空开发数据目录：$DEV_DIR"
-  echo "   （会先备份到 $BK）"
+  echo "⚠️  这会 **删除并重建** 上面的目录（备份会先做）。"
   read -r -p "确认继续？输入 yes：" ans
   [[ "$ans" == "yes" ]] || { echo "已取消"; exit 1; }
 fi

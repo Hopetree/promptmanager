@@ -11,6 +11,8 @@ data/
 tmp/
 # dsh 开发环境的持久数据（2026-09-25 用户定：放项目下、不跨项目、不入 git）
 dev-data/
+# 重置脚本的备份落点（此前只是碰巧被 dev-data/ 规则蹭到；显式登记更稳）
+backups/
 var/
 out/
 *.log
