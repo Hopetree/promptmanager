@@ -19,7 +19,7 @@
 
 | 项 | 值 |
 | --- | --- |
-| 版本 | v66d |
+| 版本 | v66e |
 | 状态 | 待开发 |
 | 项目路径 | `/root/greenhouse/projects/promptmanager` |
 | 目标用户 | 第一用户 = 用户本人（现在用 203 上的 PromptHub 管 prompt）；同类用户 = 想要**轻量、自托管、数据自持**的 prompt 管理工具的开发者 |
@@ -2795,7 +2795,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 
   | 环境 | 实例 | 数据归属与可动性 | 说明 |
   | --- | --- | --- | --- |
-  | **开发环境** | **dsh 自己起的实例**（他习惯 8765 等备用端口，跑**仓库的** `dist/server/index.js`） | **`DATA_DIR` 固定为持久目录 `/var/lib/promptmanager-dev`**（内已有累积数据，跨会话/跨阶段接着用，不重造夹具）；实例生命周期由 **dsh 自己管**，host_manger **不插手端口与起停** | 服务"把功能做出来 + 沉淀可复用调试数据"。⛔ 不用 `tmp/*-data`；⛔ 不用 8767。干净起点用 `scripts/pm-dev-env-reset.sh`（先备份）|
+  | **开发环境** | **dsh 自己起的实例**（他习惯 8765 等备用端口，跑**仓库的** `dist/server/index.js`） | **`DATA_DIR` 固定为持久目录 `<项目>/dev-data`（项目内，已在 .gitignore）**（内已有累积数据，跨会话/跨阶段接着用，不重造夹具）；实例生命周期由 **dsh 自己管**，host_manger **不插手端口与起停** | 服务"把功能做出来 + 沉淀可复用调试数据"。⛔ 不用 `tmp/*-data`；⛔ 不用 8767。干净起点用 `scripts/pm-dev-env-reset.sh`（先备份）|
   | **测试环境** | 228 上 **systemd `promptmanager.service`**（`/opt/promptmanager` + `/var/lib/promptmanager/pm.db` + `0.0.0.0:8767`） | **数据由 host_manger 管理，可随意改动**；**用户验证时同样会改动** ⇒ 数据变动属正常，**不必追问、不必视为异常** | 用于验收、演示、用户试用；**不是生产**，其数据**不是资产**、无需备份承诺 |
   | **生产环境** | **未来部署到公网**（届时才建立） | **数据主要由用户操作**；必要时由用户提供信息授权 host_manger 操作 | 到那时才启用"生产级"的谨慎度（备份、变更审批、只读巡检） |
 
@@ -3026,9 +3026,9 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 - **必须**遵守：
   1. **开发环境的实例由 dsh 自己起停**（他习惯用 **8765**）—— **端口与生命周期一律他自己决定，host_manger 不插手**。
      ⛔ **不得使用 8767** —— 那是 **host_manger 维护的测试环境**（`systemd promptmanager.service`、`/var/lib/promptmanager/pm.db`），**dsh 无权限、也不应动用**（分工见 MEMORY.md §0，2026-09-19 用户定）。
-     ⛔ **但 `DATA_DIR` 必须用持久目录 `/var/lib/promptmanager-dev`**，**不得再用 `tmp/*-data` 一次性目录**（用户 2026-09-25 两次纠正：**开发数据要持久、dsh 可跨会话积累，每次重造夹具浪费时间**）。
+     ⛔ **但 `DATA_DIR` 必须用持久目录 `<项目>/dev-data`（项目内，已在 .gitignore）**，**不得再用 `tmp/*-data` 一次性目录**（用户 2026-09-25 两次纠正：**开发数据要持久、dsh 可跨会话积累，每次重造夹具浪费时间**）。
      ⇒ 该目录**已存有他此前累积的数据**（5 prompts / 3 folders / 2 tokens / 10 versions，由 `tmp/s54-data` 迁入），**直接接着用，不必重造夹具**。
-     ⇒ 启动示例：`DATA_DIR=/var/lib/promptmanager-dev PORT=8765 node dist/server/index.js`（跑**仓库的** dist ⇒ 自验用自己的新代码）。
+     ⇒ 启动示例：`DATA_DIR=./dev-data PORT=8765 node dist/server/index.js`（跑**仓库的** dist ⇒ 自验用自己的新代码）。
      ⇒ 需要干净起点时用 `scripts/pm-dev-env-reset.sh`（**先备份**再清空），**不手删目录**；
      ⇒ **不要反复起停实例**，一次跑完即可；
   2. **串行**跑，**一次只开一个浏览器上下文**，用完即 `close()`；
@@ -3079,7 +3079,7 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
   为满足新要求而破坏它们即判不通过。
 - ⑤ **优先「不破坏布局」的解法**：能加宽/能隐藏就不要靠缩字号硬塞。
 - ⑥ **只做这 5 项**，不顺手改其它；发现问题记录但不修。
-- ⑦ **沿用 D-54 资源纪律**：**实例由 dsh 自己起停**（他习惯 8765，端口与生命周期他不插手）；**⛔ 不用 8767**、**⛔ 不用 `tmp/*-data` 临时数据**，`DATA_DIR` 固定用持久目录 **`/var/lib/promptmanager-dev`**（内已有累积数据，直接接着用）；串行单上下文、熔断阈值；不要反复起停实例。
+- ⑦ **沿用 D-54 资源纪律**：**实例由 dsh 自己起停**（他习惯 8765，端口与生命周期他不插手）；**⛔ 不用 8767**、**⛔ 不用 `tmp/*-data` 临时数据**，`DATA_DIR` 固定用持久目录 **`<项目>/dev-data`（项目内，已在 .gitignore）**（内已有累积数据，直接接着用）；串行单上下文、熔断阈值；不要反复起停实例。
 
 
 ## 10. 边界与停止条件
@@ -3168,16 +3168,24 @@ printf '%s\n' "$AC_PW" | node bin/pm.mjs user set-password --username admin
 > 目的：BRIEF 从 204KB 瘦身，让实现方每个阶段通读规格时不必翻 32 个版本的变更史。
 > **本节只记当前版本，以及"外移"这件事本身。**
 
+- **v66e 2026-09-25（用户第四次要求：持久数据目录放项目下，不跨项目、不入 git）**：
+  用户原话：「**数据持久目录放到项目下，不要跨项目，别提交到git就行**」。
+  ⇒ 目录由 `/var/lib/promptmanager-dev` 迁到 **项目内 `dev-data/`**（`<repo>/dev-data`，与代码同项目，不跨项目）。
+  ⇒ 已在 **`.gitignore` 第 12 行** 登记（提交 `810ee8a` / `8881ded`）；实测 `git check-ignore` 命中、`git status` **0 条**、`git ls-files` **0 个** ⇒ **确不入 git**。
+  ⇒ 累积数据随迁完好：**5 prompts / 3 folders / 2 tokens / 10 versions**。
+  ⇒ 旧目录 `/var/lib/promptmanager-dev` **已移除**（无重复来源）。
+  ⇒ `scripts/pm-dev-env-reset.sh` 默认目录同步改为项目内 `dev-data/`。
+  ⇒ **D-54 ② / D-55 ⑦ / D-27 表 / 两份派活提示词 / MEMORY 已全部同步**。
 - **v66d 2026-09-25（用户第三次纠正：实例归 dsh 自己管，我只给持久数据目录）**：
   用户原话：「**把你创建的8768服务停掉，并且跟dsh同步一下信息，他自己本身就会启动8765实例，只是目前数据在临时目录，让他把数据可以放到持久化目录以便持续使用**」。
   ⇒ **我越界建的 `promptmanager-dev.service`（8768）已 stop + disable + 删除 unit**（复查无残留进程、只余 8767；**持久目录与其中的累积数据保留**）。
-  ⇒ **正确边界**：**实例（端口、起停）由 dsh 自己管，我不插手**；**我只固定 `DATA_DIR=/var/lib/promptmanager-dev`**。
+  ⇒ **正确边界**：**实例（端口、起停）由 dsh 自己管，我不插手**；**我只固定 `DATA_DIR=./dev-data`**。
   ⇒ `pm-dev-env-reset.sh` 已改为**只重置数据目录、不管服务**。
   ⇒ **D-54 ② / D-55 ⑦ / D-27 表已同步**；连带修正两份派活提示词。
   ⇒ **我在环境上连续越界三次**（让 dsh 用 8767 → 写成临时环境 → 替他建常驻服务）；**教训：只提供对方缺的那一样，其余别碰**。
 - **v66c 2026-09-25（用户第二次纠正：开发环境不该是临时数据）**：
   用户原话：「**开发也不应该是临时数据，他开发应该可以自己积累数据没必要每次都临时，每次重新造数据浪费时间**」。
-  ⇒ **已建常驻开发环境**：`promptmanager-dev.service`，端口 **8768**，数据目录 **`/var/lib/promptmanager-dev`**（`Restart=on-failure`、开机自启）。
+  ⇒ **已建常驻开发环境**：`promptmanager-dev.service`，端口 **8768**，数据目录 **`<项目>/dev-data`（项目内，已在 .gitignore）**（`Restart=on-failure`、开机自启）。
   ⇒ 已把 dsh 原 `tmp/s54-data`（被 `.gitignore` 忽略、会随清理丢失）的**累积数据迁入**，**不让他白干**。
   ⇒ 服务 `ExecStart` 跑**仓库的** `dist/server/index.js` ⇒ dsh 自验跑的是**自己的新代码**，**不碰 8767**。
   ⇒ 提供 `scripts/pm-dev-env-reset.sh`（**先备份**再重置，不手删目录）作为干净起点出口。
