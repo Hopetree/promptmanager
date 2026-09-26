@@ -22,10 +22,16 @@ MIT 许可 · 镜像 `hopetree/promptmanager` · 需要 Node ≥ 24（源码运�
 
 ### Docker（推荐）
 
-需要 Docker ≥ 20.10。镜像由 CI 在推版本 tag 时构建并发布。
+需要 Docker ≥ 20.10。官方镜像发布在 **Docker Hub**（public）：
+
+```
+hopetree/promptmanager
+```
+
+镜像由 CI 在推版本 tag 时构建发布；`latest` 对应最新发布版本。国内网络拉不动怎么办，见下方「常见问题」。
 
 ```bash
-# ① 拉取
+# ① 拉取（若卡住或很慢 / 超时，见下方「拉不动怎么办」）
 docker pull hopetree/promptmanager:latest
 
 # ② 运行（数据落在宿主目录，容器重建不丢）
@@ -44,8 +50,8 @@ curl -s http://127.0.0.1:8767/healthz     # 形如 {"status":"ok","version":"1.3
 
 浏览器打开 `http://<主机>:8767/`，用 `admin` + 刚设的口令登录。
 
-> **国内拉不动？** 多半是网络到 Docker Hub 不通。换镜像站拉下来再 `tag` 回规范名即可，
-> 详见 [常见问题](#常见问题)。
+> **拉不动？** 多半是网络到 Docker Hub 不通（不是你的环境坏了）。换镜像站拉下来再 `tag` 回规范名，或给 Docker 配代理 —— 详见下方「常见问题」。
+
 
 ### 源码运行
 
@@ -129,7 +135,7 @@ docker tag  <镜像站>/hopetree/promptmanager:<版本> hopetree/promptmanager:<
 #    在 /etc/systemd/system/docker.service.d/ 加 HTTP_PROXY / HTTPS_PROXY 后重启 docker
 ```
 
-> 不写死具体加速站点 —— 各家可用性会变，用你网络里能用的那个（公司内网 registry、云厂商加速器、公开镜像站都行）。
+> 不写死具体加速站点 —— 各家可用性会变，挑你所在网络里能用的那个：公司内网 registry、云厂商加速器、公开镜像站都行。
 > 若镜像站给的是扁平名（`<镜像站>/promptmanager`），把 `<镜像站>/hopetree` 整段替换成它给的名字。
 
 **忘记管理员口令？**
