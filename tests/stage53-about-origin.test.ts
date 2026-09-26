@@ -54,31 +54,39 @@ test('AC-118 A①③：不新增网络请求（origin 是纯本地信息）', ()
 
 test('AC-118 A①：复制内容与显示内容必然一致（同一个字符串）', () => {
   // CopyLine 的 copyable.text 与 children 都来自同一个 props.text ⇒ 同一个字符串
-  const copyLine = about.slice(about.indexOf('function CopyLine'), about.indexOf('export default function'));
+  const copyLine = about.slice(about.indexOf('function CopyLine'), about.indexOf('/** 外链'));
   assert.ok(/copyable=\{\{ text \}\}/.test(copyLine), '复制按钮必须用 copyable={{ text }}（与显示同一个字符串）');
-  // 访问地址那一行传的正是 address
-  const row = about.slice(about.indexOf("key: 'address'"), about.indexOf("key: 'data'"));
-  assert.ok(/<CopyLine text=\{address\} \/>/.test(row), '「访问地址」行必须把 address 交给 CopyLine');
-  assert.equal(/CopyLine text=\{`http/.test(row), false, '访问地址行不得再自己拼协议');
+  // 访问地址传给 CopyLine 的正是 address
+  // （v68 FR-124 起它从「服务区」移到了「身份区」，锚点由 key:'address' 变为 pm-about-address）
+  const row = about.slice(about.indexOf('data-testid="pm-about-address"'), about.indexOf('data-testid="pm-about-keywords"'));
+  assert.ok(/<CopyLine text=\{address\} \/>/.test(row), '「访问地址」必须把 address 交给 CopyLine');
+  assert.equal(/CopyLine text=\{`http/.test(row), false, '访问地址不得再自己拼协议');
+  assert.equal(/CopyLine text=\{`https/.test(row), false, '访问地址不得写死 https');
 });
 
-test('AC-118 A④：「关于」弹窗其它信息一个字都没变', () => {
-  // 五个服务区条目（顺序 + 文案）
-  const service = about.slice(about.indexOf("key: 'service'"), about.indexOf("key: 'usage'"));
-  for (const key of ["key: 'version'", "key: 'status'", "key: 'address'", "key: 'data'", "key: 'backup'"]) {
-    assert.ok(service.includes(key), `服务区必须仍有 ${key}`);
-  }
-  assert.ok(service.includes("label: '版本'"), '版本行仍在');
-  assert.ok(service.includes("label: '状态'"), '状态行仍在');
-  assert.ok(service.includes("label: '访问地址'"), '访问地址行仍在');
-  assert.ok(service.includes("label: '数据文件'"), '数据文件行仍在');
-  assert.ok(service.includes("label: '备份方式'"), '备份方式行仍在');
-  assert.ok(service.includes('pm.db（服务端数据目录下的单文件 SQLite，随写随存）'), '数据文件文案未变');
-  // 分区顺序：服务 / 使用 / 维护；默认展开前两个
-  assert.ok(/defaultActiveKey=\{\['service', 'usage'\]\}/.test(about), '默认展开「服务」「使用」未变');
-  for (const key of ['service', 'usage', 'maintain']) {
+test('AC-118 A④：「关于」弹窗的访问地址与状态展示仍完整（v68 FR-124 移位后）', () => {
+  // ⚠️ v68（FR-124）**取消**了「服务区」：版本/状态/访问地址移入身份区继续展示，
+  //    「数据文件」「备份方式」两行随整区去掉 —— 其中「备份方式」原文「拷贝 pm.db」是**错的**
+  //    （WAL 模式下直接拷主库会丢未落盘写入），故按 D-56 ④「直接去掉即可」，不改写成别的样子。
+  //    本条随该规格更新：钉住「身份区仍完整」与「旧的服务区确已移除」。
+  assert.ok(about.includes('data-testid="pm-about-identity"'), '身份区仍在');
+  assert.ok(about.includes('data-testid="pm-about-address"'), '访问地址仍在（已移入身份区）');
+  assert.ok(/访问地址/.test(about), '「访问地址」标签仍在（身份区，普通文本节点而非旧 Descriptions 的 label）');
+  assert.ok(about.includes('版本 {version}'), '版本显示仍在（运行时动态）');
+  assert.ok(about.includes('后端在线'), '状态徽标仍在');
+  assert.equal(about.includes("key: 'service'"), false, '「服务」区已按 FR-124 取消');
+  assert.equal(about.includes("label: '数据文件'"), false, '「数据文件」行随服务区去掉');
+  // ⚠️ 先剥注释再查「拷贝 pm.db」：组件里那段注释**恰好记录了"为什么删掉这句错文案"**，
+  //    全文匹配会把它当成"文案还在"。
+  const aboutCode = about.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.equal(aboutCode.includes('拷贝 pm.db'), false, '不得再教用户拷贝 pm.db（WAL 下会丢数据）');
+  // 使用 / 维护两个折叠分区仍在
+  for (const key of ['usage', 'maintain']) {
     assert.ok(about.includes(`key: '${key}'`), `分区 ${key} 仍在`);
   }
+});
+
+test('AC-118 A④：品牌、状态条、维护区命令与使用区条数均未变', () => {
   // 顶区与锚点
   assert.ok(about.includes('data-testid="pm-about"'), 'pm-about 锚点仍在（AC-40 靠它定位）');
   assert.ok(about.includes('PromptManager'), '品牌行未变');

@@ -160,6 +160,7 @@ bash tools/ac-stage51.sh       # 复制记账四条分支：不含变量 +1 / �
 bash tools/ac-stage52.sh       # 卡片底部元信息：目录(带图标·最前·仅名字)+版本+变量数；无取用无日期；「·」分隔符+间距 6px；无目录=未分组
 bash tools/ac-stage54-ui.sh <baseUrl> <sid>  # 阶段 54 全面 UI 验证：18 界面 × PC1440×900/移动440×956 串行单上下文截图+量测（自带熔断检查）
 bash tools/ac-stage55.sh <baseUrl> <sid>  # 阶段 55 五项小修：口径文案/空态两种场景/分隔符对比度/掩码单行/文件夹列不折行（73 条判据）
+bash tools/ac-stage56-about-probe.mjs <baseUrl> <sid> <pc|mobile> <outDir>  # 阶段 56 关于页验收：身份/出处/使用三分区、href 与 target/rel、出网请求数、移动端折叠
 bash tools/ui-shots.sh         # 界面自证：全套截图 → tmp/ui-shots/shots/（默认，不入库）
 bash tools/ui-shots.sh --key   # 发版/交付：关键页面展示图 8 张 → docs/shots/（旧的先归档到 tmp/）
 DATA_DIR=$(mktemp -d) node tools/seed-prompts.mjs 2000   # 2000 条中文夹具（直接写库，触发器同步 FTS）

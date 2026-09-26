@@ -218,14 +218,22 @@ test('AC-51（v32 修订）：顶栏品牌 = PromptM（简称），logo 整块�
   assert.ok(/q: '', folderId: null, tag: null, favorite: false/.test(workspace), 'goHome 要清空搜索与全部筛选');
 });
 
-test('AC-52：关于页三分区 + 无 Result 大块 + 状态条', () => {
+test('AC-52：关于页分区 + 无 Result 大块 + 状态条（v68 FR-124 起：服务区取消，改身份 / 出处与去向 / 使用·维护）', () => {
   const about = src('components/AboutModal.tsx');
-  for (const key of ["key: 'service'", "key: 'usage'", "key: 'maintain'"]) {
+  // 「服务」区已按 FR-124 / D-56 ④ 取消：其中的「访问地址」移入身份区继续展示，而那句**错误的**
+  // 「拷贝 pm.db」（WAL 模式下会丢未落盘写入）随整区去掉、**不改写成别的样子**。
+  // 保留的折叠分区仍是使用 / 维护。
+  for (const key of ["key: 'usage'", "key: 'maintain'"]) {
     assert.ok(about.includes(key), `关于页缺少分区 ${key}`);
   }
-  assert.ok(about.includes('Collapse'), '分区用 Collapse（维护区默认折叠）');
+  assert.equal(about.includes("key: 'service'"), false, '「服务」区已按 FR-124 取消，不应复活');
+  assert.ok(about.includes('Collapse'), '使用/维护区用 Collapse');
   assert.ok(about.includes('pm-about'), '保留 pm-about 锚点');
-  assert.ok(about.includes('后端在线'), '顶区要有一行状态徽标');
+  assert.ok(about.includes('后端在线'), '身份区要有一行状态徽标');
+  // FR-124 ① 身份区、② 出处与去向区的锚点，以及「访问地址不得被删掉」
+  assert.ok(about.includes('pm-about-identity'), '要有身份区锚点');
+  assert.ok(about.includes('pm-about-links'), '要有出处与去向区锚点');
+  assert.ok(about.includes('pm-about-address'), '访问地址须保留（已移入身份区）');
   assert.equal(about.includes('<Result'), false, '不再用大块 Result');
   assert.equal(about.includes('BRIEF'), false, '不得引用内部资料 BRIEF');
   // HealthCard 已并入 AboutModal

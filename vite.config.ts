@@ -1,9 +1,68 @@
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
 /** 只匹配 node_modules 下的路径（分包分组用；Linux 与 Windows 的分隔符都认） */
 const inNodeModules = (pattern: string): RegExp => new RegExp(`node_modules[\\\\/]${pattern}`);
+
+/* ────────────────────────────────────────────────────────────────
+ * 项目元信息：**构建期**从 package.json 注入（FR-124 / D-56 ①）。
+ *
+ * 为什么这样而不是在前端写死：README 曾经长期写着过时的 `1.0.2`，
+ * 就是"元信息在代码里另抄一份、仓库改了页面还写着旧值"的现成教训。
+ * 这里 package.json 是**唯一来源**，`__PM_META__` 由 Vite 在构建时内联，
+ * 前端**读不到**也**改不了**这些值（AC-120 ⑤⑥⑦⑧ 全部由此满足）。
+ *
+ * ⚠️ 运行时信息（版本 / 在线状态 / 访问地址）**不在这里** —— 那三项必须
+ *     每次打开弹窗实测（`/healthz` + `window.location.origin`），见 D-56 ②。
+ * ──────────────────────────────────────────────────────────────── */
+
+interface PackageJsonLike {
+  description?: unknown;
+  license?: unknown;
+  author?: unknown;
+  homepage?: unknown;
+  repository?: unknown;
+  bugs?: unknown;
+  keywords?: unknown;
+}
+
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL('./package.json', import.meta.url)), 'utf8'),
+) as PackageJsonLike;
+
+/** `git+https://github.com/O/R.git` → `https://github.com/O/R`（AC-120 ⑥：owner/repo 规范形式） */
+function normalizeRepoUrl(raw: string): string {
+  return raw.replace(/^git\+/, '').replace(/\.git$/, '').replace(/\/+$/, '');
+}
+
+const repositoryUrl =
+  typeof pkg.repository === 'object' && pkg.repository !== null && 'url' in pkg.repository
+    ? String((pkg.repository as { url?: unknown }).url ?? '')
+    : typeof pkg.repository === 'string'
+      ? pkg.repository
+      : '';
+const repoUrl = normalizeRepoUrl(repositoryUrl);
+/** 从仓库地址反推 Docker 镜像名（`<owner>/<repo>` 全小写，Docker Hub 要求小写）——
+ *  这样镜像名也跟着 package.json 走，不必在两处各写一遍（AC-120 ⑦）。 */
+const repoMatch = /github\.com\/([^/]+)\/([^/?#]+)/.exec(repoUrl);
+const dockerImage = repoMatch === null ? '' : `${String(repoMatch[1])}/${String(repoMatch[2])}`.toLowerCase();
+
+const __PM_META__ = {
+  description: String(pkg.description ?? ''),
+  license: String(pkg.license ?? ''),
+  author:
+    typeof pkg.author === 'string'
+      ? pkg.author
+      : String((pkg.author as { name?: unknown } | null)?.name ?? ''),
+  homepage: String(pkg.homepage ?? repoUrl),
+  repoUrl,
+  issuesUrl: String((pkg.bugs as { url?: unknown } | null)?.url ?? `${repoUrl}/issues`),
+  licenseUrl: `${repoUrl}/blob/main/LICENSE`,
+  dockerImage,
+  keywords: Array.isArray(pkg.keywords) ? pkg.keywords.map((k) => String(k)) : [],
+};
 
 /**
  * 阶段 18（FR-61 / AC-61）的懒加载组件清单——**只能**在动态 `import()` 里出现的重组件。
@@ -32,6 +91,10 @@ export default defineConfig({
   root: fileURLToPath(new URL('./web', import.meta.url)),
   base: '/',
   plugins: [react()],
+  define: {
+    // 构建期内联；前端只能读、不能改，也拿不到 package.json 原文
+    __PM_META__: JSON.stringify(__PM_META__),
+  },
   build: {
     outDir: fileURLToPath(new URL('./dist/web', import.meta.url)),
     emptyOutDir: true,
