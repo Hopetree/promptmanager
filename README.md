@@ -43,15 +43,15 @@
 hopetree/promptmanager
 ```
 
-即 `docker pull hopetree/promptmanager:1.0.2` 就能拉到（在 Docker Hub 上搜 `hopetree/promptmanager` 也能找到）。
+即 `docker pull hopetree/promptmanager:latest` 就能拉到（`latest` 对应最新发布版本；也可指定具体版本号，如 `:1.3.0`）（在 Docker Hub 上搜 `hopetree/promptmanager` 也能找到）。
 下文命令里的 **`<命名空间>` 就是它** —— 你可以把 `<命名空间>/promptmanager` 整个读作 `hopetree/promptmanager`；
 照抄时把 `<命名空间>` 替换成 `hopetree` 即可（留着占位符是为了让命令的"哪个部分是命名空间"一目了然）。
 
 ```bash
-# ① 拉取（<命名空间> 就是 hopetree；把 1.0.2 换成你要的版本，也可用 1.0 或 latest）
-docker pull <命名空间>/promptmanager:1.0.2
+# ① 拉取（<命名空间> 就是 hopetree；把 `<版本>` 换成你要的版本，也可用 1.0 或 latest）
+docker pull <命名空间>/promptmanager:<版本>
 # 等价写法（把占位符填好，可直接复制）：
-docker pull hopetree/promptmanager:1.0.2
+docker pull hopetree/promptmanager:<版本>
 
 # ② 运行（数据落在宿主目录，容器重建不丢）
 mkdir -p /data/promptmanager
@@ -61,12 +61,12 @@ docker run -d --name promptmanager \
   -e HOST=0.0.0.0 -e PORT=8767 -e DATA_DIR=/data -e TZ=Asia/Shanghai \
   -v /data/promptmanager:/data \
   --memory 512m --cpus 1.0 \
-  <命名空间>/promptmanager:1.0.2          # ← 即 hopetree/promptmanager:1.0.2
+  <命名空间>/promptmanager:<版本>          # ← 即 hopetree/promptmanager:<版本>
 
 # ③ 首次设置管理员口令（口令只从 stdin 进库，不进环境变量、不进镜像）
 printf '%s\n' '你的强口令' | docker exec -i promptmanager node bin/pm.mjs user set-password --username admin
 
-# ④ 自检 → 应返回 {"status":"ok","version":"1.0.2"}
+# ④ 自检 → 应返回形如 {"status":"ok","version":"1.3.0"}（与所拉镜像一致）
 curl -s http://127.0.0.1:8767/healthz
 ```
 
@@ -80,17 +80,17 @@ curl -s http://127.0.0.1:8767/healthz
 ```bash
 # 第一步：从任一可用的镜像站 / 代理拉（<镜像站> 换成你手上能用的那个，例如公司内网的 registry 或
 #         任意公开加速地址；站点可用性会变，所以这里不写死某一家）
-docker pull <镜像站>/hopetree/promptmanager:1.0.2
+docker pull <镜像站>/hopetree/promptmanager:<版本>
 
 # 第二步：把刚拉下来的镜像 tag 回规范名 —— 之后 ②③④ 与升级命令全部照旧
-docker tag <镜像站>/hopetree/promptmanager:1.0.2 hopetree/promptmanager:1.0.2
+docker tag <镜像站>/hopetree/promptmanager:<版本> hopetree/promptmanager:<版本>
 ```
 
 > 为什么要"tag 回规范名"：`docker run` / `docker compose` / 升级脚本引用的都是规范名
 > `hopetree/promptmanager:<tag>`（也就是上文 `<命名空间>/promptmanager:<tag>`）；先 tag 好，后续流程与文档就完全一致，不用改任何配置文件。
 > 同理，能连外网但慢的环境也可以给 Docker 配代理（`/etc/systemd/system/docker.service.d/` 下的
 > `HTTP_PROXY`/`HTTPS_PROXY`），那样连 tag 都不用做。
-> 若你的镜像站把路径写成了扁平名（如 `<镜像站>/promptmanager:1.0.2`），把上面的 `<镜像站>/hopetree` 整段换成它给的名字即可。
+> 若你的镜像站把路径写成了扁平名（如 `<镜像站>/promptmanager:<版本>`），把上面的 `<镜像站>/hopetree` 整段换成它给的名字即可。
 
 然后浏览器打开 **`http://<主机IP>:8767/`**，用 `admin` + 刚设的口令登录。
 
@@ -133,7 +133,7 @@ printf '%s\n' '你的强口令' | node bin/pm.mjs user set-password --username a
 npm start
 
 # ⑥ 自检
-curl -s http://127.0.0.1:8767/healthz     # {"status":"ok","version":"1.0.2"}
+curl -s http://127.0.0.1:8767/healthz     # 形如 {"status":"ok","version":"1.3.0"}（与所拉镜像一致）
 ```
 
 **临时换端口 / 换数据目录**（不动生产文件）：
@@ -233,18 +233,18 @@ curl -s -X POST http://127.0.0.1:8767/mcp \
 1. **换国内镜像站 / 加速地址**（见效最快）：先从镜像站拉下来，再 `tag` 回规范名，后续命令不用改：
 
    ```bash
-   docker pull <镜像站>/hopetree/promptmanager:1.0.2
-   docker tag  <镜像站>/hopetree/promptmanager:1.0.2 hopetree/promptmanager:1.0.2
+   docker pull <镜像站>/hopetree/promptmanager:<版本>
+   docker tag  <镜像站>/hopetree/promptmanager:<版本> hopetree/promptmanager:<版本>
    ```
 
    > **不写死具体站点**：各家加速地址的可用性会变，请用你所在网络里能用的那一个（公司内网 registry、
    云厂商加速器、公开镜像站都行）。注意区分两件事：**官方仓库 `hopetree/promptmanager` 是固定该写死的**
    （这是"镜像在哪"），而 **`<镜像站>` 那一段是加速站、会过期，所以不写死某一家**。
-   若镜像站给的是扁平名（`<镜像站>/promptmanager:1.0.2`），把 `<镜像站>/hopetree` 整段替换成它给的名字。
+   若镜像站给的是扁平名（`<镜像站>/promptmanager:<版本>`），把 `<镜像站>/hopetree` 整段替换成它给的名字。
 
 2. **给 Docker 配代理**（能连外网但慢）：在 `/etc/systemd/system/docker.service.d/` 下加
    `HTTP_PROXY` / `HTTPS_PROXY` 环境变量后 `systemctl daemon-reload && systemctl restart docker`，
-   之后直接 `docker pull hopetree/promptmanager:1.0.2` 即可，**不需要**再 tag。
+   之后直接 `docker pull hopetree/promptmanager:<版本>` 即可，**不需要**再 tag。
 
 自检是否拉成功：`docker images | grep promptmanager` 里应能看到 `hopetree/promptmanager:<tag>`；
 `docker compose` 与升级命令引用的都是这个规范名，所以上面前两步做完就够了。

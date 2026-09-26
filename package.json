@@ -51,5 +51,25 @@
     "@vitejs/plugin-react": "6.1.1",
     "typescript": "7.0.2",
     "vite": "8.3.0"
-  }
+  },
+  "license": "MIT",
+  "author": "Hopetree",
+  "homepage": "https://github.com/Hopetree/promptmanager#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hopetree/promptmanager.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Hopetree/promptmanager/issues"
+  },
+  "keywords": [
+    "prompt",
+    "prompt-management",
+    "self-hosted",
+    "sqlite",
+    "react",
+    "antd",
+    "llm",
+    "mcp"
+  ]
 }
