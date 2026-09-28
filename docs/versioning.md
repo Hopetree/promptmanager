@@ -37,7 +37,8 @@
 
 ### 3.1 预发布 tag 与「镜像只发正式版」（2026-09-26 用户定的规范）
 
-- **正式版**：`vX.Y.Z`，**没有**任何后缀 —— 面试版本、可直接上生产的版本。
+- **正式版**：`vX.Y.Z`，**没有**任何后缀 —— 可归档、可直接上生产的版本。
+- **总则（先记这条）**：**`package.json` 的 `version` 必须与 tag 一致**，无论正式版还是预发布（见下方「版本号必须与 tag 一致」）。
 - **预发布**：`vX.Y.Z-<预发布标识>.<序号>`，例如 **`v2.2.2-beta.1`**、`v2.0.0-rc.1`、`v3.0.0-alpha.2`。
   **必须**用下列后缀之一（CI 按这些字面量判定，**新增后缀要同步改 `.github/workflows/docker.yml`**）：
   `-alpha.` `-beta.` `-rc.` `-pre.` `-dev.` `-nightly.` `-next.` `-canary.`
@@ -46,11 +47,64 @@
   - 预发布 tag ⇒ **只构建、不推送**（仍跑 CI 验证 Dockerfile 没坏，但 Docker Hub 上不出现该版本）；
   - 分支 / `workflow_dispatch` ⇒ 只构建。
   ⇒ 这样 **`latest` 与各 `X.Y.Z` 永远指向正式版**，不会把测试版顶成「最新」。
-- **预发布也要写 CHANGELOG**（标题写 `## [2.2.2-beta.1] — YYYY-MM-DD`），
-  但**不改 `package.json` 的正式版本号**（`package.json` 里始终是最近一个**正式**版本；
-  预发布只在 tag 与 CHANGELOG 上体现）—— 避免 `/healthz` 报出一个不存在的正式版本。
-- 预发布转正式：该版本验收通过后，打正式版 tag `vX.Y.Z`（`package.json` 同步为 `X.Y.Z`），
+- **版本号必须与 tag 一致（含预发布）** —— 口径「**一致优先**」（用户 2026-09-26 拍板）：
+
+  > 打任何 tag 之前，**先改 `package.json` 的 `version` 使其与 tag 完全一致**，
+  > 包括预发布：打 `v2.2.2-beta.1` ⇒ `package.json` 写 **`2.2.2-beta.1`**。
+
+  - **判据（可核对）**：`curl /healthz` 的 `version` 与 **关于页显示的版本** 都必须**逐字等于** tag 去掉 `v` 的部分。
+    两者同源（关于页 `fetch('/healthz')` ⇒ `/healthz` 读 `package.json`），**改一处即两处同步**。
+  - **预发布同样写 CHANGELOG**（标题 `## [2.2.2-beta.1] — YYYY-MM-DD`）。
+  - **⚠️ 已废弃的旧口径**：曾写「预发布**不改** `package.json`、只在 tag 与 CHANGELOG 体现」——
+    该口径与「版本号跟 tag 一致」冲突，**已作废**，以本节为准。
+- 预发布转正式：该版本验收通过后，打正式版 tag `vX.Y.Z` 并把 `package.json` 同步为 `X.Y.Z`，
   CHANGELOG 把预发布段并入正式段或保留两条。
+
+### 3.2 生产部署：正式版走 Hub，预发布走本地构建（用户 2026-09-26 定的规范）
+
+**两条路，按 tag 种类分：**
+
+| tag 种类 | 镜像从哪来 | 生产上跑什么 |
+| --- | --- | --- |
+| **正式版** `vX.Y.Z` | **Docker Hub**（CI 已推送，经镜像站拉回）| `hopetree/promptmanager:X.Y.Z` |
+| **预发布** `vX.Y.Z-beta.N` 等 | **106 本地构建**（Hub 上没有）| **`promptmanager:<tag>`**（本地专用名，不带 Hub 命名空间 —— 一眼可辨是本地货）|
+
+**预发布本地构建部署**（脚本 `/root/pm-deploy-local.sh`，用户拍板三选项「常驻裸仓库 + 本地专用名 + 数据库快照」）：
+
+```bash
+sudo bash /root/pm-deploy-local.sh v2.2.2-beta.1          # 真部署
+sudo bash /root/pm-deploy-local.sh v2.2.2-beta.1 --dry-run # 只预演
+```
+
+脚本六步：**① 取源码 checkout tag → ② 校验 `package.json` 与 tag 一致（不一致直接拒绝构建）
+→ ③ 备份 compose + 数据卷 + **数据库快照** → ④ 本地 `docker build -t promptmanager:<tag>`
+→ ⑤ 切 compose 并重建 → ⑥ 部署完整性自检（容器状态 / `/healthz` 版本 == tag）**。
+
+**源码怎么上 106（常驻裸仓库，一次建好、以后增量）：**
+
+- 裸仓库 `/opt/promptmanager-src/repo.git`、构建工作副本 `/opt/promptmanager-src/work`。
+- 首次（或仓库损坏时）重建：
+  ```bash
+  # 228：导出全量
+  git bundle create /tmp/pm-src.bundle --all
+  # 传到 106 后：建裸仓库 + 工作副本
+  git clone --bare /tmp/pm-src.bundle /opt/promptmanager-src/repo.git
+  git clone /opt/promptmanager-src/repo.git /opt/promptmanager-src/work
+  ```
+- **日常（有新 tag 要部署时）**：把新 tag 推给裸仓库即可 —— 裸仓库是普通 git 仓库，可直接 `push`：
+  ```bash
+  # 228（或从我的工作机，走已验证的通路）
+  git push /path/to/repo.git main --tags
+  ```
+  脚本第 ① 步会 `git fetch --tags` 自动同步，**不需要每次传全量**。
+- 106 环境前提（已实测）：`node:24-slim` 镜像在本地、到 `registry.npmjs.org` 与 `registry.npmmirror.com` 均 **HTTP 200**。
+
+**⚠️ 预发布上生产的两个风险点与对策：**
+
+1. **回滚点**：脚本每次部署前自动备份 compose + 数据卷（`/root/backups/promptmanager/<TS>-local-<tag>/`）。
+2. **数据迁移不兼容**（**关键**）：预发布若带 schema 迁移，**回滚到旧镜像时迁移已执行、schema 回不去**。
+   ⇒ 脚本**额外取 `/data/pm.db` 快照**（`pm-snapshot.db`）。
+   ⇒ 真回滚数据：**停容器 → 用快照覆盖 `/data/pm.db` → 起容器**（仅当新版跑了不兼容迁移才需要）。
 
 ## 4. 发版流程（四步）
 
