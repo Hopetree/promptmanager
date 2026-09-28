@@ -279,7 +279,7 @@ async function main() {
       await cdp.send('Emulation.setDeviceMetricsOverride', {
         width: shot.width,
         height: shot.height,
-        deviceScaleFactor: 1,
+        deviceScaleFactor: shot.dpr ?? 1,
         mobile: shot.width < 600,
       });
       await cdp.send('Emulation.setEmulatedMedia', {
