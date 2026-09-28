@@ -34,14 +34,17 @@ docker build -t promptmanager:1.0.1 .
 
 | 触发 | 行为 |
 | --- | --- |
-| push tag `v*`（如 `v1.0.1`） | **构建并推送**（发版主路径） |
+| push tag `v*` **正式版**（如 `v1.0.1`，无预发布后缀） | **构建并推送**（发版主路径） |
+| push tag `v*` **预发布**（如 `v2.2.2-beta.1`） | **只构建、不推送**（校验 Dockerfile；Docker Hub 不出现该版本） |
 | push branch `main` | **只构建、不推送**（尽早发现 Dockerfile 被改坏；**不需要 secret 也能跑**） |
 | 手动 `workflow_dispatch` | 按当前 ref 决定：tag 上 = 推送；分支上 = 只构建 |
 
 **镜像坐标与 tag 规则**
 
 - 镜像名：**`<DOCKERHUB_USERNAME>/promptmanager`** —— 命名空间**不写死在仓库里**，从 GitHub Secrets 取。
-- 推 `v1.0.1` ⇒ 产出 **`1.0.1`** + **`1.0`** + **`latest`**（同一份镜像的三个别名）。
+- 推 **正式版** `v1.0.1` ⇒ 产出 **`1.0.1`** + **`1.0`** + **`latest`**（同一份镜像的三个别名）。
+- 推 **预发布** `v2.2.2-beta.1` ⇒ **什么都不产出**（不推送）。
+  ⇒ `latest` 与各 `X.Y.Z` **永远指向正式版**，不会被测试版顶掉（2026-09-26 用户定的规范）。
 - 平台：**仅 `linux/amd64`**（与生产 106 一致）。**arm64 本期不做**（需要 QEMU/多平台，构建代价翻倍）。
 
 **需要在 GitHub 仓库配置的 2 个 Secret**（`Settings → Secrets and variables → Actions → New repository secret`；

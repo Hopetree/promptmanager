@@ -35,6 +35,23 @@
 - **附注 tag**（`git tag -a v1.0.0 -m "..."`），tag 消息写一句该版本的主题。
 - 一个 tag 对应一次 `CHANGELOG` 的发布段落；**不打"移动 tag"**（不覆盖已发布的 tag）。
 
+### 3.1 预发布 tag 与「镜像只发正式版」（2026-09-26 用户定的规范）
+
+- **正式版**：`vX.Y.Z`，**没有**任何后缀 —— 面试版本、可直接上生产的版本。
+- **预发布**：`vX.Y.Z-<预发布标识>.<序号>`，例如 **`v2.2.2-beta.1`**、`v2.0.0-rc.1`、`v3.0.0-alpha.2`。
+  **必须**用下列后缀之一（CI 按这些字面量判定，**新增后缀要同步改 `.github/workflows/docker.yml`**）：
+  `-alpha.` `-beta.` `-rc.` `-pre.` `-dev.` `-nightly.` `-next.` `-canary.`
+- **⛔ 只有正式版才推送镜像到 Docker Hub**：
+  - 正式版 tag ⇒ 推送，产出 `X.Y.Z` + `X.Y` + **`latest`** 三个别名；
+  - 预发布 tag ⇒ **只构建、不推送**（仍跑 CI 验证 Dockerfile 没坏，但 Docker Hub 上不出现该版本）；
+  - 分支 / `workflow_dispatch` ⇒ 只构建。
+  ⇒ 这样 **`latest` 与各 `X.Y.Z` 永远指向正式版**，不会把测试版顶成「最新」。
+- **预发布也要写 CHANGELOG**（标题写 `## [2.2.2-beta.1] — YYYY-MM-DD`），
+  但**不改 `package.json` 的正式版本号**（`package.json` 里始终是最近一个**正式**版本；
+  预发布只在 tag 与 CHANGELOG 上体现）—— 避免 `/healthz` 报出一个不存在的正式版本。
+- 预发布转正式：该版本验收通过后，打正式版 tag `vX.Y.Z`（`package.json` 同步为 `X.Y.Z`），
+  CHANGELOG 把预发布段并入正式段或保留两条。
+
 ## 4. 发版流程（四步）
 
 ```bash

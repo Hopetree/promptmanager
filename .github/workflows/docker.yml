@@ -9,10 +9,19 @@ name: docker
 #    （无回显、不打开 shell 的命令追踪、不把 token 写进日志/文件/镜像）。
 # ⚠️ 命名空间**不硬编码**：镜像名 = `${{ secrets.DOCKERHUB_USERNAME }}/promptmanager`。
 #
-# 触发与行为：
-#   · push tag `v*`      → 构建并**推送**；tag 由 metadata-action 算：`1.0.1` + `1.0` + `latest`
+# 触发与行为（**只有正式版才推镜像**，2026-09-26 用户定的规范）：
+#   · push tag `v*` **正式版**（如 `v1.0.1`，**无**预发布后缀）
+#                        → 构建并**推送**；镜像 tag 由 metadata-action 算：`1.0.1` + `1.0` + `latest`
+#   · push tag `v*` **预发布**（如 `v2.2.2-beta.1` / `-rc.1` / `-alpha.3`）
+#                        → 只**构建**、**不推送**（仍让 CI 验证 Dockerfile 没坏；Docker Hub 上
+#                          只有正式版本 ⇒ `latest` 与各 `X.Y.Z` **永远指向正式版**）
 #   · push branch `main` → **只构建、不推送**（尽早发现 Dockerfile 被改坏；不需要任何 secret 即可跑）
-#   · workflow_dispatch  → 手动补跑，按当前 ref 决定是否推送（tag 上 = 推送，分支上 = 只构建）
+#   · workflow_dispatch  → 手动补跑，按当前 ref 决定是否推送（正式版 tag 上 = 推送，其余 = 只构建）
+#
+# ⚠️ 判定写法：**GitHub Actions 的 `if` 不支持正则**，无法直接写「不含 `-`」。
+#    这里用**排除法** —— 预发布后缀命名有限，逐个排除。预发布**必须**用下列后缀之一
+#    （见 `docs/versioning.md` §3）；**新增后缀时此列表要同步加**。
+#    ⚠️ 同样的判定出现**三处**（登录 / latest 规则 / push），改一处必须三处同改。
 #
 # 平台：仅 **linux/amd64**（与生产 106 一致）。arm64 本期不做（要加 QEMU/多平台，代价翻倍）。
 # 构建上下文 = 仓库根、Dockerfile = 仓库根 `Dockerfile` —— 与 106 上现行命令
@@ -39,10 +48,12 @@ jobs:
       - name: 准备 buildx
         uses: docker/setup-buildx-action@v3
 
-      # 只有「确实要推送」（tag `v*`）时才登录：分支构建**用不到 token**
+      # 只有「确实要推送」（**正式版** tag `v*`，无预发布后缀）时才登录：分支/预发布构建**用不到 token**
       # （注：镜像名本身由 DOCKERHUB_USERNAME 拼出 ⇒ 分支构建仍需先配好**这一个** secret，见 deploy/container.md §2.2）
-      - name: 登录 Docker Hub（仅 tag 推送时）
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: 登录 Docker Hub（仅正式版 tag 推送时）
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') &&
+          !contains(github.ref, '-alpha.') && !contains(github.ref, '-beta.') && !contains(github.ref, '-rc.') && !contains(github.ref, '-pre.') && !contains(github.ref, '-dev.') && !contains(github.ref, '-nightly.') && !contains(github.ref, '-next.') && !contains(github.ref, '-canary.')
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -60,7 +71,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            # latest 只给正式版（预发布不加 latest，避免把测试版顶成「最新」）
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-alpha.') && !contains(github.ref, '-beta.') && !contains(github.ref, '-rc.') && !contains(github.ref, '-pre.') && !contains(github.ref, '-dev.') && !contains(github.ref, '-nightly.') && !contains(github.ref, '-next.') && !contains(github.ref, '-canary.') }}
             type=ref,event=branch
 
       - name: 构建并推送
@@ -69,7 +81,9 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64
-          # 只有 tag `v*` 才推送；分支 / 手动（分支 ref）一律只构建
-          push: ${{ startsWith(github.ref, 'refs/tags/v') }}
+            # 只有**正式版** tag（无 -beta. 等预发布后缀）才推送；预发布与分支/手动一律只构建
+          # 只有**正式版** tag 才推送；预发布 tag（如 -beta.1）与分支/手动一律只构建
+          # （判定与「登录 Docker Hub」保持一致）
+          push: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-alpha.') && !contains(github.ref, '-beta.') && !contains(github.ref, '-rc.') && !contains(github.ref, '-pre.') && !contains(github.ref, '-dev.') && !contains(github.ref, '-nightly.') && !contains(github.ref, '-next.') && !contains(github.ref, '-canary.') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
