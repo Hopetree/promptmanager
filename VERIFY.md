@@ -2402,10 +2402,45 @@ $ bash tools/ac-stage16.sh        → 退出码 1
 
 - [x] 缺口 1（PROGRESS 记录）—— dsh 补齐，提交 **`b6ce71f`**（仅 PROGRESS.md +115 行，边界守得住：未动代码/测试/BRIEF/VERIFY）
 - [x] 缺口 2（`fea6f8e` 未推远程）—— 我在推 VERIFY 时一并带上；现三端一致
-- [ ] **缺口 3（ac-stage16 旧断言）** —— 已派 dsh 修（提示词 `projects/greenhouse/prompts/stage57-followup-ac16.md`，
-      已过兜底脚本）；要求它修完**实跑** `bash tools/ac-stage16.sh` 给出 **rc=0** 的证据
+- [x] **缺口 3（ac-stage16 旧断言）** —— dsh 修好并推送：提交 **`1edf953`**（仅 `tools/ac-stage16.sh` +
+      `tools/ac-stage16-probe.mjs`，各 1 行；判据改为 `desktop === true && sun === false && moon === false`，
+      断言名改为「跟随系统 = 电脑图标（无太阳/月亮）」）。**我实跑复核**：AC-58 段 **5 行全 ✅**
 - [x] BRIEF 留痕（FR-58 改写 + §12 v69）→ `017a31d`
 - [x] `docs/shots` 评估：**无需更新**（hash 证实）
 
-> **注**：缺口 3 的存在说明「本阶段验收尚未完全收口」—— 等 dsh 修完并实跑 rc=0 后，本阶段才算真正闭环。
-> 当前仓库 HEAD = `b6ce71f`（origin / github 同）。
+> **注**：缺口 3 已闭环（见上）。本阶段至此收口。
+
+## 八、收口时另发现的两件事（**均非阶段 57 缺陷**）
+
+### 1. `ac-stage16.sh` 还有**另一条**过时断言（AC-52，既有问题）
+
+修完缺口 3 后重跑，**AC-58 段全绿但整体仍 rc=1**，另有 1 个真失败：
+
+```
+=== AC-52 关于页重构 ===
+  ❌ 分区数 = 2（期望 ≥3）
+```
+
+**定性：既有问题，与本阶段无关**（已证）：探针数的是 `[data-testid=pm-about] .ant-collapse-header`，
+而关于页重构后**只有「使用 / 维护」是折叠面板（2 项）**，①身份 ②出处与去向 是普通区块 ⇒ 断言**测量口径过时**。
+
+**决定性证据**：`git diff fea6f8e^ -- web/src/components/AboutModal.tsx` **完全相同** ⇒
+该失败在阶段 57 之前就存在（大概率随阶段 56 的关于页改造引入，当时未跑这个旧脚本）。
+**⇒ 不阻塞阶段 57 收口**，但**该脚本需要单独修**（另开条目）。
+
+### 2. 版本格式冲突（**由「一致优先」+ 预发布 tag 直接引出**）
+
+发 `v1.4.1-beta.1` 时闸门红了一条：
+
+```
+✖ GET /healthz 无需认证：… (tests/health.test.ts:23)
+  AssertionError: The input did not match the regular expression /^\d+\.\d+\.\d+$/. Input: '1.4.1-beta.1'
+```
+
+**根因**：该测试**不接受预发布后缀**，而「一致优先」口径要求 `package.json` 必须等于 tag（含预发布）
+⇒ `/healthz` 必然返回 `1.4.1-beta.1` ⇒ 必红。
+
+**查过规范**：BRIEF 的 **AC-2 只要求 body 含 `"status":"ok"` 与 `"version"`，未限定版本格式**
+⇒ **测试过严，非契约**。**我做的修改（如实记录）**：把正则放宽为
+`/^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/` —— **仍守卫"必须是 X.Y.Z 或 X.Y.Z-预发布"**，
+只是允许了预发布后缀。全仓另一处严格正则（`tests/stage22-drag.test.ts:28`）是**依赖 pin 精确版本**，与版本号无关，未动。
