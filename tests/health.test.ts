@@ -20,7 +20,10 @@ test('GET /healthz 无需认证：200 + {"status":"ok","version":…}（BRIEF §
     assert.equal(res.statusCode, 200);
     const body = res.json() as { status: string; version: string };
     assert.equal(body.status, 'ok');
-    assert.match(body.version, /^\d+\.\d+\.\d+$/);
+    // 允许可选的**预发布后缀**（如 `1.4.1-beta.1`）—— 2026-09-29 起支持预发布 tag，
+    // 且按 docs/versioning.md §3.1「一致优先」口径 package.json 必须等于 tag（含预发布）。
+    // 仍守卫格式（必须是 X.Y.Z 或 X.Y.Z-<预发布标识>）；BRIEF AC-2 只要求 body 含 version，未限定格式。
+    assert.match(body.version, /^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/);
   } finally {
     await app.close();
     rmSync(dir, { recursive: true, force: true });
