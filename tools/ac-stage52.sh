@@ -97,9 +97,15 @@ else
   pass "夹具：父目录=$PARENT(工作) 子目录=$CHILD(AI 协作与验收)｜有目录=$WITH_FOLDER 无目录=$NO_FOLDER 有目录含变量=$WITH_VARS"
 
   line "AC-117 ⑨：无新增迁移 / schema 版本不变（目录名本就在既有表里）"
-  eq "迁移文件数仍是 6（001–006）" 6 "$(ls migrations/*.sql | wc -l)"
-  eq "schema 版本仍 v6" 6 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
-  eq "folders 表仍 6 列（未为「目录名」加迁移）" 6 "$(q "SELECT COUNT(*) FROM pragma_table_info('folders');")"
+  # 阶段 58 修（B 类）：同 51 —— 不再数总数，改守基线迁移 001–006 仍在。
+MIG_BASELINE_MISSING=''
+for _m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql 004_token-enc.sql 005_token-scope.sql 006_usage-kind.sql; do
+  [ -f "migrations/$_m" ] || MIG_BASELINE_MISSING="$MIG_BASELINE_MISSING $_m"
+done
+eq "基线迁移 001–006 仍在（后续阶段可合法新增，不再数总数）" "" "$MIG_BASELINE_MISSING"
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "schema 版本 == migrations/ 里最大编号（不变式）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  eq "folders 表仍有 name 列（本阶段未为「目录名」加迁移；不再数总列数）" 1 "$(q "SELECT COUNT(*) FROM pragma_table_info('folders') WHERE name='name';")"
   eq "前端契约未新增 folder_name 字段" 0 "$(grep -c 'folder_name' web/src/types.ts || true)"
   eq "Prompt.folder_id 语义未变（仍 number|null）" 1 "$(grep -c 'folder_id: number | null;' web/src/types.ts || true)"
 

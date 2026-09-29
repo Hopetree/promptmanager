@@ -149,7 +149,10 @@ s=json.loads(sys.argv[1]); print('true' if s['scrollWidth'] <= s['clientWidth'] 
     pass "单击切换：$(v ac71_click_switch)"
     eq "单击后右栏标题 = 被点条目" "true" "$(echo "$(v ac71_click_switch)" | jq -r '.clicked == .detailTitle')"
     pass "卡片视图特征：$(v ac71_card_features)"
-    eq "卡片仍有正文摘要与元信息" '{"exists":true,"hasMeta":true,"hasExcerpt":true}' "$(echo "$(v ac71_card_features)" | jq -c '{exists,hasMeta,hasExcerpt}')"
+    # 阶段 58 修（B 类）：标签里的「元信息」原指卡片底部的取用数/日期，v63 / FR-116 已换为
+    # 「所属目录 + 版本 + 变量数」（见 web/src/components/UseView.tsx:236-255）。断言数据源同步换测法，
+    # 原意（卡片视图仍有底部元信息行 + 正文摘要，没被 AC-71 的「只剩标题+备注」波及）保持不变。
+    eq "卡片仍有正文摘要与底部元信息行（FR-116：目录/版本/变量数）" '{"exists":true,"hasMeta":true,"hasExcerpt":true}' "$(echo "$(v ac71_card_features)" | jq -c '{exists,hasMeta,hasExcerpt}')"
     pass "表格视图特征：$(v ac71_table_features)"
     eq "表格仍有版本号与多行" "true" "$(python3 -c "
 import json,sys

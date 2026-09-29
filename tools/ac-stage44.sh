@@ -110,7 +110,7 @@ else
 
     eq "视口 = 390×844" "390x844" "$(m viewport)"
     eq "innerWidth = 390" 390 "$(m innerWidth)"
-    eq "列头仍是 6 列且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(m heads)"
+    eq "列头仍是 7 列且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(m heads)"
     ge "列表有真实数据（行数）" 4 "$(m rows)"
 
     GEO_BEFORE=$(m geo_before)
@@ -156,12 +156,16 @@ else
     eq "视口 = 1600x900" "1600x900" "$(d viewport)"
     GEO_D=$(d geo_desktop)
     echo "  \$ 桌面几何：$GEO_D"
-    eq "⑤ 抽屉宽仍是 640" 640 "$(printf '%s' "$GEO_D" | jq -r '.drawerWidth')"
+    # 阶段 58 修（A 类）：v58/FR-111 起 PC 抽屉宽度由实现方定（BRIEF §8 AC-101 ③「抽屉宽度由实现方定
+    # （贴出实际宽度）」；§4 FR-111 明确允许 640 → 更宽）。原断言"仍是 640"是 FR-111 之前的口径（实测 720）
+    # ⇒ 改成下限 + 贴出实际宽度（下面两条 no-hscroll / 7 列都在才是真判据）。
+    pass "⑤ PC 抽屉实际宽度 = $(printf '%s' "$GEO_D" | jq -r '.drawerWidth')（FR-111：由实现方定）"
+    ge "⑤ 抽屉宽 ≥ 640（7 列不横滚的前提）" 640 "$(printf '%s' "$GEO_D" | jq -r '.drawerWidth')"
     eq "⑤ 表格 **scrollWidth === clientWidth**（无横向滚动）" true "$(printf '%s' "$GEO_D" | jq -r '.scrollWidth == .clientWidth')"
     eq "⑤ 无横向滚动 ⇒ scrollLeft 推不动（值仍是 0）" 0 "$(d scroll_applied_desktop)"
-    eq "⑤ 列头仍是 6 列且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(d heads)"
+    eq "⑤ 列头仍是 7 列且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(d heads)"
     echo "  \$ 桌面列宽：$(d column_widths)"
-    eq "⑤ 6 列都在抽屉内（最后一列右边缘 ≤ 抽屉右边缘）" true "$(printf '%s' "$GEO_D" | jq -r '.lastRight <= .drawerRight')"
+    eq "⑤ 7 列都在抽屉内（最后一列右边缘 ≤ 抽屉右边缘）" true "$(printf '%s' "$GEO_D" | jq -r '.lastRight <= .drawerRight')"
     eq "⑤ 桌面表单仍是 inline（一行三件，一字未改）" "inline" "$(d form_layout)"
     eq "⑤ 点状态列前 = 有效 · 只读" "有效 · 只读" "$(d scope_text_before)"
     eq "⑤ 真鼠标菜单两项" '["只读","读写"]' "$(d menu_items)"
@@ -183,7 +187,11 @@ else
 
   line "收尾：既有令牌接口未受影响（本阶段只改前端）"
   eq "GET /api/tokens = 200" 200 "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/api/tokens")"
-  eq "迁移版本仍是 v5（本阶段无迁移）" 5 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+  # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+  # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+  eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
 fi
 
 line "结论"

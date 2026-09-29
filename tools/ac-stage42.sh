@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 阶段 42 验收自检（FR-103 令牌权限两档 + FR-104 取用归因）：
-#   AC-105 ① 迁移 v5；api_tokens.scope 存在；**存量行 = write**（真跑 004→005 升级路径）
+#   AC-105 ① 迁移到当前 schema 版本（阶段 42 起是 v5）；api_tokens.scope 存在；**存量行 = write**（真跑 004→005 升级路径）
 #        ② **只读令牌**：读 200；六类资源写各 403 insufficient_scope
 #        ③ **渲染类 POST 对只读令牌 200**（否则 MCP prompt_render 被误伤）
 #        ④ 读写令牌：读 200 + 写 201/200/204
@@ -81,7 +81,10 @@ done
 sqlite3 "$LEGACY/pm.db" "INSERT INTO api_tokens (name, token_hash, token_enc, created_at, last_used_at, revoked_at) VALUES ('legacy-token', '$(python3 -c "print('a'*64)")', NULL, '2026-01-01T00:00:00.000Z', NULL, NULL);"
 echo "  \$ DATA_DIR=<legacy 004 库> npm run migrate"
 DATA_DIR="$LEGACY" npm run migrate 2>&1 | grep -v '^$' | tail -2 | sed 's/^/    /'
-eq "① 迁移输出 ok: schema at v5" 1 "$(DATA_DIR="$LEGACY" npm run migrate 2>&1 | grep -c 'ok: schema at v5')"
+# 阶段 58 修（B 类）：原断言把迁移输出里的固定版本号（v5）当代理量 —— 阶段 50 加了 006 之后真跑输出 v6 ⇒ 恒红。
+# 改成不变式：输出里的版本必须 == `migrations/` 里的最大编号（`src/server/cli.ts:80` 输出 `ok: schema at v<N>`）。
+MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "① 迁移输出 ok: schema at v$MIG_MAX_FILE（== migrations/ 最大编号）" 1 "$(DATA_DIR="$LEGACY" npm run migrate 2>&1 | grep -c "ok: schema at v$MIG_MAX_FILE")"
 echo "  \$ sqlite3 <legacy>/pm.db \"SELECT name, scope FROM api_tokens;\""
 sqlite3 "$LEGACY/pm.db" "SELECT name, scope FROM api_tokens;" | sed 's/^/    /'
 eq "① 存量令牌被回填为 write" "write" "$(sqlite3 "$LEGACY/pm.db" "SELECT scope FROM api_tokens WHERE name='legacy-token';")"
@@ -211,6 +214,16 @@ print('true' if 'render_isError=False' in src and '你好 世界' in src else 'f
     curl -s -o /dev/null -H "Authorization: Bearer $RO" "$BASE/api/prompts?q=AC105"
     eq "④ 列表 / 搜索不记取用（条数不变）" "$BEFORE" "$(q "SELECT COUNT(*) FROM usage_events;")"
     # ⑤ summary 带 by_token
+    # 阶段 58 修（A 类）：原来只靠 ②③ 的 GET 详情造事件 —— FR-114（迁移 006 的 `kind`）起 GET 详情记
+    # `kind='view'`，而 `usage_summary` 的 total/by_channel/by_token/top **只统计计入型（copy/mcp）**
+    # （`src/services/usage.ts:123` `coalesce(kind,'copy') in ('copy','mcp')`）⇒ by_token 恒为空 []。
+    # 改成先各调一次 `/copy` 造两条**计入型**事件（令牌通道一次 + 会话通道一次）：
+    # `POST /api/prompts/:id/copy` 在 `RESOURCE_READ_POST` 白名单里（只读令牌也可调，`src/server/auth.ts:63`）。
+    curl -s -o /dev/null -X POST -H "Authorization: Bearer $RO" "$BASE/api/prompts/$FIX_ID/copy"
+    curl -s -o /dev/null -X POST -b "$JAR" "$BASE/api/prompts/$FIX_ID/copy"
+    echo "  \$ sqlite3 pm.db \"SELECT channel, token_id, kind FROM usage_events ORDER BY id;\""
+    q "SELECT channel, token_id, kind FROM usage_events ORDER BY id;" | sed 's/^/    /'
+    eq "⑤ 计入型事件（kind='copy'）已入库 2 条" 2 "$(q "SELECT COUNT(*) FROM usage_events WHERE kind='copy';")"
     echo "  \$ curl -s -b <jar> $BASE/api/usage/summary?days=1 | jq .by_token"
     curl -s -b "$JAR" "$BASE/api/usage/summary?days=1" | jq -c .by_token | sed 's/^/    /'
     eq "⑤ summary 的 by_token 能查出该令牌" "true" "$(curl -s -b "$JAR" "$BASE/api/usage/summary?days=1" | python3 -c "
@@ -222,12 +235,12 @@ print('true' if any(e['token_id'] == int(sys.argv[1]) for e in entries) and any(
   fi
 
   if [ "$ONLY" = "all" ] || [ "$ONLY" = "ui" ]; then
-    line "AC-105 ⑦⑧：界面（真鼠标新建、不动权限选项 ⇒ 默认只读）+ 状态列 + 6 列 + 截图"
+    line "AC-105 ⑦⑧：界面（真鼠标新建、不动权限选项 ⇒ 默认只读）+ 状态列 + 7 列 + 截图"
     rm -rf "$SHOTS"
     AC105_WRITE_ID="$RW_ID" node tools/ac-stage42-probe.mjs scope "$BASE" "$SID" "$SHOTS" | tee "$DIR/probe.log"
     p() { grep -m1 "^$1=" "$DIR/probe.log" | cut -d= -f2-; }
 
-    eq "⑧ 列数仍是 6 且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(p heads)"
+    eq "⑧ 列数仍是 6 且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(p heads)"
     eq "⑧ 新建处有权限选择控件" true "$(p scope_select_present)"
     eq "⑧ 权限选择**默认只读**" "只读" "$(p scope_default_text)"
     eq "⑧ 权限选择有**两个**档位（真鼠标展开读到）" '["只读","读写"]' "$(p scope_options)"
@@ -274,7 +287,11 @@ print('true' if any(e['token_id'] == int(sys.argv[1]) for e in entries) and any(
   fi
 
   line "回归：既有语义未变"
-  eq "迁移版本 = v5" 5 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+  # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+  # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+  eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
   eq "channel 三种取值语义未变（session/token/mcp）" 1 "$(q "SELECT COUNT(DISTINCT channel) >= 1 FROM usage_events;")"
   eq "列表仍不含明文" "true" "$(python3 -c "
 import sys

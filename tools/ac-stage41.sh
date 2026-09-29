@@ -172,7 +172,11 @@ print('true' if int(sys.argv[1]) < int(sys.argv[2]) else 'false')
 import sys
 print('true' if int(sys.argv[1]) > int(sys.argv[2]) else 'false')
 " "$(q "SELECT version_no FROM prompts WHERE id=$FIX_ID;")" "$DB_MAX")"
-    eq "迁移版本未变（仍 v4）" 4 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+    # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+    # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+    # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+    MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+    eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
   fi
 fi
 

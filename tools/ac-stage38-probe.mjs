@@ -305,7 +305,7 @@ async function main() {
 
     // ── ⑥ 最近使用形态 ─────────────────────────────────────────────────
     out.last_used_cells = await cdp.evaluate(
-      `JSON.stringify([...document.querySelectorAll('.pm-tokens tbody tr.ant-table-row')].map((tr) => tr.querySelectorAll('td')[4].innerText.trim()))`,
+      `JSON.stringify([...document.querySelectorAll('.pm-tokens tbody tr.ant-table-row')].map((tr) => tr.querySelectorAll('td')[5].innerText.trim()))`,
     );
     // 用 RegExp 字符串构造：避免正则字面量里的 `/` 提前结束字面量（首版就踩了这个语法错）
     const timeShape = new RegExp('^\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}$');

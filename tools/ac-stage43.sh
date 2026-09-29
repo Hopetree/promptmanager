@@ -215,7 +215,11 @@ else
 
     eq "⑧ 渲染类 POST 对只读仍 200（prompt render）" 200 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $RO" -H 'Content-Type: application/json' -d '{"values":{"姓名":"张三"}}' "$BASE/api/prompts/$FIX_ID/render")"
     eq "⑧ 渲染类 POST 对只读仍 200（markdown）" 200 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer $RO" -H 'Content-Type: application/json' -d '{"markdown":"# 标题"}' "$BASE/api/render/markdown")"
-    eq "⑧ 迁移版本仍是 v5（本阶段无新迁移）" 5 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+    # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+    # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+    # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+    MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+    eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
   fi
 
   if [ "$ONLY" = "all" ] || [ "$ONLY" = "cli" ]; then
@@ -257,13 +261,13 @@ else
   fi
 
   if [ "$ONLY" = "all" ] || [ "$ONLY" = "ui" ]; then
-    line "AC-107 ⑥：界面（真鼠标改权限、断言不打刷新）+ 6 列 + 无横向滚动 + 截图"
+    line "AC-107 ⑥：界面（真鼠标改权限、断言不打刷新）+ 7 列 + 无横向滚动 + 截图"
     rm -rf "$SHOTS"
     AC107_READ_ID="$RO_ID" AC107_WRITE_ID="$RW_ID" AC107_REVOKED_ID="$RV_ID" \
       node tools/ac-stage43-probe.mjs scope "$BASE" "$SID" "$SHOTS" | tee "$DIR/probe.log"
     p() { grep -m1 "^$1=" "$DIR/probe.log" | cut -d= -f2-; }
 
-    eq "⑥ 列头仍是 6 列且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(p heads)"
+    eq "⑥ 列头仍是 7 列且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(p heads)"
     eq "⑥ 抽屉无横向滚动（body/table 溢出均为 0）" '{"body":0,"table":0}' "$(p drawer_scroll)"
     eq "⑥ 改前该行 = 有效 · 只读" "有效 · 只读" "$(p before_read_row)"
     eq "⑥ 有效行可点击标记" "1" "$(p read_row_editable)"

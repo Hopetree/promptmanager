@@ -156,11 +156,13 @@ print('true' if int(sys.argv[1]) == int(sys.argv[2]) - 1 else 'false')
 " "$(p rows_after_delete)" "$(p rows_before_delete)")"
     eq "⑥ 直查库：该 id 行数 = 0" 0 "$(q "SELECT COUNT(*) FROM api_tokens WHERE id=$REV_ID;")"
 
-    eq "⑦ 列头仍是 6 列且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(p heads)"
-    echo "  ⑦ 抽屉宽度 = $(p drawer_width)｜表格 client=$(p table_client) / scroll=$(p table_scroll)"
-    eq "⑦ 抽屉宽度 ≤ 640" "true" "$(python3 -c "
+    eq "⑦ 列头仍是 7 列且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(p heads)"
+    # 阶段 58 修（A 类）：同 stage38 ⑦ —— v58/FR-111 起 PC 抽屉宽度由实现方定
+    # （BRIEF §8 AC-101 ③「抽屉宽度由实现方定（贴出实际宽度）」），旧断言 ≤640（实测 720）作废。
+    echo "  ⑦ 抽屉实际宽度 = $(p drawer_width)（FR-111：PC 端由实现方定）｜表格 client=$(p table_client) / scroll=$(p table_scroll)"
+    eq "⑦ 抽屉宽度 ≥ 640（7 列在 PC 上不横滚的前提）" "true" "$(python3 -c "
 import sys
-print('true' if int(sys.argv[1]) <= 640 else 'false')
+print('true' if int(sys.argv[1]) >= 640 else 'false')
 " "$(p drawer_width)")"
     eq "⑦ 表格无横向滚动" true "$(p table_no_hscroll)"
     eq "⑦ 关抽屉后页面无完整明文" false "$(p after_close_has_full_plaintext)"
@@ -192,7 +194,11 @@ import sys
 print('true' if sys.argv[2] not in sys.argv[1] else 'false')
 " "$(curl -s -b "$JAR" "$LAN_BASE/api/tokens")" "$REV_TOK")"
     eq "日志里无 token 明文" 0 "$(grep -c "$REV_TOK" "$SERVER_LOG" || true)"
-    eq "迁移版本未变（仍 v4）" 4 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+    # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+    # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+    # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+    MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+    eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
   fi
 fi
 

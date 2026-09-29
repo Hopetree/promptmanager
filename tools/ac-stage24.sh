@@ -71,7 +71,14 @@ console.log(rows[0].raw);
 if [ "$MAXCHUNK" -le 500000 ]; then pass "最大 chunk ≤500KB（$MAXCHUNK B）"; else fail "最大 chunk = $MAXCHUNK B（>500KB）"; fi
 npm run typecheck:web >/dev/null 2>&1
 eq "npm run typecheck:web 退出码" 0 "$?"
-eq "本阶段无迁移（migrations/ 仍是 3 个）" 3 "$(ls migrations/*.sql | wc -l)"
+# 阶段 58 修（B 类）：原断言拿「migrations/ 里恰好 3 个文件」当「本阶段没加迁移」的代理量，
+# 后续阶段合法新增迁移（004/005/006）后必然恒红。本意是「本阶段不动迁移体系」⇒ 改成守**本阶段基线迁移仍在**：
+# 精确、不随阶段数漂移，而误删/改名基线迁移仍会红。
+MIG_BASELINE_MISSING=''
+for _m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql; do
+  [ -f "migrations/$_m" ] || MIG_BASELINE_MISSING="$MIG_BASELINE_MISSING $_m"
+done
+eq "本阶段基线迁移 001–003 仍在（后续阶段可合法新增，不再数总数）" "" "$MIG_BASELINE_MISSING"
 
 line "本阶段新增单测（槽位保持 + 前端源码）"
 TEST_LOG="$AC_DIR/tests.log"

@@ -117,9 +117,16 @@ try {
   await cdp.waitFor(`document.querySelector('[data-testid="pm-about"]')!==null`, '关于弹窗');
   await sleep(900);
 
-  // 「访问地址」那一行：antd 6 的 bordered Descriptions 是 label / content 两格，
-  // 取**内容格**（.ant-descriptions-item-content），不要连 label 一起取（否则值里会带"访问地址\t"）。
+  // 「访问地址」：v68 / FR-124 起地址在**身份区**的 `[data-testid="pm-about-address"]` 里（不再是 Descriptions 行）。
+  // 优先读该锚点（取 Flex 里除「访问地址」标签外的那个 Typography 文本，即 CopyLine 的值）；
+  // 锚点不存在时才回退旧的 Descriptions 行取法（老版本布局）。
   const addr = await cdp.ev(`(() => {
+    const host = document.querySelector('[data-testid="pm-about-address"]');
+    if (host) {
+      const texts = [...host.querySelectorAll('.ant-typography')].map(e => (e.innerText||'').trim()).filter(Boolean);
+      const value = texts.find(t => t !== '访问地址');
+      return (value || host.innerText || '').replace(/\\n/g, ' ').trim() || null;
+    }
     const rows = [...document.querySelectorAll('[data-testid="pm-about"] .ant-descriptions-row')];
     const row = rows.find(r => (r.innerText||'').includes('访问地址'));
     if (!row) return null;
@@ -141,7 +148,10 @@ try {
   }
 
   // 点复制（antd copyable 的图标按钮），然后读真正进剪贴板的内容
+  // v68 起复制按钮在身份区的地址锚点里（旧布局则回退 Descriptions 行）
   const copySel = `(() => {
+    const host = document.querySelector('[data-testid="pm-about-address"]');
+    if (host) { const btn = host.querySelector('.ant-typography-copy'); return btn ? true : null; }
     const rows = [...document.querySelectorAll('[data-testid="pm-about"] .ant-descriptions-row')];
     const row = rows.find(r => (r.innerText||'').includes('访问地址'));
     const btn = row && row.querySelector('.ant-typography-copy');
@@ -150,6 +160,8 @@ try {
   const hasCopy = await cdp.ev(copySel);
   if (hasCopy === true) {
     await cdp.click(`(() => {
+      const host = document.querySelector('[data-testid="pm-about-address"]');
+      if (host) return host.querySelector('.ant-typography-copy');
       const rows = [...document.querySelectorAll('[data-testid="pm-about"] .ant-descriptions-row')];
       const row = rows.find(r => (r.innerText||'').includes('访问地址'));
       return row.querySelector('.ant-typography-copy');
@@ -169,6 +181,14 @@ try {
     const maintPanel = [...root.querySelectorAll('.ant-collapse-item')].find(p => (p.querySelector('.ant-collapse-header')?.innerText||'').includes('维护'));
     return JSON.stringify({
       rows, panels,
+      // 阶段 58 加：现行结构锚点（v68 取消「服务区」后，用锚点而不是"面板个数"当证据）
+      identityHasVersion: /版本/.test(root.querySelector('[data-testid="pm-about-identity"]')?.innerText || '') ? 1 : 0,
+      sections: {
+        identity: root.querySelector('[data-testid="pm-about-identity"]') !== null,
+        links: root.querySelector('[data-testid="pm-about-links"]') !== null,
+        usageMaintain: root.querySelector('[data-testid="pm-about-usage-maintain"]') !== null,
+        address: root.querySelector('[data-testid="pm-about-address"]') !== null,
+      },
       usageLines: usagePanel ? usagePanel.querySelectorAll('.ant-list-item').length : 0,
       maintCommands: maintPanel ? [...maintPanel.querySelectorAll('.ant-typography-copy')].map(e => (e.innerText||'').trim().slice(0,26)) : [],
       hasBrandArt: root.querySelector('[data-testid="pm-brand-art-about"]') !== null,

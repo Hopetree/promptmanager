@@ -72,7 +72,14 @@ eq "npm run build 退出码" 0 "$?"
 eq "构建输出里的 >500KB 告警数" 0 "$(grep -c 'larger than 500' "$BUILD_LOG")"
 npm run typecheck:web >/dev/null 2>&1
 eq "npm run typecheck:web 退出码" 0 "$?"
-eq "本阶段无迁移（migrations/ 仍是 3 个）" 3 "$(ls migrations/*.sql | wc -l)"
+# 阶段 58 修（B 类）：原断言拿「migrations/ 里恰好 3 个文件」当「本阶段没加迁移」的代理量，
+# 后续阶段合法新增迁移（004/005/006）后必然恒红。本意是「本阶段不动迁移体系」⇒ 改成守**本阶段基线迁移仍在**：
+# 精确、不随阶段数漂移，而误删/改名基线迁移仍会红。
+MIG_BASELINE_MISSING=''
+for _m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql; do
+  [ -f "migrations/$_m" ] || MIG_BASELINE_MISSING="$MIG_BASELINE_MISSING $_m"
+done
+eq "本阶段基线迁移 001–003 仍在（后续阶段可合法新增，不再数总数）" "" "$MIG_BASELINE_MISSING"
 eq "本阶段无新依赖（package.json/lock 未改）" "" "$(git diff --name-only package.json package-lock.json)"
 
 line "本阶段新增单测（FR-85 前端源码级 + FR-86 数据层直查库）"
@@ -182,7 +189,13 @@ s=json.loads(sys.argv[1]); print('true' if s['lineCount'] > 1 and s['tagCount'] 
       le "③ 标签列渲染宽度 ≤ 改前基线 175px（未被撑破）" "$(python3 -c "
 import json,sys; print(json.loads(sys.argv[1])['width'])
 " "$(t ac87_tag_header_rect)")" 175
-      eq "③ 列宽与改前基线一致（175 → 175，配置的 width:128 只是下限提示）" 175 "$(python3 -c "
+      # 阶段 58 修（B 类）：原断言把阶段 31 那次**一次性前后对照**的测量值（175，来自已不存在的
+      # `tmp/stage31-before.sh`）当成了持久判据。FR-111 起表格列集合变了，同一列现在渲染成列配置宽
+      # （上面那条 `le ≤ 175` 仍守住"没被撑破"）。AC-87 ③ 的真意 = "多标签换行，而不是把列撑宽"，
+      # 所以这里改成"渲染宽度 == 该列配置宽度"，配置读自 `web/src/components/UseView.tsx` 的 `key: 'tags'`
+      # —— 实现方改配置时断言跟着走，不再钉死一个历史测量值（读不到配置 ⇒ 期望值 0 ⇒ 响亮变红）。
+      TAG_COL_CFG=$(grep -A1 "key: 'tags'" web/src/components/UseView.tsx | grep -oE 'width: [0-9]+' | head -1 | grep -oE '[0-9]+')
+      eq "③ 标签列渲染宽度 == 配置宽度（${TAG_COL_CFG:-读不到}px，见 UseView.tsx key:'tags'）" "${TAG_COL_CFG:-0}" "$(python3 -c "
 import json,sys; print(json.loads(sys.argv[1])['width'])
 " "$(t ac87_tag_header_rect)")"
       eq "③ 页面整体无横向溢出" "true" "$(python3 -c "
@@ -291,16 +304,23 @@ import json,sys
 s=json.loads(sys.argv[1]); print('true' if s['rollbackButtons'] > 0 and s['viewSwitcher'] and s['noteStillVisible'] else 'false')
 " "$(u ac88_version_regression)")"
       pass "⑧ 切到表格视图后的回归证据：$(u ac88_version_regression)"
-      echo "  \$ grep -n '最多保留最近 10 个版本' README.md"
-      grep -n '最多保留最近 10 个版本' README.md | sed 's/^/  /'
-      eq "⑧ README 写明保留策略（出现次数 ≥1）" "true" "$(python3 -c "
+      # 阶段 58 修（B 类）：README 在 `98892ef`（重写 —— 353 行精简到 197 行）里改成了用户向措辞
+      # 「**版本只留最近 10 个**」（README.md:181）。FR-86 要求的是"写明最近 10 个版本"，不是逐字那句话
+      # ⇒ 换成容错 pattern（仍要求真的出现，措辞放宽）。
+      echo "  \$ grep -nE '最多保留最近 ?10 ?个版本|版本只留最近 ?10 ?个|只保留最近 ?10 ?个' README.md"
+      grep -nE '最多保留最近 ?10 ?个版本|版本只留最近 ?10 ?个|只保留最近 ?10 ?个' README.md | sed 's/^/  /'
+      eq "⑧ README 写明保留策略（「最近 10 个版本」字样，措辞不限）" "true" "$(python3 -c "
 import sys
 print('true' if int(sys.argv[1]) >= 1 else 'false')
-" "$(grep -c '最多保留最近 10 个版本' README.md)")"
-      eq "⑧ README 写明导入张力（以本 FR 为准）" "true" "$(python3 -c "
-import sys
-print('true' if int(sys.argv[1]) >= 1 else 'false')
-" "$(grep -c '已知张力' README.md)")"
+" "$(grep -cE '最多保留最近 ?10 ?个版本|版本只留最近 ?10 ?个|只保留最近 ?10 ?个' README.md)")"
+      # 阶段 58 修（B 类）：FR-86 原文（BRIEF §8 FR-86）要求的是「在 `docs/` **或** `README.md` 的
+      # "已知限制"里**写明**这一点（导出→导入→再导出会少版本）」，而原断言只 `grep -c '已知张力' README.md`
+      # —— README 在 `ef8d0da`（FR-91 用户化重写）里已经去掉了那个小标题。实测该说明在 `docs/api.md:311`：
+      # 「若导出文件里某个 prompt 的版本多于 10 个，导入后只留最近 10 个（版本保留上限优先）⇒
+      #   再导出会比原文件少掉最旧的几版」⇒ 改成在 README + `docs/` 里找这一表述。
+      TENSION_FILES=$(grep -rlE '再导出.{0,8}少|导入后只留最近 ?10|版本保留上限优先|保留上限优先' README.md docs/ 2>/dev/null | tr '\n' ' ')
+      pass "  ⑧ 导入张力说明出现在：${TENSION_FILES:-（无）}"
+      eq "⑧ README 或 docs/ 写明导入裁剪的张力（FR-86：版本上限优先，再导出会少几版）" "true" "$([ -n "$TENSION_FILES" ] && echo true || echo false)"
       eq "页面运行时异常（retention-ui）" "[]" "$(u ac27_runtime_errors)"
     fi
 

@@ -109,17 +109,17 @@ else
     GL=$(m geo_left)
     echo "  \$ 初始（最左）逐列几何：$GL"
     echo "  \$ 表头：$(f "$GL" '.heads')"
-    echo "  \$ 6 列宽度：$(f "$GL" '.widths')"
-    echo "  \$ 6 列 left/right：$(f "$GL" '.rects')"
+    echo "  \$ 7 列宽度：$(f "$GL" '.widths')"
+    echo "  \$ 7 列 left/right：$(f "$GL" '.rects')"
     # 动画结束的证据：探针在**量值之前**记录的抽屉左边缘，必须与随后 geo 里的 drawerLeft 一致
     eq "① 抽屉滑入动画**已结束**（量值前记录的左边缘 == 量值时的左边缘，不是中间态）" \
       "$(f "$GL" '.drawerLeft')" "$(m drawer_animation_settled_left)"
-    eq "① 表头仍是 6 列且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(f "$GL" '.heads')"
+    eq "① 表头仍是 7 列且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(f "$GL" '.heads')"
     eq "① **表头第一个 th 文本 == 「名称」**" "名称" "$(f "$GL" '.heads[0]')"
-    eq "① **6 列宽度全部 > 0**" 6 "$(f "$GL" '[.widths[] | select(. > 0)] | length')"
+    eq "① **7 列宽度全部 > 0**" 7 "$(f "$GL" '[.widths[] | select(. > 0)] | length')"
     ge "① 「名称」列宽度" 60 "$(f "$GL" '.widths[0]')"
     eq "① 「名称」列 left == right（宽 0）的旧缺陷**已消失**" true "$(f "$GL" '.widths[0] > 0')"
-    eq "① 其余 5 列宽度都 > 0（逐列）" true "$(f "$GL" '(.widths[1:] | map(. > 0) | all)')"
+    eq "① 其余 6 列宽度都 > 0（逐列）" true "$(f "$GL" '(.widths[1:] | map(. > 0) | all)')"
     eq "① 表格确有溢出（scrollWidth > clientWidth，390 下必然）" true "$(f "$GL" '.scrollWidth > .clientWidth')"
     eq "① 溢出量" "$(f "$GL" '.scrollWidth - .clientWidth')" "$(m scroll_applied)"
 
@@ -130,7 +130,7 @@ else
     GR=$(m geo_right)
     echo "  \$ 滚到最右逐列几何：$GR"
     gt "② scrollLeft 推 9999 后实际变化" 0 "$(m scroll_applied)"
-    eq "② 滚到最右：「操作」列右边缘 ≤ 视口右边缘（**可见**）" true "$(f "$GR" '.rects[5].right <= .innerWidth')"
+    eq "② 滚到最右：「操作」列右边缘 ≤ 视口右边缘（**可见**）" true "$(f "$GR" '.rects[6].right <= .innerWidth')"
     eq "② 滚到最右：「最近使用」列也可见" true "$(f "$GR" '.rects[4].right <= .innerWidth')"
     eq "② 滚到最右后「名称」列被裁在左侧（说明真的滚过去了）" true "$(f "$GR" '.rects[0].right < .drawerLeft')"
     eq "② 滚回最左后 scrollLeft = 0" 0 "$(m scroll_back)"
@@ -153,17 +153,20 @@ else
     eq "视口 = 1600x900" "1600x900" "$(d viewport)"
     GD=$(d geo_left)
     echo "  \$ 桌面逐列几何：$GD"
-    echo "  \$ 6 列宽度：$(f "$GD" '.widths')"
-    echo "  \$ 6 列 left/right：$(f "$GD" '.rects')"
-    eq "④ 抽屉宽仍是 640" 640 "$(f "$GD" '.drawerWidth')"
+    echo "  \$ 7 列宽度：$(f "$GD" '.widths')"
+    echo "  \$ 7 列 left/right：$(f "$GD" '.rects')"
+    # 阶段 58 修（A 类）：v58/FR-111 起 PC 抽屉宽度由实现方定（BRIEF §8 AC-101 ③「抽屉宽度由实现方定
+    # （贴出实际宽度）」），原断言"仍是 640"（实测 720）作废 ⇒ 改成下限 + 贴出实际宽度。
+    pass "④ PC 抽屉实际宽度 = $(f "$GD" '.drawerWidth')（FR-111：由实现方定）"
+    ge "④ 抽屉宽 ≥ 640（7 列不横滚的前提）" 640 "$(f "$GD" '.drawerWidth')"
     eq "④ 表格 **scrollWidth === clientWidth**（无横向滚动）" true "$(f "$GD" '.scrollWidth == .clientWidth')"
-    eq "④ 6 列宽度全部 > 0" 6 "$(f "$GD" '[.widths[] | select(. > 0)] | length')"
+    eq "④ 7 列宽度全部 > 0" 7 "$(f "$GD" '[.widths[] | select(. > 0)] | length')"
     ge "④ 「名称」列宽度（桌面应比下限宽得多）" 60 "$(f "$GD" '.widths[0]')"
-    eq "④ 6 列全部在抽屉内（最后一列右边缘 ≤ 抽屉右边缘）" true "$(f "$GD" '.rects[5].right <= .drawerRight')"
-    eq "④ 6 列都在视口内（左起第一列 left ≥ 抽屉左边缘）" true "$(f "$GD" '.rects[0].left >= .drawerLeft')"
+    eq "④ 7 列全部在抽屉内（最后一列右边缘 ≤ 抽屉右边缘）" true "$(f "$GD" '.rects[6].right <= .drawerRight')"
+    eq "④ 7 列都在视口内（左起第一列 left ≥ 抽屉左边缘）" true "$(f "$GD" '.rects[0].left >= .drawerLeft')"
     eq "④ 名称列显示完整（短名字不出现省略号）" "AC109 只读" "$(f "$GD" '.nameText')"
     eq "④ 名称列的 title 是完整原名（超长名可悬停看全）" "AC109 只读" "$(f "$GD" '.nameTextFull')"
-    eq "④ 表头仍是 6 列且顺序不变" '["名称","Token","状态","使用","最近使用","操作"]' "$(f "$GD" '.heads')"
+    eq "④ 表头仍是 7 列且顺序不变" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(f "$GD" '.heads')"
     eq "④ 桌面表单仍无横滚（改权限后复测）" true "$(f "$(d geo_after_scope_change)" '.scrollWidth == .clientWidth')"
     eq "④ 点状态列前 = 有效 · 只读" "有效 · 只读" "$(d scope_text_before)"
     eq "④ 真鼠标菜单两项" '["只读","读写"]' "$(d menu_items)"
@@ -183,7 +186,11 @@ else
 
   line "收尾：既有能力未受影响（本阶段只改列宽定义）"
   eq "GET /api/tokens = 200" 200 "$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$BASE/api/tokens")"
-  eq "迁移版本仍是 v5（本阶段无迁移）" 5 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+  # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+  # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+  eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
 fi
 
 line "结论"

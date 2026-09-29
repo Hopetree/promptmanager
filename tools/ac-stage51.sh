@@ -96,9 +96,16 @@ else
   pass "夹具：无变量 prompt=$N ｜ 含变量 prompt=$V"
 
   line "AC-116 ⑨：无新增迁移 / 表结构不变"
-  eq "迁移文件数仍是 6（001–006）" 6 "$(ls migrations/*.sql | wc -l)"
-  eq "schema 版本仍 v6" 6 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
-  eq "usage_events 仍 6 列（含 kind）" 6 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events');")"
+  # 阶段 58 修（B 类）：原断言数 migrations/ 总数钉死 6。改为守**基线迁移 001–006 仍在**
+# （精确、不随阶段数漂移，误删/改名仍会红）。
+MIG_BASELINE_MISSING=''
+for _m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql 004_token-enc.sql 005_token-scope.sql 006_usage-kind.sql; do
+  [ -f "migrations/$_m" ] || MIG_BASELINE_MISSING="$MIG_BASELINE_MISSING $_m"
+done
+eq "基线迁移 001–006 仍在（后续阶段可合法新增，不再数总数）" "" "$MIG_BASELINE_MISSING"
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "schema 版本 == migrations/ 里最大编号（不变式）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  eq "usage_events 仍有 kind 列（不再数总列数——后续阶段可合法加列）" 1 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events') WHERE name='kind';")"
 
   line "AC-116 ①：**不含变量复制 = +1**（用户报障核心，实测）"
   q "DELETE FROM usage_events;"
@@ -215,7 +222,8 @@ else
   eq "复制端点返回 204（不返回正文）" 204 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -b "$JAR" "$BASE/api/prompts/$N/copy")"
   eq "不存在的 prompt 调 copy → 404" 404 "$(curl -s -o /dev/null -w '%{http_code}' -X POST -b "$JAR" "$BASE/api/prompts/999999/copy")"
   eq "导出 schema_version 仍 1" 1 "$(curl -s -b "$JAR" "$BASE/api/export" | jq -r .schema_version)"
-  eq "迁移版本仍 v6" 6 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "schema 版本 == migrations/ 里最大编号（不变式）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
 fi
 
 line "结论"

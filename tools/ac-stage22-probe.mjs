@@ -219,7 +219,10 @@ async function main() {
       await cdp.evaluate(`(() => { const items = [...document.querySelectorAll('[data-testid="pm-use-viewmode"] .ant-segmented-item')]; items.find((n) => n.innerText.includes('卡片')).click(); return true; })()`);
       await sleep(900);
       out.ac71_card_features = await cdp.evaluate(
-        `JSON.stringify((() => { const card = document.querySelector('[data-testid="pm-use-card"]'); const text = card === null ? '' : card.innerText; return { exists: card !== null, hasMeta: /取用/.test(text), hasExcerpt: text.includes('正文'), height: card === null ? null : Math.round(card.getBoundingClientRect().height) }; })())`,
+        // 阶段 58 修（B 类）：原 hasMeta 用 `/取用/` 当「卡片有元信息」的代理量 —— v63 / FR-116 把卡片底部
+        // 元信息换成「所属目录 + 版本 + 变量数」（明确去掉取用数）后，`取用` 二字在卡片里不再出现 ⇒ 恒红。
+        // 原意是「卡片视图仍有底部元信息行」，改为直接看 FR-116 的落点：`pm-card-footer-*` 且其中有版本号。
+        `JSON.stringify((() => { const card = document.querySelector('[data-testid="pm-use-card"]'); const text = card === null ? '' : card.innerText; const footer = card === null ? null : card.querySelector('[data-testid^="pm-card-footer-"]'); return { exists: card !== null, hasMeta: footer !== null && /v\\d+/.test(footer.innerText), hasExcerpt: text.includes('正文'), height: card === null ? null : Math.round(card.getBoundingClientRect().height) }; })())`,
       );
       await cdp.shot('02-card-view-unchanged-light');
       await cdp.evaluate(`(() => { const items = [...document.querySelectorAll('[data-testid="pm-use-viewmode"] .ant-segmented-item')]; items.find((n) => n.innerText.includes('表格')).click(); return true; })()`);

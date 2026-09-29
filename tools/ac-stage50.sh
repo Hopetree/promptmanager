@@ -98,7 +98,10 @@ eq "⑨ 令牌归因未被改写（token_id 仍是 7）" 7 "$(sqlite3 "$LDB" "SE
 DATA_DIR="$LEGACY" npm run migrate >/dev/null 2>&1
 eq "⑨ 重复跑迁移**幂等**（行数仍不变）" "$BEFORE_ROWS" "$(sqlite3 "$LDB" "SELECT COUNT(*) FROM usage_events;")"
 eq "⑨ 重复跑后 kind 分布不变（仍全 copy）" "$BEFORE_ROWS" "$(sqlite3 "$LDB" "SELECT COUNT(*) FROM usage_events WHERE kind='copy';")"
-eq "⑨ schema 版本仍是 v6" 6 "$(sqlite3 "$LDB" 'SELECT MAX(version) FROM schema_migrations;')"
+# 阶段 58 修（B 类）：原断言把全局 schema 版本钉死 v6 —— 下一次加迁移就恒红。改不变式：
+# schema 版本必须等于 migrations/ 里最大编号（迁移漏跑/文件被删/版本漂移都会红）。
+MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "⑨ schema 版本 == migrations/ 里最大编号（不变式）" "$MIG_MAX_FILE" "$(sqlite3 "$LDB" 'SELECT MAX(version) FROM schema_migrations;')"
 rm -rf "$LEGACY"
 
 line "运行时：临时实例（DATA_DIR=$DIR，PORT=$PORT）+ 夹具"
@@ -122,8 +125,12 @@ else
 
   V=$(curl -s -b "$JAR" -H 'Content-Type: application/json' -d '{"title":"AC115 含变量","user_prompt":"你好 {{姓名}}"}' "$BASE/api/prompts" | jq -r .id)
   N=$(curl -s -b "$JAR" -H 'Content-Type: application/json' -d '{"title":"AC115 无变量","user_prompt":"固定内容"}' "$BASE/api/prompts" | jq -r .id)
-  eq "迁移版本 = v6（新增 006）" 6 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
-  eq "usage_events 有 kind 列（共 6 列）" 6 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events');")"
+  # 阶段 58 修（B 类）：原写「迁移版本 = v6（新增 006）」—— 钉死全局版本号，下一次加迁移即恒红。
+# 拆成两件可复核的事：①本阶段新增的 006 文件仍在；②schema 版本 == 目录里最大编号（不变式）。
+eq "本阶段新增的迁移 006_usage-kind.sql 仍在" 1 "$([ -f migrations/006_usage-kind.sql ] && echo 1 || echo 0)"
+MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "schema 版本 == migrations/ 里最大编号（不变式）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  eq "usage_events 仍有 kind 列（阶段 50 新增；不再数总列数——后续阶段可合法加列）" 1 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events') WHERE name='kind';")"
   pass "夹具：含变量 prompt=$V ｜ 无变量 prompt=$N"
 
   line "AC-115 ①：**只打开详情不计入 use_count**，但留痕 kind='view'"
@@ -265,7 +272,8 @@ PY
   eq "GET /api/prompts/:id 仍返回详情（形状不变）" "$V" "$(curl -s -b "$JAR" "$BASE/api/prompts/$V" | jq -r .id)"
   eq "use_count 仍是数字" true "$(curl -s -b "$JAR" "$BASE/api/prompts/$V" | jq -r '.use_count | type == "number"')"
   eq "导出接口仍可用（schema_version 不变 = 1）" 1 "$(curl -s -b "$JAR" "$BASE/api/export" | jq -r .schema_version)"
-  eq "迁移版本仍 v6" 6 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "schema 版本 == migrations/ 里最大编号（不变式）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
 fi
 
 line "结论"

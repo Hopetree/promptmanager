@@ -2,12 +2,15 @@
 # 阶段 49 验收自检（FR-113：FIX 复制一次被记两次取用）：
 #   AC-114 ① **含变量的复制**：点开后点「复制提示词」→ 填值 → 「复制结果」，
 #            **复制这一步只 +1**（只保留 render 那一次；改前是 +2：多了一次为拿正文的 GET）
-#        ② **不含变量的复制**：点开后点「复制提示词」，**复制这一步 +0**（改前会为拿正文发一次 GET ⇒ +1）
-#        ③ **打开详情仍 = +1**
+#        ② **不含变量 = 点一次 +1** —— 口径已由 **FR-115（v62）/ AC-116 ①** 定为「点一次 +1」，
+#            落地方式为 `POST /api/prompts/:id/copy`（D-51 允许实现自由，但**不得**用"再调 GET /:id"）。
+#            （本脚本原写「复制这一步 +0、零 /api 请求」= v60 口径，阶段 58 按新规格改写 ② 段。）
+#        ③ **打开详情留痕但不计数**（FR-114：记 kind='view'，不计入 use_count）
 #        ④ **列表 / 搜索仍 = 0**
 #        ⑤ **归因不变**：新增事件 channel='session'；令牌取用仍记 token_id（本阶段未触碰该链路，另跑既有断言）
-#        ⑥ **界面数字自洽**：重开详情后 use_count == 库内该 prompt 的事件条数
-#        ⑦ **无新增迁移**：migrations 目录文件数不变、schema 版本仍 v5
+#        ⑥ **界面数字自洽**：use_count == 库内**计入型**（kind ∈ copy/mcp）条数；读详情不产生计入型记录
+#        ⑦ **结构未被本阶段改动（阶段 58 换口径）**：不再拿"全局迁移数 / 全局列数"当代理量，
+#            改为「基线迁移文件仍在 + schema 版本 == migrations 最大编号 + 基线列仍在」——见收尾段注释
 #        ⑧ **回归**：npm test（本脚本复跑）/ ci-check（在脚本外另跑）
 #
 # 本条属**取用记账（逻辑类）** ⇒ 回归范围按 D-49 ④（受影响部分 + npm test + ci-check），不必全量。
@@ -66,7 +69,14 @@ eq "npm test 退出码" 0 "$?"
 grep -E "^ℹ (tests|pass|fail)" "$DIR/test.log" | sed 's/^/  /'
 
 line "AC-114 ⑦：无新增迁移（目录层面；表结构在服务起来后核）"
-eq "migrations 目录文件数（004/005 之后未新增）" 5 "$(ls migrations/*.sql | wc -l)"
+# 阶段 58 修（B 类）：原断言把 migrations/ 的文件总数钉死 5（"004/005 之后未新增"）。后续阶段
+# 合法新增 006_usage-kind（v61 / FR-114）后恒红。改为守**本阶段基线迁移 001–005 仍在**：
+# 精确、不随阶段数漂移，误删/改名基线迁移仍会红。
+MIG_MISSING=''
+for m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql 004_token-enc.sql 005_token-scope.sql; do
+  [ -f "migrations/$m" ] || MIG_MISSING="$MIG_MISSING $m"
+done
+eq "本阶段基线迁移文件（001–005）仍在（006 是后续阶段合法新增）" "" "$MIG_MISSING"
 
 line "运行时：临时实例（DATA_DIR=$DIR，PORT=$PORT）+ 夹具"
 printf '%s\n' "$AC_PW" | DATA_DIR="$DIR" node bin/pm.mjs user set-password --username "$AC_USER" >/dev/null
@@ -89,8 +99,19 @@ else
 
   V=$(curl -s -b "$JAR" -H 'Content-Type: application/json' -d '{"title":"AC114 含变量","user_prompt":"你好 {{姓名}}"}' "$BASE/api/prompts" | jq -r .id)
   N=$(curl -s -b "$JAR" -H 'Content-Type: application/json' -d '{"title":"AC114 无变量","user_prompt":"固定内容"}' "$BASE/api/prompts" | jq -r .id)
-  eq "迁移版本仍是 v5（无新增迁移）" 5 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
-  eq "usage_events 有 5 列（未改表结构）" 5 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events');")"
+  # ── 阶段 58 修（B 类）────────────────────────────────────────────────────────
+  # 原为 `eq "迁移版本仍是 v5（无新增迁移）" 5 …` / `eq "usage_events 有 5 列（未改表结构）" 5 …`。
+  # 问题不在"意图"（本阶段确实没动结构），而在**代理量**：拿"全局 schema 版本号 / 全局列数"当证据，
+  # 后续阶段**合法**新增 006_usage-kind（v61 / FR-114）后必然恒红。HEAD 上无法复核"当时是否新增迁移"，
+  # 可复核的是「基线未被回退」⇒ 基线文件仍在 + 版本不低于基线 + 基线列仍在（后加列不再误伤）。
+  MIG_MISSING=''
+  for m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql 004_token-enc.sql 005_token-scope.sql; do
+    [ -f "migrations/$m" ] || MIG_MISSING="$MIG_MISSING $m"
+  done
+  eq "本阶段基线迁移文件（001–005）仍在（006 是后续阶段合法新增）" "" "$MIG_MISSING"
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+  eq "schema 版本 == migrations/ 里最大编号（不变式；不拿固定 v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  eq "usage_events 仍含本阶段基线 5 列（id/prompt_id/channel/used_at/token_id）" 5 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events') WHERE name IN ('id','prompt_id','channel','used_at','token_id');")"
   pass "夹具：含变量 prompt=$V ｜ 无变量 prompt=$N"
 
   line "AC-114 ①：含变量 —— 点开(=1) 后「复制提示词 → 复制结果」**只 +1**"
@@ -111,16 +132,25 @@ else
   eq "① 事件条数与上面数字一致（自洽）" "$(n "$V")" "$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$V;")" 
   eq "① 两条的 token_id 都是 NULL（会话取用，归因不变）" 0 "$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$V AND token_id IS NOT NULL;")"
 
-  line "AC-114 ②：不含变量 —— 点开(=1) 后「复制提示词」**+0**"
+  line "AC-114 ②：不含变量 —— 「复制提示词」**点一次 +1**（FR-115 / AC-116 ①；阶段 58 换口径）"
   q "DELETE FROM usage_events;"
   OUT2=$(phase open-plain)
-  eq "② 点开无变量条目记 1 条" 1 "$(n "$N")"
+  eq "② 点开无变量条目记 1 条（打开详情留痕）" 1 "$(n "$N")"
   cp "$DIR/server.log" "$DIR/server.before2.log"
+  COPY_BEFORE=$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$N AND kind='copy';")
   OUT2B=$(phase copy-plain)
   printf '%s\n' "$OUT2B" | sed 's/^/    /'
-  echo "  \$ 复制后条数 = $(n "$N")（期望仍 1；**改前复制会再 +1 变 2**）"
-  eq "② 不含变量的「复制提示词」**不额外记账**（仍 1 条）" 1 "$(n "$N")"
-  eq "② 该步骤零 /api 请求（正文直接用已有数据）" "(none)" "$(printf '%s' "$OUT2B" | sed -n '/^REQS:/,$p' | sed -n '2p')"
+  COPY_AFTER=$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$N AND kind='copy';")
+  echo "  \$ kind='copy' 条数：复制前 $COPY_BEFORE → 复制后 $COPY_AFTER（期望恰好 +1）"
+  # ── 阶段 58 修（A 类）────────────────────────────────────────────────────────
+  # 原断言是 v60 口径：「复制这一步 +0」「该步骤零 /api 请求」。FR-115（v62）明确「不含变量 = 点一次 +1」，
+  # AC-116 ① 要求「该 prompt 的**计入型**取用数（kind='copy'）恰好 +1」；D-51 只禁止"再调 GET /:id"。
+  # ⇒ 按**计入型**计数（视图行不干扰），并守住"不得为拿正文再 GET 一次"。
+  eq "② 不含变量：kind='copy' 恰好 +1（FR-115「点一次 +1」/ AC-116 ①）" "$((COPY_BEFORE + 1))" "$COPY_AFTER"
+  eq "② 新增那条的 channel='session'（会话取用，归因不变）" "session" "$(q "SELECT channel FROM usage_events WHERE prompt_id=$N AND kind='copy' ORDER BY id DESC LIMIT 1;")"
+  REQS2=$(printf '%s' "$OUT2B" | sed -n '/^REQS:/,$p')
+  eq "② 复制步骤里**没有** GET /api/prompts/$N（D-51：不得再调 GET 详情）" 0 "$(printf '%s' "$REQS2" | grep -c "GET /api/prompts/$N\$" || true)"
+  eq "② 复制步骤走复制端点 POST /api/prompts/$N/copy（FR-115 的落地方式）" 1 "$(printf '%s' "$REQS2" | grep -c "POST /api/prompts/$N/copy" || true)"
 
   line "AC-114 ③：只打开详情 = +1"
   q "DELETE FROM usage_events;"
@@ -144,22 +174,35 @@ else
   eq "⑤ 该条的 token_id == 该令牌 id" "$RO_ID" "$(q 'SELECT token_id FROM usage_events ORDER BY id DESC LIMIT 1;')"
   eq "⑤ 该条的 channel == token" "token" "$(q 'SELECT channel FROM usage_events ORDER BY id DESC LIMIT 1;')"
 
-  line "AC-114 ⑥：界面数字自洽（重开详情后 use_count == 库内条数）"
+  line "AC-114 ⑥：界面数字自洽（use_count 只计计入型 copy/mcp；打开详情不计数 —— FR-114）"
   q "DELETE FROM usage_events;"
-  phase open-vars >/dev/null            # 点开 1 次
+  phase open-vars >/dev/null            # 点开 1 次 → kind='view'（留痕但不计数）
   phase copy-vars >/dev/null            # 复制 1 次（内含点开 + 渲染）
   DB_N=$(n "$V")
-  # 接口的 use_count 来自同一次查询：**它会包含"这次 GET 自己"**（服务端先记后读）⇒ 期望 DB_N + 1
+  DB_COUNTED=$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$V AND kind IN ('copy','mcp');")
+  DB_VIEW=$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$V AND kind='view';")
+  # ── 阶段 58 修（A 类）────────────────────────────────────────────────────────
+  # 原断言「use_count == 访问前条数 + 1（先记后读含本次）」是 v60 口径；FR-114（v61）已明确
+  # 「打开详情留痕（kind='view'）但**不计入 use_count**」「use_count 只计 copy+mcp」⇒ 旧口径被取代。
   API_N=$(curl -s -b "$JAR" "$BASE/api/prompts/$V" | jq -r .use_count)
   DB_AFTER=$(n "$V")
-  echo "  \$ 访问接口前库内 = $DB_N ｜ 接口 use_count = $API_N ｜ 接口访问后库内 = $DB_AFTER"
-  eq "⑥ 接口 use_count == 访问前的条数 + 1（即"先记后读"含本次）" "$((DB_N + 1))" "$API_N"
-  eq "⑥ 接口访问后库内也真的 +1（数字与库一致）" "$((DB_N + 1))" "$DB_AFTER"
+  DB_COUNTED_AFTER=$(q "SELECT COUNT(*) FROM usage_events WHERE prompt_id=$V AND kind IN ('copy','mcp');")
+  echo "  \$ 库内总条数 = $DB_N（计入型 copy/mcp = $DB_COUNTED，view = $DB_VIEW）｜ 接口 use_count = $API_N ｜ 读接口后库内 = $DB_AFTER"
+  eq "⑥ 接口 use_count == 库内计入型（copy+mcp）条数（FR-114：打开详情不计数）" "$DB_COUNTED" "$API_N"
+  eq "⑥ 打开详情确实留了痕（kind='view' ≥ 1）" 1 "$([ "$DB_VIEW" -ge 1 ] && echo 1 || echo 0)"
+  eq "⑥ 读接口不产生计入型记录（GET 详情不把「读」算成取用）" "$DB_COUNTED" "$DB_COUNTED_AFTER"
 
-  line "收尾：无新增迁移 / 表结构未变"
-  eq "迁移文件数仍 5" 5 "$(ls migrations/*.sql | wc -l)"
-  eq "schema 版本仍 v5" 5 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
-  eq "usage_events 列数仍 5" 5 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events');")"
+  line "收尾：基线未被回退（阶段 58 换口径，理由见 AC-114 ⑦ 的头部说明）"
+  # 原三条把"全局迁移文件数 / 全局 schema 版本 / 全局列数"当代理量 ⇒ 后续阶段合法新增后恒红。
+  # 这里守真正可复核的东西：基线迁移文件仍在、版本不低于基线、基线列仍在（后加列不再误伤）。
+  MIG_MISSING=''
+  for m in 001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql 004_token-enc.sql 005_token-scope.sql; do
+    [ -f "migrations/$m" ] || MIG_MISSING="$MIG_MISSING $m"
+  done
+  eq "基线迁移文件（001–005）仍在（跑完检查后也没被回退）" "" "$MIG_MISSING"
+  MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+  eq "schema 版本 == migrations/ 里最大编号（不变式；不拿固定 v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+  eq "usage_events 仍含基线 5 列（id/prompt_id/channel/used_at/token_id）" 5 "$(q "SELECT COUNT(*) FROM pragma_table_info('usage_events') WHERE name IN ('id','prompt_id','channel','used_at','token_id');")"
 fi
 
 line "结论"

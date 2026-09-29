@@ -105,7 +105,7 @@ else
   pass "夹具：长名 id=$LONG_ID（$(python3 -c "print(len('$LONG_NAME'))") 字符 $(mask "$LONG_TOK")）、有效 id=$ID_A、已撤销 id=$ID_B"
 
   if [ "$ONLY" = "all" ] || [ "$ONLY" = "columns" ]; then
-    line "AC-101：内网 IP 下的 6 列排版 / 截断 / 掩码 / 真鼠标"
+    line "AC-101：内网 IP 下的 7 列排版 / 截断 / 掩码 / 真鼠标"
     rm -rf "$SHOTS"
     AC101_EXPECT_TOKEN="$LONG_TOK" AC101_LONG_NAME="$LONG_NAME" AC101_REVOKED_ID="$ID_B" AC101_SERVER_LOG="$SERVER_LOG" \
       node tools/ac-stage38-probe.mjs columns "$LAN_BASE" "$SID" "$SHOTS" | tee "$AC_DIR/probe.log"
@@ -114,7 +114,7 @@ else
     eq "④ 非安全上下文（AC-97 口径）" false "$(p is_secure_context)"
     eq "④ 剪贴板 API 不存在（真内网环境）" undefined "$(p clipboard_type)"
 
-    eq "① 列头按顺序恰好 6 列" '["名称","Token","状态","使用","最近使用","操作"]' "$(p heads)"
+    eq "① 列头按顺序恰好 7 列" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(p heads)"
     pass "① 列头原样：$(p heads)"
     eq "① 行展开箭头命中数（须 0）" 0 "$(p expand_icons)"
     eq "① pm-token-expand-* 命中数（须 0）" 0 "$(p expand_testids)"
@@ -132,8 +132,12 @@ else
     eq "③ 掩码 == 前 5 + ... + 后 4（与明文逐字对照）" true "$(p mask_matches_expected)"
     eq "③ 页面文本里**不出现完整明文**" false "$(p full_plaintext_in_page)"
 
-    eq "④ 已撤销行「使用」列 = —" "—" "$(p revoked_use_cell)"
-    eq "④ 已撤销行**没有**「复制」按钮" false "$(p revoked_row_has_copy)"
+    # 阶段 58 修（A 类）：FR-100 ②（BRIEF §4 FR-100；v50 记录：用户 2026-09-22「撤销 token 也要能看到值并复制」）
+    # 起，"使用"列的判断**只看 `revealable`（还有没有密文），不再看 `revoked_at`** —— 撤销行也有「复制」，
+    # 与未撤销行行为完全一致（`web/src/components/TokenDrawer.tsx:401-427` 的列注释即此口径）。
+    # 原断言（撤销行 = —、"没有「复制」"）是 v49/v50 之前的旧口径 ⇒ 反向。
+    eq "④ 已撤销（仍有密文）行「使用」列也有「复制」（FR-100 ②：只看 revealable）" "复制" "$(p revoked_use_cell)"
+    eq "④ 已撤销行**有**「复制」按钮" true "$(p revoked_row_has_copy)"
     pass "④ 复制后的真粘贴读回（脱敏）：$(p pasted_masked) ｜ 期望（脱敏）：$(p expected_masked)"
     eq "④ 真鼠标「复制」→ Ctrl+V 粘贴内容 == 明文" true "$(p clipboard_equals_plaintext)"
     pass "④ 点击后的提示：$(p toast_after_copy)"
@@ -157,14 +161,17 @@ print('true' if int(sys.argv[1]) == int(sys.argv[2]) - 1 else 'false')
     eq "⑥ 形态匹配 YYYY/MM/DD HH:mm" true "$(p last_used_format_ok)"
     eq "⑥ 从未使用显示 —" true "$(p last_used_never_shows_dash)"
 
-    echo "  ⑦ 抽屉宽度 = $(p drawer_width)｜表格 client=$(p table_client) / scroll=$(p table_scroll)"
-    eq "⑦ 抽屉宽度 ≤ 640" "true" "$(python3 -c "
+    # 阶段 58 修（A 类）：v58/FR-111 起 **PC 端抽屉宽度由实现方定**（BRIEF §8 AC-101 ③：「PC（1600）不横滚：
+    # 抽屉宽度由实现方定（贴出实际宽度）」；BRIEF §4 FR-111：列变多后允许 640 → 更宽）。旧断言 ≤640 是
+    # FR-111 之前的口径（实测 720）。现在守的是：**贴出实际宽度 + 宽度 ≥ 640（给 7 列留足）+ 表格不横滚**（下一条）。
+    echo "  ⑦ 抽屉实际宽度 = $(p drawer_width)（FR-111：PC 端由实现方定）｜表格 client=$(p table_client) / scroll=$(p table_scroll)"
+    eq "⑦ 抽屉宽度 ≥ 640（7 列在 PC 上不横滚的前提）" "true" "$(python3 -c "
 import sys
-print('true' if int(sys.argv[1]) <= 640 else 'false')
+print('true' if int(sys.argv[1]) >= 640 else 'false')
 " "$(p drawer_width)")"
     eq "⑦ 表格无横向滚动（scrollWidth <= clientWidth）" true "$(p table_no_hscroll)"
     eq "⑦ 暗色下同样无横向滚动（宽 $(p dark_drawer_width)）" true "$(p dark_table_no_hscroll)"
-    eq "⑦ 暗色下列头一致" '["名称","Token","状态","使用","最近使用","操作"]' "$(p dark_heads)"
+    eq "⑦ 暗色下列头一致" '["名称","Token","状态","使用","创建时间","最近使用","操作"]' "$(p dark_heads)"
 
     eq "⑧ 创建区可用（行数 +1）" "true" "$(python3 -c "
 import sys
@@ -201,7 +208,11 @@ import sys
 print('true' if sys.argv[2] not in sys.argv[1] else 'false')
 " "$(curl -s -b "$JAR" "$LAN_BASE/api/tokens")" "$TOK_A")"
     eq "日志里无 token 明文" 0 "$(grep -c "$TOK_A" "$SERVER_LOG" || true)"
-    eq "迁移版本未被本阶段改动（仍 v4）" 4 "$(q 'SELECT MAX(version) FROM schema_migrations;')"
+    # 阶段 58 修（B 类）：原断言拿「全局 schema 版本号 == v4/v5」当「本阶段没加迁移」的代理量，
+    # 后续阶段合法新增迁移（005/006）后必然恒红。改成**不变式**：schema 版本必须等于 migrations/ 里
+    # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
+    MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+    eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
   fi
 fi
 

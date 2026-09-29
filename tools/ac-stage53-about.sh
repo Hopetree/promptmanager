@@ -138,14 +138,24 @@ for tag in HTTP HTTPS; do
   echo "  \$ 分区：$(printf '%s' "$OTH" | jq -c '.panels')"
   echo "  \$ 使用区条数：$(printf '%s' "$OTH" | jq -r '.usageLines')"
   echo "  \$ 维护区命令：$(printf '%s' "$OTH" | jq -c '.maintCommands')"
-  eq "A④ [$tag] 服务区 5 行（版本/状态/访问地址/数据文件/备份方式）" 5 "$(printf '%s' "$OTH" | jq '.rows | length')"
+  # ── 阶段 58 修（A 类 · 原 A④ 口径过时）────────────────────────────────────────
+  # 原断言：`服务区 5 行（.ant-descriptions-row 计数 == 5）` 与 `三个分区（.ant-collapse-item 计数 == 3）`。
+  # 那是 v68 / FR-124 之前的世界：那时 ① 是 Descriptions（含「访问地址」行），③ 有 3 个折叠面板。
+  # v68 已取消「服务区」——访问地址移入**身份区**，折叠面板只剩「使用 / 维护」2 个 ⇒ 两条必红
+  # （`.rows` 还会因为②出处区恰好也是 5 行而**欺骗性通过**）。
+  # 改为按**现行结构锚点**断言：结构一被删/改名就红，不再依赖"面板个数"这种随分区数漂移的代理量。
+  eq "A④ [$tag] 三个结构锚点都在（身份区 / 出处区 / 使用与维护区）" "true" "$(printf '%s' "$OTH" | jq -r '[.sections.identity, .sections.links, .sections.usageMaintain] | all')"
+  eq "A④ [$tag] 访问地址锚点仍在（v68 起位于身份区内）" "true" "$(printf '%s' "$OTH" | jq -r '.sections.address')"
+  eq "A④ [$tag] 身份区仍含版本号" 1 "$(printf '%s' "$OTH" | jq -r '.identityHasVersion')"
   eq "A④ [$tag] 状态徽标仍是「后端在线」" "后端在线" "$(printf '%s' "$OTH" | jq -r '.statusTag')"
-  eq "A④ [$tag] 三个分区（服务/使用/维护）都在" 3 "$(printf '%s' "$OTH" | jq '.panels | length')"
   eq "A④ [$tag] 使用区仍是 7 条说明" 7 "$(printf '%s' "$OTH" | jq -r '.usageLines')"
   eq "A④ [$tag] 维护区仍是 5 条命令" 5 "$(printf '%s' "$OTH" | jq -r '.maintCommands | length')"
   eq "A④ [$tag] 品牌图仍在" "true" "$(printf '%s' "$OTH" | jq -r '.hasBrandArt')"
-  VEXP=$(printf '%s' "$OTH" | jq -r '.versionText' | grep -o '版本 [0-9.]*' | awk '{print $2}')
-  eq "A④ [$tag] 版本号与 /healthz 一致" "$(curl -s "$BASE_HTTP/healthz" | jq -r .version)" "$VEXP"
+  # 阶段 58 修（B 类）：原正则 `版本 [0-9.]*` 在预发布版本（如 1.4.1-beta.1）的 `-` 处截断，
+  # 与 /healthz 返回的完整版本恒不相等（`package.json` 1.4.1-beta.1 / host_manger 3c5c2e5 之后才暴露）。
+  # 改为取「版本」之后到第一个空格为止的整串，保留预发布后缀；判据本身（与 /healthz 同源）不动。
+  VEXP=$(printf '%s' "$OTH" | jq -r '.versionText' | sed -n 's/.*版本 \([^ ]*\).*/\1/p')
+  eq "A④ [$tag] 版本号与 /healthz 一致（含预发布后缀）" "$(curl -s "$BASE_HTTP/healthz" | jq -r .version)" "$VEXP"
 done
 
 line "A 段结论"
