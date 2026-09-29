@@ -83,6 +83,7 @@
 | 54 | FR-118 **全面 UI 页面验证 + 报告**（**只验证不改代码**）：按 D-54 交付尺寸 **PC 1440×900 / 移动 440×956**（`isMobile`+`hasTouch`+`dSF=1`），**18 界面 × 2 尺寸 = 42 张截图全部逐张读图**（含补证的表格/令牌表横滚两端态、侧栏选中态）；页面级横向溢出 **36/36 = 0**、文字裁切 **0**；四条历史验收点（卡片底部 `📁目录·v版本·变量N`、令牌只读/读写配色、登录页无纵滚、移动端不丢「名称」列）**全不回归**；**记 2 条真 bug**〔①高：桌面侧栏目录真实鼠标点不动（移动端正常，已逐项排除探针因素）②中：使用统计「口径」文案与 `COUNTED_KINDS` 矛盾〕**+ 4 条可优化项 + 3 条已排除误报**；**零功能代码改动**（`git diff --stat` 空）；资源纪律未熔断（avail ≥2434MB、load1 ≤1.30），收尾无残留监听、未碰 8767 | 本文件「阶段 54」· 报告 [`docs/ui-verification-report.md`](docs/ui-verification-report.md) |
 | 55 | FR-119~123 **五项小修**（FR-119 使用统计口径文案〔两处，**口径本身零改动**〕/ FR-120 空态区分「库为空」与「搜索无匹配」〔按 `hasActiveFilter` 判定，两处视图同口径〕/ FR-121 分隔符对比度**亮 3.26:1·深 3.51:1**〔原 1.70/2.25〕，**只调颜色**、形态未动/ FR-122 Token 掩码**单行**〔列 104→120 + nowrap，7 列均>0、名称非0、可横滚 0→256、末列按钮 362.2≤440〕/ FR-123 移动端「文件夹」列**不折行**〔`width:86→minWidth:110`，横滚不回归〕）：**只做这 5 项**、无新增迁移；`ac-stage55.sh` 73/73 + 新增 8 条断言（红绿 6/8 变红）；更新 2 条既有断言（体积 +116B、AC-87 文件夹列宽口径）；`npm test` 464/464、ci-check 6/6 | 本文件「阶段 55」 |
 | 56 | FR-124 **关于页改为开源项目形态**（原纯运维视角、整页零链接）—— **①身份区**（一句话定位〔取自 `package.json.description`〕+ 版本/在线/重新探测〔运行时动态〕+ **访问地址**〔从服务区移来、随协议、阶段 53 R-9 未回归〕+ 8 个关键词标签）**②出处与去向区（核心增量）**（代码仓库 / Docker 镜像〔可复制、提示 `:latest` 不写死历史版本号〕/ 文档 / 问题反馈 / 许可证 **五项**，href **0→4**，统一 `ExtLink` 带 `target=_blank`+`rel=noopener noreferrer`）**③使用·维护区**（移动端默认折叠，折叠态 `611<956` 不用滚、展开无裁切）；**⛔ 不做版本检查**（无入口 + 实测**出网请求 0**）；**「服务区」整个去掉**（含错的「拷贝 pm.db」，不改成别的样子）；**元信息不硬编码**（`vite.config.ts` 构建期 `define` 注入，组件里零 `github.com`/`hopetree`/`MIT` 字面量）；维护区 5 条命令逐条核对仍成立；更新 3 条既有断言 + 新增 11 条（红绿 6/11 变红）；`npm test` 476/476、ci-check 6/6 | 本文件「阶段 56」 |
+| 57 | FR-58 **反转**（用户 2026-09-28 要求；BRIEF v69）**主题「跟随系统」图标由「太阳 + 月亮并排」改回电脑图标 `DesktopOutlined`**：`AppHeader.tsx` 的 `themeIcon` system 分支改**单枚** `<DesktopOutlined />`（class `anticon-desktop`）+ 补 import + 注释改写为「亮 = 太阳 / 暗 = 月亮 / 跟随系统 = 电脑图标」并点明这是用户决定；删除**只**服务并排图标的 `.pm-theme-icon-both` 两条 CSS（删前确认全库仅此一处引用）；`tests/navigation-hygiene.test.ts` AC-58 **反向** —— 跟随系统**必须**出现 `anticon-desktop`、**不得**出现 `pm-theme-icon-both`（用例名同步改，断言维度比原来更严）；`tests/stage18-bundle.test.ts` 按既有记账口径补 `STAGE57_ACCOUNTED_DELTA = 112`（421,728 → 421,840 B）；**只改图标** —— 三态循环顺序 / 点击行为 / tooltip 文案 / 亮暗两态图标一字未动；真鼠标点三下实测三态 class 依次 `anticon-desktop` / `anticon-sun` / `anticon-moon`、并排 span 全程 0；`npm test` 476/476、ci-check 6/6 | 本文件「阶段 57」 |
 | 41 | FR-102 **FIX 编辑保存后返回详情，版本历史仍是旧的**（刷新信号 `versionKey` 只在回滚时自增 ⇒ 编辑保存不触发重拉）：改为以 **`prompt.version_no`** 为唯一刷新信号（编辑保存/回滚/移动端重拉都覆盖，无关操作不产生多余请求）；并把版本表格**显示**翻转为**最新在上**（接口是升序返回，原样渲染会把新版本压在最下面）；**接口/数据零改动** | 本文件「阶段 41」 |
 | 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
@@ -5025,4 +5026,118 @@ PC 1440×900:  pageOverflowX = 0；维护区展开后 wrap 可滚
    语义自相矛盾；红绿对照时才发现。**写断言时要把"期望方向"念一遍。**
 3. **Vite `define` 只在被引用处内联** —— 用"换回旧组件再构建"来量体积增量时，
    新配置注入的常量因为无人引用而**不产生字节**，这正好让基线测量干净（420,468 与阶段 55 收尾值完全一致）。
+
+## 阶段 57（2026-09-29）：主题「跟随系统」图标改回电脑图标（反转 FR-58 / AC-58）
+
+> 需求来源：**用户 2026-09-28** —— 主题三态里「跟随系统」态的「太阳 + 月亮并排」小图标**认不出是在切主题**，
+> 要求换回 v44 之前的电脑图标。BRIEF v69（提交 `017a31d`）据此**反转 FR-58**。
+> 交付提交 **`fea6f8e`**（4 文件 / +26 −22）；host_manger 验收记录见 `50ba2bf`。
+> 环境：临时 `DATA_DIR`（`mkdtempSync` 于系统临时目录）+ 端口 **8766**；**全程未碰 8767**（验收时仍是 PID 772550）。
+
+### 1. 三态目标（改后）
+
+| 状态 | 图标 | 渲染 class |
+| --- | --- | --- |
+| 亮色 | `SunOutlined`（**不变**） | `anticon-sun` |
+| 暗色 | `MoonOutlined`（**不变**） | `anticon-moon` |
+| **跟随系统** | **`DesktopOutlined`（电脑图标）← 本次改回** | **`anticon-desktop`** |
+
+### 2. 改了什么
+
+| 文件 | 增删 | 改动要点 |
+| --- | --- | --- |
+| `web/src/components/AppHeader.tsx` | +5 −5 | `themeIcon` 的 `system` 分支由 `<span className="pm-theme-icon-both"><SunOutlined /><MoonOutlined /></span>` 改为**单枚 `<DesktopOutlined />`**；顶部 import 补 `DesktopOutlined`（按字母序）；三行注释改写，点明**这是用户 2026-09-28 的决定**及原因（并排图标认不出是在切主题） |
+| `web/src/styles/app.css` | +0 −11 | 删除 `.pm-theme-icon-both` 两条规则（`display:inline-flex; align-items:center; gap:2px;` 与 `.pm-theme-icon-both .anticon { font-size:12px; }`）及标题注释 —— **删前已确认全库只此一处引用** |
+| `tests/navigation-hygiene.test.ts` | +7 −4 | AC-58 **按新口径反向**：跟随系统态**必须**出现 `DesktopOutlined`、**不得**出现 `pm-theme-icon-both`、`SunOutlined`/`MoonOutlined` 仍存在；用例名同步改为「AC-58：跟随系统 = 电脑图标（2026-09-28 用户要求改回，并排图标已废）」 |
+| `tests/stage18-bundle.test.ts` | +14 −2 | 按既有各阶段记账口径补 `STAGE57_ACCOUNTED_DELTA = 112`（见 §4）；测试名的阶段清单同步加「57」 |
+
+**红绿对照**：先改测试为新口径 ⇒ **红**（`AssertionError [ERR_ASSERTION]: 跟随系统态必须用 DesktopOutlined（电脑图标）`，pass 0 / fail 1）；再改产品代码 ⇒ **绿**（pass 1）。
+
+### 3. 自证（真鼠标点三下 + 读 DOM 实测，非"看代码应该是"）
+
+探针 `tmp/stage57-theme-probe.mjs`：零安装 CDP 直连 `chrome-headless-shell`，用 `Input.dispatchMouseEvent`
+**真鼠标事件**（`mouseMoved → mousePressed → mouseReleased`，**不是 JS 的 `.click()`**）；服务自起自停（临时 `DATA_DIR`、端口 8766）。
+
+| 步骤 | tooltip（原样） | `iconClasses` | sun | moon | desktop | 并排 span |
+| --- | --- | --- | --- | --- | --- | --- |
+| 初始（跟随系统） | 主题：跟随系统（点击切换到亮色） | `anticon anticon-desktop` | 0 | 0 | **1** | **0** |
+| 点 1 下（亮色） | 主题：亮色（点击切换到暗色） | `anticon anticon-sun` | **1** | 0 | 0 | 0 |
+| 点 2 下（暗色） | 主题：暗色（点击切换到跟随系统） | `anticon anticon-moon` | 0 | **1** | 0 | 0 |
+| 点 3 下（回起点） | 主题：跟随系统（点击切换到亮色） | `anticon anticon-desktop` | 0 | 0 | **1** | **0** |
+
+- **并排 span 计数全程为 0**；点满三下**回到起点** ⇒ 三态循环顺序未变；三态 tooltip 文本原样未动。
+- 过程图（按仓库约定落 `tmp/`）：`tmp/shots/stage57/1-system.png`、`2-after-1-click.png`、`3-after-2-clicks.png`、`4-after-3-clicks.png`，**逐张读图**确认电脑图标与月亮在工作台可辨。
+- 运行时 `GET /healthz` → `{"status":"ok","version":"1.4.0"}`。
+
+**残留搜索（死代码 / 死 CSS）**
+
+```
+web/src/styles/app.css        pm-theme-icon-both → 0 条   （死 CSS 已清）
+web/src/ 整体                 pm-theme-icon-both → 0 条   （无活代码引用）
+tests/navigation-hygiene.test.ts:294,296  → 2 条          （负向断言，非死代码）
+docs/dev-history/PROGRESS.md:4757,4766    → 2 条          （历史记录，未改）
+```
+
+`AppHeader.tsx` 里 `SunOutlined` / `MoonOutlined` / `DesktopOutlined` 只剩 import 3 处 + 三态各 1 处使用，**无多余导入**。
+
+**质量门（`npm run build` 后跑，避免读到旧 `dist/`）**
+
+```
+$ bash tools/ci-check.sh   → rc=0，✅ 6/6
+  ① 依赖已安装                  rc=0  ✅
+  ② npm run build               rc=0  ✅  0 条 >500KB 告警
+  ③a typecheck:web              rc=0  ✅  0 个 TS 错误
+  ③b typecheck:tests            rc=0  ✅  0 个 TS 错误
+  ④ npm test                    rc=0  ✅  ℹ tests 476  ℹ pass 476  ℹ fail 0
+  ⑤ 体积预算（最大 chunk ≤500KB） rc=0  ✅  最大 vendor-antd-DzdxAtM_.js = 470919 B
+  ✅ 代码质量检查全部通过（6 项）
+```
+
+### 4. 体积记账（走既有口径，**不是**放宽预算）
+
+改完首跑 `npm test` ⇒ **AC-61 ⑤ 红**：
+
+```
+AssertionError [ERR_ASSERTION]: 总 gzip = 421840 B，超过预算 421770 B（基线 399175 B）
+```
+
+先 `git stash` 掉本次三处源码改动、在**同一 `node_modules`** 下 `npm run build:web` ⇒ 基线 **421,728 B**（AC-61 ⑤ 绿），
+证明**不是既有失败**；再恢复重建 ⇒ **421,840 B** ⇒ 本次增量 **+112 B**
+（`DesktopOutlined` 的 path 数据比原并排 span 重，减去删掉的 `.pm-theme-icon-both` 两条规则后的净值）。
+按阶段 22 / 52 / 55 / 56 **同一记账方式**登记：
+
+```ts
+const STAGE57_ACCOUNTED_DELTA = 112;   // 预算 421,770 → 421,882 B
+```
+
+host_manger 在 `50ba2bf` 里**独立核验**为 420,541 B ≤ 421,882 B（各自容器实测的**绝对字节**会随环境略有差异，
+但都落在同一条预算内）。**无新增依赖、无新增 chunk**。
+
+### 5. 未动的部分（边界守住）
+
+- 三态**循环顺序**（亮 → 暗 → 跟随系统 → 亮）、**点击行为**、**tooltip 文案**（`themeToggleTitle`）—— 一字未动（§3 表里三态 tooltip 文本原样）。
+- 亮色 `SunOutlined`、暗色 `MoonOutlined` 两态图标未动。
+- `web/src/theme-mode.ts`、`web/src/use-prefers-dark.ts` 未动（`git diff --stat` 中无这两个文件）。
+- `docs/shots/` 未动（host_manger 经 hash 比对确认 8 张关键图**均非**「跟随系统」态，无需更新）。
+- 未新增依赖、未新增 chunk、未新增迁移、未改接口契约；`git ls-files tmp | wc -l` = **0**。
+
+### 6. 遗留给 host_manger 的未决项
+
+**`tools/ac-stage16.sh:179` 仍断言旧口径，跑它会变红** —— 这是全仓**唯一**还假设「跟随系统 = 并排」的地方：
+
+```bash
+eq "跟随系统 = 太阳 + 月亮（无电脑图标）" "true" "$(v ac58_system_ok)"
+```
+
+配套 `tools/ac-stage16-probe.mjs:461` 判定 `sys.desktop === false && sys.sun === true && sys.moon === true`；
+该脚本列在 `docs/development.md:127`。按用户「别自己顺手改、那属于新范围」的指示**未改**，等确认。
+（已逐个排查：其余 `ac-stage*.sh` 均不碰这两个图标。）
+
+### 7. 踩坑留痕
+
+1. **改完 `src/` 不重建 = 测的是旧 `dist/`**（AGENTS.md 坑 8）—— 我一度恢复源码后**没** `npm run build` 就跑 AC-61 ⑤，
+   读到旧产物得到**假通过**；重建后才是真实的红。体积类断言尤其要**先重建再下结论**。
+2. **直连 chrome 的 `ws://` 端点会拿到 browser 级端点** ⇒ 报 `'Page.enable' wasn't found`；
+   要读 `DevToolsActivePort` 再从 `http://127.0.0.1:<port>/json/list` 里挑 `type === 'page'` 的目标。
+3. **`edit` 前必须先 `read`** —— 直接改 `app.css` 会报 `file has not been read`，读后重试即成功。
 
