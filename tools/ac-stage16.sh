@@ -176,7 +176,7 @@ PY
     line "AC-58 主题「跟随系统」图标"
     pass "跟随系统：$(v ac58_system_icons)"
     pass "亮：$(v ac58_light_icons) ｜ 暗：$(v ac58_dark_icons)"
-    eq "跟随系统 = 太阳 + 月亮（无电脑图标）" "true" "$(v ac58_system_ok)"
+    eq "跟随系统 = 电脑图标（无太阳/月亮）" "true" "$(v ac58_system_ok)"
     eq "亮 = 仅太阳" "true" "$(v ac58_light_ok)"
     eq "暗 = 仅月亮" "true" "$(v ac58_dark_ok)"
   fi

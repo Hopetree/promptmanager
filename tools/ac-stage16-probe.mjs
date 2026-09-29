@@ -458,7 +458,7 @@ async function main() {
     const sys = JSON.parse(out.ac58_system_icons);
     const light = JSON.parse(out.ac58_light_icons);
     const dark = JSON.parse(out.ac58_dark_icons);
-    out.ac58_system_ok = String(sys.desktop === false && sys.sun === true && sys.moon === true);
+    out.ac58_system_ok = String(sys.desktop === true && sys.sun === false && sys.moon === false);
     out.ac58_light_ok = String(light.sun === true && light.moon === false);
     out.ac58_dark_ok = String(dark.moon === true && dark.sun === false);
   } finally {
