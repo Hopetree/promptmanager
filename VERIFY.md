@@ -2408,6 +2408,42 @@ $ bash tools/ac-stage16.sh        → 退出码 1
 - [x] BRIEF 留痕（FR-58 改写 + §12 v69）→ `017a31d`
 - [x] `docs/shots` 评估：**无需更新**（hash 证实）
 
+## 九、AC-52 过时断言的修复与验收（2026-09-29 补记，**用户要求修**）
+
+**被验收 commit `ddde678`**（`fix(tools): ac-stage16 的 AC-52 分区断言改为数「分区锚点」，不再数折叠面板`）。
+改 3 个文件：`tools/ac-stage16-probe.mjs`、`tools/ac-stage16.sh`、`web/src/components/AboutModal.tsx`。
+
+### 修复方式（**没有降阈值 —— 这是我验收的重点**）
+
+- 旧口径：数 `[data-testid=pm-about] .ant-collapse-header`（折叠面板数）⇒ 关于页重构后恒为 2。
+- 新口径：数 **3 个具名分区锚点在 DOM 中的实际存在数** ——
+  `pm-about-identity` / `pm-about-links` / `pm-about-usage-maintain`。
+- **`ge "分区数" 3` 的阈值原样保留**；另加一行 `pass` 打印命中的锚点，缺哪个一眼可见；
+  顺手删掉从未被读取的死字段 `ac52_sections_ok`。
+- 为分区③补 `data-testid="pm-about-usage-maintain"` ⇒ 需动 `AboutModal.tsx`。
+  **它解释了为什么必须动**：`CollapseProps` 无索引签名、不 extends `HTMLAttributes`，
+  透传 `data-*` 会 typecheck 失败 ⇒ 套一层裸 `div`（与 ② 的锚点写法一致）。
+  **实际改动量经我核验：`git diff -w` 只有 5 行**（包裹 div 起止 + 注释；151 行 numstat 是重缩进）。
+
+### 我的独立验收（**不采信它的红绿对照，自己重做了一遍**）
+
+| 动作 | 结果 |
+| --- | --- |
+| 实跑 `bash tools/ac-stage16.sh` | **rc=0、0 个 ❌**；AC-52 显示 `分区锚点：["pm-about-identity","pm-about-links","pm-about-usage-maintain"]` / `✅ 分区数 = 3` |
+| AC-58 顺带复查 | 5 行全 ✅（**无回归**）|
+| **我的红测**：把 ① 的锚点改名（等效"该分区不存在"）后重建再跑 | **rc=1**、`❌ 分区数 = 2（期望 ≥3）`、`分区锚点：["pm-about-links","pm-about-usage-maintain"]` ⇒ **守卫确实承重** |
+| 恢复后复跑 | **rc=0**、`✅ 分区数 = 3`；文件 `diff` 一致、工作区 0 项 |
+| 探针逻辑复核 | `ac52Partitions.filter(t => document.querySelector(...) !== null)` ⇒ **由 DOM 推导、非硬编码 3**，结构上承重 |
+| 包裹 div 是否影响布局（我额外担心的点） | DOM：`wrap.display=block`、`width=672`(PC)/`376`(移动)、父容器 `ant-flex`(纵向) ⇒ 与原来同布局；**亲眼验 PC/移动两端截图**：三分区齐全、文案未变、无溢出；移动端「使用/维护」仍默认折叠（AC-120 ⑭）|
+| `ci-check` | **rc=0**（6/6）、`476/476` |
+
+### 部署影响（**不需要重新部署**）
+
+该 commit 的改动 = 测试工具 + 一个纯测试钩子属性，**用户可见行为与文案零变化** ⇒
+按 `docs/versioning.md` §1「纯文档/注释/测试改动不升版本」，**不升版本、不重发**。
+生产仍为 `v1.4.1-beta.1`（`3c5c2e5`）；它与 HEAD 的差异仅为上述不可见改动。
+若日后要转正式版 `v1.4.1`，会把 HEAD 一并带上。
+
 > **注**：缺口 3 已闭环（见上）。本阶段至此收口。
 
 ## 八、收口时另发现的两件事（**均非阶段 57 缺陷**）
