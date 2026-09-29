@@ -1,5 +1,6 @@
 import {
   BarChartOutlined,
+  DesktopOutlined,
   EllipsisOutlined,
   ExportOutlined,
   KeyOutlined,
@@ -85,17 +86,16 @@ export default function AppHeader({
     else if (key === 'logout') onLogout();
   };
 
-  // FR-58：三态同一视觉体系 —— 亮 = 太阳；暗 = 月亮；跟随系统 = 太阳 + 月亮并排（不再用电脑图标）
+  // FR-58：三态同一视觉体系 —— 亮 = 太阳；暗 = 月亮；跟随系统 = 电脑图标。
+  // 跟随系统原用「太阳 + 月亮并排」，用户 2026-09-28 反馈并排图标认不出是在切主题，
+  // 要求换回 v44 之前的电脑图标（DesktopOutlined），故此处改用单枚 DesktopOutlined。
   const themeIcon =
     themeMode === 'light' ? (
       <SunOutlined />
     ) : themeMode === 'dark' ? (
       <MoonOutlined />
     ) : (
-      <span className="pm-theme-icon-both">
-        <SunOutlined />
-        <MoonOutlined />
-      </span>
+      <DesktopOutlined />
     );
 
   return (

@@ -288,11 +288,14 @@ test('AC-57：四个屏都使用真正的收藏控件', () => {
   assert.ok(/\.pm-fav-btn\.ant-btn\s*\{[^}]*width:\s*24px/s.test(css), '.pm-fav-btn 热区必须 ≥24×24');
 });
 
-test('AC-58：跟随系统 = 太阳 + 月亮（不再用电脑图标）', () => {
+test('AC-58：跟随系统 = 电脑图标（2026-09-28 用户要求改回，并排图标已废）', () => {
   const header = src('components/AppHeader.tsx');
-  assert.equal(header.includes('DesktopOutlined'), false, '不得再用 DesktopOutlined');
-  assert.ok(header.includes('pm-theme-icon-both'), '跟随系统态要并排两个图标');
-  assert.ok(header.includes('SunOutlined') && header.includes('MoonOutlined'), '太阳 + 月亮');
+  // ⚠️ 2026-09-28 修订：并排的「太阳 + 月亮」认不出是在切主题 ⇒ 用户要求改回 v44 之前的电脑图标。
+  // 旧断言（不得用 DesktopOutlined / 要有 pm-theme-icon-both）随之作废——规格变更，不是放宽。
+  assert.ok(header.includes('DesktopOutlined'), '跟随系统态必须用 DesktopOutlined（电脑图标）');
+  assert.equal(header.includes('pm-theme-icon-both'), false, '并排图标（pm-theme-icon-both）应已删除');
+  assert.ok(header.includes('SunOutlined'), '亮色态仍是太阳');
+  assert.ok(header.includes('MoonOutlined'), '暗色态仍是月亮');
 });
 
 /* ============================================================

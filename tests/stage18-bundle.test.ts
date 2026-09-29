@@ -118,6 +118,17 @@ const STAGE55_ACCOUNTED_DELTA = 116;
  * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 `vendor-antd` 470,985 B（AC-61 ① 不变）。
  */
 const STAGE56_ACCOUNTED_DELTA = 1_260;
+/**
+ * 阶段 57（主题「跟随系统」图标改回电脑图标）的**已对账**增量：**实测** +112 B gzip。
+ * 依据（2026-09-28）：把本阶段改动前的 `web/src`（`git stash` 掉 AppHeader / app.css / 本文件三处）
+ * 在同一 `node_modules` 下重新 `npm run build:web`，总 gzip = **421,728 B**；本阶段完成后 = **421,840 B**
+ * ⇒ 差值 **112 B**。构成：跟随系统态由「`SunOutlined` + `MoonOutlined` 并排的 span」换成单枚
+ * `DesktopOutlined`——`vendor-antd` 里多出电脑图标的 path 数据（约 +0.3 KB gzip），
+ * 减去删掉的 `.pm-theme-icon-both` 两条 CSS 规则（约 -0.2 KB gzip）后的净值。
+ * 这笔体积是**用户 2026-09-28 明确要求**（并排图标认不出是在切主题）的代价，不是顺手加功能。
+ * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍为 vendor-antd 470,919 B（≤500KB，AC-61 ① 不变）。
+ */
+const STAGE57_ACCOUNTED_DELTA = 112;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -161,7 +172,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -176,7 +187,8 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE48_ACCOUNTED_DELTA +
     STAGE52_ACCOUNTED_DELTA +
     STAGE55_ACCOUNTED_DELTA +
-    STAGE56_ACCOUNTED_DELTA;
+    STAGE56_ACCOUNTED_DELTA +
+    STAGE57_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });
 

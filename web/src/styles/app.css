@@ -353,17 +353,6 @@
   background: var(--pm-surface-2);
 }
 
-/* 跟随系统：太阳 + 月亮并排（FR-58） */
-.pm-theme-icon-both {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.pm-theme-icon-both .anticon {
-  font-size: 12px;
-}
-
 /* 收藏星标：真正的可点控件，热区 ≥24×24，常驻可见（FR-57） */
 .pm-fav-btn.ant-btn {
   width: 24px;
