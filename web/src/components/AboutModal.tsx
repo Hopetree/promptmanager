@@ -200,84 +200,89 @@ export default function AboutModal({ open, onClose }: AboutModalProps) {
         </div>
 
         {/* ───────── ③ 使用 / 维护（移动端默认折叠，避免弹窗更高） ───────── */}
-        <Collapse
-          defaultActiveKey={isNarrowHint() ? [] : ['usage']}
-          items={[
-            {
-              key: 'usage',
-              label: (
-                <Flex align="center" gap={6}>
-                  <CheckCircleOutlined />
-                  使用
-                </Flex>
-              ),
-              children: (
-                <List
-                  size="small"
-                  dataSource={usageLines}
-                  renderItem={(line) => (
-                    <List.Item style={{ paddingInline: 0, border: 'none' }}>
-                      <Typography.Text style={{ fontSize: 12.5 }}>{line}</Typography.Text>
-                    </List.Item>
-                  )}
-                />
-              ),
-            },
-            {
-              key: 'maintain',
-              label: (
-                <Flex align="center" gap={6}>
-                  <ToolOutlined />
-                  维护
-                </Flex>
-              ),
-              children: (
-                <Flex vertical gap={10}>
-                  <Flex vertical gap={4}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      修改登录口令
-                    </Typography.Text>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      也可以从界面完成：顶栏「⋯更多」→「修改密码」（改完当前会话保持登录，其它会话退出）；
-                      下面的 CLI 方式保留。
-                    </Typography.Text>
-                    <CopyLine text="node bin/pm.mjs user set-password --username admin" />
+        {/* 分区锚点 ③（AC-52 数分区用）：antd Collapse 的 props 不接受任意 DOM 属性
+            （CollapseProps 无索引签名，透传 data-* 会 typecheck 失败），故套一层裸 div；
+            与 ② pm-about-links 的锚点写法一致。只加属性与容器，不改行为与文案。 */}
+        <div data-testid="pm-about-usage-maintain">
+          <Collapse
+            defaultActiveKey={isNarrowHint() ? [] : ['usage']}
+            items={[
+              {
+                key: 'usage',
+                label: (
+                  <Flex align="center" gap={6}>
+                    <CheckCircleOutlined />
+                    使用
                   </Flex>
-                  <Flex vertical gap={4}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      查看日志
-                    </Typography.Text>
-                    <CopyLine text="journalctl -u promptmanager -f" />
+                ),
+                children: (
+                  <List
+                    size="small"
+                    dataSource={usageLines}
+                    renderItem={(line) => (
+                      <List.Item style={{ paddingInline: 0, border: 'none' }}>
+                        <Typography.Text style={{ fontSize: 12.5 }}>{line}</Typography.Text>
+                      </List.Item>
+                    )}
+                  />
+                ),
+              },
+              {
+                key: 'maintain',
+                label: (
+                  <Flex align="center" gap={6}>
+                    <ToolOutlined />
+                    维护
                   </Flex>
-                  <Flex vertical gap={4}>
+                ),
+                children: (
+                  <Flex vertical gap={10}>
+                    <Flex vertical gap={4}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        修改登录口令
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        也可以从界面完成：顶栏「⋯更多」→「修改密码」（改完当前会话保持登录，其它会话退出）；
+                        下面的 CLI 方式保留。
+                      </Typography.Text>
+                      <CopyLine text="node bin/pm.mjs user set-password --username admin" />
+                    </Flex>
+                    <Flex vertical gap={4}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        查看日志
+                      </Typography.Text>
+                      <CopyLine text="journalctl -u promptmanager -f" />
+                    </Flex>
+                    <Flex vertical gap={4}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        重启服务
+                      </Typography.Text>
+                      <CopyLine text="sudo systemctl restart promptmanager" />
+                    </Flex>
+                    <Flex vertical gap={4}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        回滚到上一个版本
+                      </Typography.Text>
+                      <CopyLine text="git checkout <上一个提交> && npm run build && sudo systemctl restart promptmanager" />
+                    </Flex>
+                    <Flex vertical gap={4}>
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        依赖与许可清单
+                      </Typography.Text>
+                      <CopyLine text="docs/dependencies.md" />
+                    </Flex>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      重启服务
+                      <SettingOutlined /> 以上命令只在服务器上由管理员执行；用 Docker 部署时对应
+                      <code> docker logs -f promptmanager </code>与
+                      <code> docker restart promptmanager </code>。
                     </Typography.Text>
-                    <CopyLine text="sudo systemctl restart promptmanager" />
                   </Flex>
-                  <Flex vertical gap={4}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      回滚到上一个版本
-                    </Typography.Text>
-                    <CopyLine text="git checkout <上一个提交> && npm run build && sudo systemctl restart promptmanager" />
-                  </Flex>
-                  <Flex vertical gap={4}>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      依赖与许可清单
-                    </Typography.Text>
-                    <CopyLine text="docs/dependencies.md" />
-                  </Flex>
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    <SettingOutlined /> 以上命令只在服务器上由管理员执行；用 Docker 部署时对应
-                    <code> docker logs -f promptmanager </code>与
-                    <code> docker restart promptmanager </code>。
-                  </Typography.Text>
-                </Flex>
-              ),
-            },
-          ]}
-          style={{ background: token.colorBgContainer }}
-        />
+                ),
+              },
+            ]}
+            style={{ background: token.colorBgContainer }}
+          />
+        </div>
       </Flex>
     </Modal>
   );

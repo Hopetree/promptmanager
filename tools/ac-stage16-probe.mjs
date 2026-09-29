@@ -275,8 +275,14 @@ async function main() {
     );
     const labelsInfo = JSON.parse(out.ac52_labels);
     out.ac52_no_duplicate = String(labelsInfo.dup.length === 0);
-    out.ac52_sections = await cdp.evaluate(`document.querySelectorAll('[data-testid="pm-about"] .ant-collapse-header').length`);
-    out.ac52_sections_ok = String(Number(out.ac52_sections) >= 3);
+    // 分区数 = 三个分区锚点里实际存在的个数。
+    // 旧口径数的是 .ant-collapse-header（折叠面板数）——那是结构的代理量：
+    // 阶段 56 关于页改版（FR-124 取消服务区）后它从 3 掉到 2，但那不是「分区少了一个」。
+    const ac52Partitions = ['pm-about-identity', 'pm-about-links', 'pm-about-usage-maintain'];
+    out.ac52_section_ids = await cdp.evaluate(
+      `JSON.stringify(${JSON.stringify(ac52Partitions)}.filter((t) => document.querySelector('[data-testid="' + t + '"]') !== null))`,
+    );
+    out.ac52_sections = String(JSON.parse(out.ac52_section_ids).length);
     out.ac52_first_section = await cdp.evaluate(
       `(() => { const el = document.querySelector('[data-testid="pm-about"] .ant-collapse-header'); return el === null ? '' : el.innerText.trim(); })()`,
     );

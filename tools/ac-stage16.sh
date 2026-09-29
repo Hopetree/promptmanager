@@ -128,6 +128,7 @@ PY
     line "AC-52 关于页重构"
     eq "不含 BRIEF / AC- / 阶段 字样" "true" "$(v ac52_no_internal)"
     eq "Descriptions 无重复 label" "true" "$(v ac52_no_duplicate)"
+    pass "分区锚点：$(v ac52_section_ids)"
     ge "分区数" 3 "$(v ac52_sections)"
     pass "分区与 label：$(v ac52_labels)"
     pass "首分区：$(v ac52_first_section)"
