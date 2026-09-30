@@ -17,7 +17,7 @@ import { buildExport, type ExportFile } from './export.js';
 import { importData, type ImportMode, type ImportResult } from './import.js';
 import { createGitHubClient, type GitHubClient } from './sync-github.js';
 import type { SyncConfigRecord } from './sync-config.js';
-import type { TokenCipher } from './token-crypto.js';
+import { TokenEncKeyUnavailableError, type TokenCipher } from './token-crypto.js';
 
 /** FR-125 ④.8：超过阈值**拒绝并说明原因**（不静默截断、不部分上传）。 */
 export const MAX_SNAPSHOT_BYTES = 5 * 1024 * 1024;
@@ -86,9 +86,24 @@ export function requireSyncConfig(record: SyncConfigRecord | null): SyncConfigRe
 
 export function clientFor(deps: SyncDeps, record: SyncConfigRecord): GitHubClient {
   if (deps.createClient !== undefined) return deps.createClient(record);
+  // P2-9①：密钥变更 / 密文损坏时 `decrypt` 抛的是 `TokenEncKeyUnavailableError`，
+  // 不映射的话 test/push/pull 会变成裸 500（config 端点有友好映射，这里原来漏了）。
+  let token: string;
+  try {
+    token = deps.cipher.decrypt(record.tokenEnc);
+  } catch (error) {
+    if (error instanceof TokenEncKeyUnavailableError) {
+      throw new SyncError(
+        500,
+        'token_enc_key_unavailable',
+        '存储的 GitHub 令牌无法解密（加密密钥已变更或数据损坏）。请在同步配置里重新填写令牌并保存。',
+      );
+    }
+    throw error;
+  }
   return createGitHubClient({
     baseUrl: deps.config.syncGitHubApiBase,
-    token: deps.cipher.decrypt(record.tokenEnc),
+    token,
   });
 }
 
@@ -250,7 +265,8 @@ export async function writePreRestoreSnapshot(deps: SyncDeps, file: ExportFile):
   await mkdir(dir, { recursive: true });
   const ts = new Date().toISOString().replace(/[:.]/g, '-');
   const name = `pre-restore-${ts}.json`;
-  await writeFile(path.join(dir, name), serializeSnapshot(file), 'utf8');
+  // P2-9④：快照含提示词正文全文，落盘按 0600（与 token-enc.key 同规格），不沿用默认 0644。
+  await writeFile(path.join(dir, name), serializeSnapshot(file), { encoding: 'utf8', mode: 0o600 });
   const all = (await readdir(dir)).filter((entry) => /^pre-restore-.*\.json$/.test(entry)).sort();
   const stale = all.slice(0, Math.max(0, all.length - PRE_RESTORE_KEEP));
   for (const entry of stale) await rm(path.join(dir, entry), { force: true });

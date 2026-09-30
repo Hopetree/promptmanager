@@ -1,0 +1,27 @@
+# 依赖自动升级（2026-09-30 项目体检 P1-2）。
+# 三个生态都开：npm（运行时 + 开发依赖）、docker（基础镜像 digest）、github-actions（action 版本）。
+# 只开 PR，不自动合并 —— 每个 PR 都要过 CI（ci.yml 的 6 项质量门）。
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # 开发依赖的小版本 / 补丁合并成一个 PR，避免刷屏
+      dev-minor-patch:
+        dependency-type: development
+        update-types: ['minor', 'patch']
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3

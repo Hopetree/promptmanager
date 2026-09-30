@@ -332,6 +332,8 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 - 上传前界面会**二次确认**，明示条数与解析后的完整路径，并加粗提示**快照包含提示词正文全文**。
 - **删除不会传播到云端**；**不做自动 / 定时上传** —— 每一次出网都由用户点击触发。
 - 令牌加密落库（复用 `token-crypto`，AES-256-GCM）；`SYNC_GITHUB_API_BASE` 可指向自建 GitHub 兼容 API。
+- 本地快照（`pre-restore-*.json`）与 `pm export --out` 的导出文件按 **0600** 落盘 —— 它们含提示词正文全文。
+- 同步客户端**不跟随 HTTP 重定向**，且读取上游响应体有 **10 MB 上限**（基地址来自管理员配置，跟重定向等于把带令牌的请求引到别处）。
 
 ### 3.13 错误码速查
 
@@ -342,6 +344,8 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `400 invalid_old_password` / `invalid_password` | 改密码时当前口令错 / 新口令不合规 |
 | `401` | 未认证（除 `/healthz`、`/api/login` 外的全部 `/api/*`） |
 | `404` | prompt / 版本 / 令牌不存在（含"回滚到已被裁剪掉的版本"） |
+| `405 method_not_allowed` | 方法不被该路径支持。**防御性条目** —— Fastify 对未匹配方法目前一律回 `404 not_found`（2026-09-30 实测 DELETE/PATCH `/healthz`、DELETE `/api/prompts` 均 404），此码留作将来收紧时使用 |
+| `413 payload_too_large` | 请求体超过上限（默认 **1 MB**；`POST /api/import` 单独放宽到 **32 MB**）|
 | `409 folder_not_empty` | 删除仍有子目录或仍有 prompt 归属的文件夹 |
 | `403 session_required` | 用**令牌**调"不属于资源"的端点：`/api/tokens*`（列表 / 新建 / **`PATCH /api/tokens/:id` 改权限** / 撤销 / 硬删 / reveal）、`/api/sync/*`（配置 / 测试 / 上传 / 恢复）、`POST /api/password`、`POST /api/logout` —— **只允许浏览器会话** |
 | `403 insufficient_scope` | **只读令牌**（`scope=read`）调**资源写**端点（建 / 改 / 删 prompt、文件夹、标签、导入）—— 需要读写令牌 |
@@ -349,6 +353,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `409 token_revoked` | 对一条**已撤销**的令牌调 `PATCH /api/tokens/:id`（改权限）—— 撤销行只保留历史记录，要恢复请重建一个 |
 | `500 token_enc_key_unavailable` | 加密密钥缺失/不匹配（**鉴权不受影响**，恢复密钥后可再查看） |
 | `429` | 登录失败达阈值（含封锁期内口令正确）；带 `Retry-After` |
+| 其它 4xx | `request_error` | 未被上面枚举的 4xx 兜底码 —— **不再一律误标 `unauthorized`**（2026-09-30 前 413/405 都回 `unauthorized`，对 API 消费者是误导）|
 
 ---
 
@@ -449,6 +454,14 @@ PM_API_URL=http://127.0.0.1:8767 PM_API_TOKEN=pm_… .venv/bin/python tools/mcp-
 - **会话与安全**：单用户；cookie `pm_sid`（`HttpOnly; SameSite=Lax; Path=/`）；
   登录失败达阈值后**封锁期内即使口令正确也返回 429**，直到窗口过期。服务**只应暴露在可信内网**（或由反代终结 HTTPS）。
 - **不联网**：不引 CDN、不发遥测、不调外部 API。
+- **安全响应头**（2026-09-30 起，所有响应都带）：`X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、
+  `Referrer-Policy: strict-origin-when-cross-origin`，以及一条 CSP —— `default-src 'self'` + `script-src 'self'`
+  + **`style-src 'self' 'unsafe-inline'`** + `img-src 'self' data: blob:` + `connect-src 'self'`
+  + `object-src 'none'` + `frame-ancestors 'none'`。
+  - `style-src` 的 `'unsafe-inline'` **不能去掉** —— antd 是 CSS-in-JS，运行时往 `<head>` 注入 `<style>`，
+    去掉会让整个界面丢样式。`script-src` 则**只给 `'self'`**（构建产物是外链 module，无内联脚本）。
+  - `Strict-Transport-Security` **只在 `PUBLIC_ORIGIN` 为 `https://` 时**下发（内网 HTTP 加了会把 http 也强制跳 https）。
+  - ⚠️ 若你在反向代理上再叠一层 CSP，注意别把 `style-src 'unsafe-inline'` 收掉。
 - **Markdown 渲染的内存**：服务端净化需要 DOM（`jsdom` 模块加载时建一个复用 window）⇒ 起完整服务后
   `VmRSS ≈ 204 MB`（实测 2026-09-18）。单机自托管可接受。
 - **检索规模**：`FTS5 trigram` 只支持 ≥3 个 Unicode 码点，<3 走 `LIKE '%…%'` 全表扫描兜底 —— 2000 行量级实测 0.2 ms，

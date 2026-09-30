@@ -106,7 +106,44 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     if (status === 429) {
       return reply.code(429).send({ error: 'rate_limited' });
     }
-    return reply.code(status).send({ error: status === 404 ? 'not_found' : 'unauthorized' });
+    // P2-2：非预期状态码不再一律误标 `unauthorized`（413/405 曾都回 unauthorized，对 API 消费者是误导）。
+    if (status === 404) return reply.code(404).send({ error: 'not_found' });
+    if (status === 405) return reply.code(405).send({ error: 'method_not_allowed' });
+    if (status === 413) return reply.code(413).send({ error: 'payload_too_large' });
+    if (status === 401) return reply.code(401).send({ error: 'unauthorized' });
+    return reply.code(status).send({ error: 'request_error' });
+  });
+
+  // ── P1-1：安全响应头 ─────────────────────────────────────────────────────────
+  // 不引 helmet：项目规矩是「依赖只减不增」，这里需要的 4~5 个头用 onSend 钩子几行就够。
+  // CSP 的取值是按本应用的实际情况定的，改动前请先读注释：
+  //   · `style-src` 必须留 'unsafe-inline' —— antd 是 CSS-in-JS，运行时往 <head> 注入 <style>；
+  //   · `script-src` 只给 'self' —— 构建产物是外链 module（dist/web/index.html 里无内联脚本），
+  //     Markdown 预览走的 dangerouslySetInnerHTML 已由服务端 DOMPurify 净化，这层是兜底；
+  //   · `connect-src` 只给 'self' —— 前端所有请求都打同源 API（跨域是别人调我们，不是我们调别人）；
+  //   · `img-src` 留 data:/blob: —— antd 图标与可能的本地预览用得上。
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+  // HSTS 只在确认对外是 HTTPS 时下发（内网 HTTP 加了会让浏览器把 http 也强制跳 https）。
+  const hsts = config.publicOrigin !== undefined && config.publicOrigin.startsWith('https://');
+
+  app.addHook('onSend', async (_request, reply, payload) => {
+    reply.header('x-content-type-options', 'nosniff');
+    reply.header('x-frame-options', 'DENY');
+    reply.header('referrer-policy', 'strict-origin-when-cross-origin');
+    reply.header('content-security-policy', csp);
+    if (hsts) reply.header('strict-transport-security', 'max-age=31536000; includeSubDomains');
+    return payload;
   });
 
   await registerCookieSupport(app);

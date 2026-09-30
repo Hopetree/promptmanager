@@ -68,6 +68,7 @@
 - **无 CDN 资源**（AC-20 ④：构建产物与源码零外链）。
 - **无 lodash/axios/moment 之类**：能一个包解决就不叠三个（STANDARDS §4.3 第 5 条）。
 - **无 bcrypt**：口令哈希统一走 Argon2id（见 §4.5），不同时堆两套哈希库。
+- **无 helmet**：安全响应头用 Fastify 的 `onSend` 钩子直接写（4~5 个头，几行代码），不为这点功能引一个包（2026-09-30）。
 - **无额外的请求校验库**：HTTP 请求校验一律用 fastify 自带的 JSON Schema/ajv（框架能力）。**注意** `zod` **确实在依赖树里**（§2.2 已登记），但它是 `@modelcontextprotocol/sdk` 的 peerDependency、**只用于 MCP 工具的入参 schema**，不参与 HTTP 校验。
 
 ## 3. 传递依赖（由 lockfile 固定，不手工干预）

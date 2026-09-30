@@ -139,7 +139,8 @@ async function exportCommand(argv: string[]): Promise<number> {
     const json = JSON.stringify(file);
     const tmp = `${out}.tmp`;
     try {
-      writeFileSync(tmp, json);
+      // P2-9④：导出文件含全部提示词正文，落盘按 0600（此前沿用默认 0644）。
+      writeFileSync(tmp, json, { mode: 0o600 });
       renameSync(tmp, out);
     } catch (error) {
       rmSync(tmp, { force: true });

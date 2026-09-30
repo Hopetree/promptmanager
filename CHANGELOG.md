@@ -6,6 +6,37 @@
 
 ## [未发布]
 
+### 修复 / 加固（Fixed · Security）
+
+- **HTTP 层加固**（2026-09-30 项目体检**第三批**，对应报告 P1-1 / P2-2 / P2-8 / P2-9 / P1-2）：
+
+  - **P1-1 补上安全响应头**（此前**一个都没有**）：所有响应现在带 `X-Content-Type-Options: nosniff`、
+    `X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin` 与一条 CSP。
+    **不引 helmet** —— 用 Fastify 的 `onSend` 钩子几行写完（项目规矩「依赖只减不增」）。
+    CSP 取值刻意保守：`script-src 'self'`（构建产物无内联脚本）、`object-src 'none'`、`frame-ancestors 'none'`；
+    **`style-src` 保留 `'unsafe-inline'`** —— antd 是 CSS-in-JS，收掉会让整个界面丢样式。
+    `Strict-Transport-Security` **只在 `PUBLIC_ORIGIN` 为 `https://` 时**下发（内网 HTTP 加了会把 http 也强制跳 https）。
+    **真 chromium 实测：0 条 CSP 违规、0 个页面错误、界面样式完整。**
+  - **P2-2 非预期状态码不再一律误标 `unauthorized`**：413 → `payload_too_large`、405 → `method_not_allowed`、
+    未枚举的 4xx → `request_error`；**400 / 401 / 404 的既有契约逐字不变**（已加回归断言）。
+    实测：认证下 2 MB body → `413 {"error":"payload_too_large"}`（此前是 `unauthorized`）。
+  - **P2-8 补全局异常处理器**：`unhandledRejection` / `uncaughtException` 记日志后**优雅关库再退出**
+    （此前只注册了 SIGINT/SIGTERM，漏 await 的 promise 会裸崩、上下文丢失）。**不吞异常继续跑** ——
+    状态可能已不一致，带病运行比退出更危险。
+  - **P2-9 同步子系统四处硬伤**：
+    ① `clientFor` 的解密失败（密钥变更 / 密文损坏）此前抛裸 500 ⇒ 现映射为 `500 token_enc_key_unavailable` + 中文可执行提示；
+    ② 同步客户端**不跟随重定向**（`redirect: 'error'`）+ 上游响应体读取加 **10 MB 上限**（此前 `response.text()` 无界，被劫持/被重定向的上游可把内存泵满）；
+    ③ 快照（`pre-restore-*.json`）与 `pm export --out` 导出文件改按 **0600** 落盘（此前默认 0644，而它们含提示词正文全文；对照 `token-enc.key` 本就是 0600）。
+    （报告提的第 ④ 条「默认实例名取自 `Host` 头」经复核**不改**：已有字符白名单，且它只是表单默认值、管理员保存前可见，风险可忽略。）
+  - **P1-2 CI 补依赖漏洞扫描**：新增 `npm audit --omit=dev` 步骤（**report-only，不阻断** —— 否则上游冒出一个新 CVE 会卡住所有无关 PR；要收紧去掉 `|| true` 即可）。
+    必须显式指定官方 registry，默认的 npmmirror 不实现 audit 端点。
+  - **P2-16（部分）CI 去重**：加 `concurrency` 组（同分支 push + PR 只跑最新一次）与 `timeout-minutes: 15`。
+  - 新增 **`.github/dependabot.yml`**：npm / docker / github-actions 三生态每周自动开 PR（只开 PR 不自动合并，每个都要过 CI）。
+
+- 新增 **8 条测试**（`tests/http-hardening.test.ts`）：安全头在 HTML/API 两条路径、CSP 取值断言（含"不许出现 `unsafe-inline` 的 script-src"）、
+  HSTS 的有/无两态、413 映射、400/401/404 回归、异常处理器源文本断言、上游超大响应与重定向两态。
+  **用例总数 489 → 497。**
+
 ### 新增（Added）
 
 - **开源社区文件**（2026-09-30 项目体检第二批，纯文档）：

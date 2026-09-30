@@ -10,6 +10,11 @@ on:
     branches: ['**']
   pull_request:
 
+# 同一分支的重复触发（push 后紧接 PR）只留最新一次，省掉并行重复跑。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -17,6 +22,7 @@ jobs:
   quality:
     name: 质量检查（类型 / 测试 / 构建 / 体积预算）
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +34,12 @@ jobs:
 
       - name: 安装依赖（npm ci）
         run: npm ci
+
+      # 依赖漏洞扫描：**只报告不阻断**（首次上线不设门禁 —— 否则上游冒出一个新 CVE
+      # 就会把所有无关的 PR 一起卡住）。要收紧成门禁时，去掉末尾的 `|| true` 即可。
+      # ⚠️ 必须显式指定官方 registry：默认的 npmmirror **不实现 audit 端点**（会报 NOT_IMPLEMENTED）。
+      - name: 依赖漏洞扫描（report-only）
+        run: npm audit --omit=dev --registry=https://registry.npmjs.org || true
 
       # 类型检查 → 全量测试 → 构建 → 体积预算（最大 chunk ≤ 500KB）
       - name: 代码质量检查（与本地同一套脚本）

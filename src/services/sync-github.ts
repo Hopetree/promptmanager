@@ -117,6 +117,33 @@ function describeStatus(status: number, body: string, repo: string, context: str
   return new SyncError(502, 'sync_upstream', `GitHub 暂时不可用（服务端返回 ${status}）。请稍后重试。`);
 }
 
+/** P2-9②：上游响应体上限 —— 防被劫持 / 被重定向的上游把内存泵满（快照上限 5MB，这里留一倍余量）。 */
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+
+/** 有界读取：`response.text()` 会无上限地把整个响应读进内存，这里改成按流累计、超限即中止。 */
+async function readBoundedText(response: Response): Promise<string> {
+  const declared = Number(response.headers.get('content-length') ?? '');
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
+    throw new SyncError(502, 'sync_upstream_too_large', 'GitHub 返回的内容过大，已中止读取。');
+  }
+  if (response.body === null) return '';
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value === undefined) continue;
+    total += value.byteLength;
+    if (total > MAX_RESPONSE_BYTES) {
+      await reader.cancel();
+      throw new SyncError(502, 'sync_upstream_too_large', 'GitHub 返回的内容过大，已中止读取。');
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))).toString('utf8');
+}
+
 export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
   const base = trimBase(options.baseUrl ?? GITHUB_API_BASE);
   const doFetch = options.fetchImpl ?? fetch;
@@ -142,11 +169,13 @@ export function createGitHubClient(options: GitHubClientOptions): GitHubClient {
         headers: { ...headers(), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
+        // P2-9②：不跟重定向 —— 基地址来自管理员配置，跟随重定向等于允许它把带 token 的请求引到别处。
+        redirect: 'error',
       });
     } catch (error) {
       throw describeNetworkError(error);
     }
-    const text = await response.text();
+    const text = await readBoundedText(response);
     let json: Record<string, unknown> = {};
     if (text !== '') {
       try {
