@@ -61,7 +61,7 @@ jobs:
 
       - name: 计算镜像 tag 与标签
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/promptmanager
           # `latest=false` 关掉 action 的自动 latest，改由下面的 raw 规则显式给 —— 产出集合可预期：
