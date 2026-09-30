@@ -46,7 +46,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 准备 buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       # 只有「确实要推送」（**正式版** tag `v*`，无预发布后缀）时才登录：分支/预发布构建**用不到 token**
       # （注：镜像名本身由 DOCKERHUB_USERNAME 拼出 ⇒ 分支构建仍需先配好**这一个** secret，见 deploy/container.md §2.2）
