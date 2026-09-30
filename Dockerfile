@@ -13,7 +13,7 @@
 #   · 数据落在卷挂载点 /data（SQLite 单文件 + media/），容器重建不丢数据。
 #   · 健康检查用 node 内置 fetch（slim 镜像不含 curl）。
 
-FROM node:24 AS builder
+FROM node:26 AS builder
 WORKDIR /app
 
 # 依赖层（单独一层，利用构建缓存）
@@ -32,7 +32,7 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 # ---------- 运行阶段 ----------
-FROM node:24-slim AS runtime
+FROM node:26-slim AS runtime
 
 ENV NODE_ENV=production     HOST=0.0.0.0     PORT=8767     DATA_DIR=/data
 
