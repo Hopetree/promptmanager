@@ -45,6 +45,22 @@ export class ConflictError extends Error {
   }
 }
 
+/**
+ * FR-125 / 阶段 59：远程同步的领域错误 —— 带 HTTP 状态码 + 机器可读 `code` + **中文可执行提示**。
+ * 响应体形状 `{"error": code, "message": "…"}`；状态码由同步层自己决定（400 配置/确认问题、409 冲突、502 上游/网络）。
+ */
+export class SyncError extends Error {
+  readonly statusCode: number;
+  readonly code: string;
+
+  constructor(statusCode: number, code: string, message: string) {
+    super(message);
+    this.name = 'SyncError';
+    this.statusCode = statusCode;
+    this.code = code;
+  }
+}
+
 /** better-sqlite3 的约束错误（外键/唯一）→ 视为请求体不合法。 */
 export function isConstraintError(error: unknown): boolean {
   const code = String((error as { code?: unknown } | null)?.code ?? '');

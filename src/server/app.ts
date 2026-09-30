@@ -7,7 +7,7 @@ import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import type { AppConfig } from '../config.js';
 import { prepareDatabase, type Db, type QueryEngine } from '../db/index.js';
-import { ConflictError, InvalidBodyError, InvalidImportError, NotFoundError } from '../errors.js';
+import { ConflictError, InvalidBodyError, InvalidImportError, NotFoundError, SyncError } from '../errors.js';
 import { registerMcpHttpRoutes } from '../mcp/http.js';
 import { registerAuthGate, registerCookieSupport } from './auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
@@ -16,6 +16,7 @@ import { registerFolderRoutes } from './routes/folders.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerPromptRoutes } from './routes/prompts.js';
 import { registerRenderRoutes } from './routes/render.js';
+import { registerSyncRoutes } from './routes/sync.js';
 import { registerTokenRoutes } from './routes/tokens.js';
 import { registerUsageRoutes } from './routes/usage.js';
 import { registerTagRoutes } from './routes/tags.js';
@@ -84,6 +85,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     if (error instanceof InvalidImportError) {
       return reply.code(400).send({ error: 'invalid_import', details: error.details });
     }
+    if (error instanceof SyncError) {
+      // FR-125 ④.7：同步错误的提示已经是「中文 + 可执行」，原样回给前端（不套 invalid_body）。
+      return reply.code(error.statusCode).send({ error: error.code, message: error.message });
+    }
 
     const status = error.statusCode ?? 500;
     if (status >= 500) {
@@ -130,6 +135,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerTagRoutes(app);
   registerRenderRoutes(app);
   registerExportRoutes(app);
+  registerSyncRoutes(app, config); // FR-125：远程数据同步（仅会话可用，不做自动上传）
   registerTokenRoutes(app, config);
   registerUsageRoutes(app);
   // FR-93：MCP 的 Streamable HTTP 传输（顶层 `/mcp`，自己做 Bearer 鉴权；不经过 /api/* 闸门）

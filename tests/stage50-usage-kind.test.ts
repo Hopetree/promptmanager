@@ -94,7 +94,7 @@ test('AC-115 ⑨：迁移 006 存在且口径正确 —— 旧行一律填 copy�
     assert.equal(before, 3);
 
     const result = runMigrations(db);
-    assert.equal(result.version, 6, '迁移必须到 v6');
+    assert.equal(result.version, 7, '迁移必须到当前版本（阶段 59 起是 v7；本用例只关心 006 的应用）');
     assert.ok(result.applied.includes('006_usage-kind.sql'), '006 应被应用');
 
     const columns = (db.prepare('PRAGMA table_info(usage_events)').all() as Array<{ name: string }>).map((r) => r.name);

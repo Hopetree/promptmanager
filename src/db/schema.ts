@@ -99,6 +99,20 @@ export interface PromptTagsTable {
   tag_id: number;
 }
 
+/**
+ * FR-125 / D-57：远程同步配置（**单例表**，`id = 1` 恒为唯一行，迁移 007）。
+ * `token_enc` 是 GitHub token 的 AES-256-GCM 密文（复用 token-crypto）——**表里没有明文**。
+ */
+export interface SyncConfigTable {
+  id: number;
+  repo: string; // 归一化后的 `owner/repo`
+  instance: string; // 实例标识，仅 `[A-Za-z0-9._-]`
+  path: string; // 目标文件路径，必须含 `promptmanager/` 且以 `<instance>.json` 收尾
+  branch: string; // 缺省 `main`
+  token_enc: string; // 密文 base64(nonce‖tag‖ciphertext)
+  updated_at: string;
+}
+
 export interface SchemaMigrationsTable {
   version: number;
   name: string;
@@ -125,6 +139,7 @@ export interface Database {
   prompts_fts: PromptsFtsTable;
   api_tokens: ApiTokensTable;
   usage_events: UsageEventsTable;
+  sync_config: SyncConfigTable;
   schema_migrations: SchemaMigrationsTable;
 }
 

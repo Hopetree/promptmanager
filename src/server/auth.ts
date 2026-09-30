@@ -40,11 +40,11 @@ const PUBLIC_API_PATHS = new Set<string>(['/api/login']);
  *      + **渲染类 POST**（`POST /api/prompts/:id/render`、`POST /api/render/markdown`）
  *      —— 渲染只出文本、不改资源，**必须归读**，否则 MCP 的 `prompt_render` 会被只读令牌误伤；
  *   2. 资源写（**仅 write**）：其余 prompts/folders/tags/import 的 POST/PUT/PATCH/DELETE；
- *   3. 不属于资源 ⇒ **仅会话**（任何令牌都不可）：`/api/tokens*`、`/api/password`、`/api/logout`。
+ *   3. 不属于资源 ⇒ **仅会话**（任何令牌都不可）：`/api/tokens*`、`/api/sync*`、`/api/password`、`/api/logout`。
  */
 
 /** 类别 ③：令牌**一律不可**（与 scope 无关），必须 cookie 会话。 */
-const SESSION_ONLY_PREFIXES = ['/api/tokens'];
+const SESSION_ONLY_PREFIXES = ['/api/tokens', '/api/sync'];
 const SESSION_ONLY_PATHS = new Set<string>(['/api/password', '/api/logout']);
 
 /** 类别 ①：资源读的路径前缀（方法为 GET 时）。`/api/me` 只是报身份，也算读。 */

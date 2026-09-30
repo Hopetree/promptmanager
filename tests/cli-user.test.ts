@@ -143,19 +143,18 @@ test('CLI：用法错误一律 rc=2（缺 --username / 空口令 / 未知选项 
   }
 });
 
-test('CLI：migrate 幂等 → 两次都输出 ok: schema at v6，rc=0', async () => {
+test('CLI：migrate 幂等 → 两次都输出 ok: schema at v7，rc=0', async () => {
   const dir = makeTempDir('pm-cli-');
   try {
     const first = await runCli(['migrate'], dir);
     cliOk(first, '第一次 migrate');
-    // v6 = 001 初始 + 002（阶段 6 token/usage）+ 003（阶段 22 prompts.sort_order）+ 004（阶段 35 token_enc）
-    //      + 005（阶段 42 scope/token_id）+ 006（阶段 50 usage_events.kind）
-    //      + 005（阶段 42 token scope / usage token_id）
-    assert.equal(first.stdout, 'ok: schema at v6\n');
+    // v7 = 001 初始 + 002（阶段 6 token/usage）+ 003（阶段 22 prompts.sort_order）+ 004（阶段 35 token_enc）
+    //      + 005（阶段 42 scope/token_id）+ 006（阶段 50 usage_events.kind）+ 007（阶段 59 sync_config）
+    assert.equal(first.stdout, 'ok: schema at v7\n');
 
     const second = await runCli(['migrate'], dir);
     cliOk(second, '第二次 migrate');
-    assert.equal(second.stdout, 'ok: schema at v6\n');
+    assert.equal(second.stdout, 'ok: schema at v7\n');
   } finally {
     removeTempDir(dir);
   }

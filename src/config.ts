@@ -30,6 +30,11 @@ export interface AppConfig {
   trustProxy: boolean;
   /** 公网公开地址（BRIEF D-18 / AC-28）：设置后会话 cookie 追加 Secure；未设置不得加（内网 HTTP 要能登录） */
   publicOrigin: string | undefined;
+  /**
+   * FR-125 / D-57 ④（阶段 59）：远程同步走的 GitHub API 基地址，缺省 `https://api.github.com`。
+   * **存在的唯一目的是可注入** —— 自动化测试把它指向本地桩服务器（不改产品行为；生产不设这个变量）。
+   */
+  syncGitHubApiBase: string;
 }
 
 /**
@@ -114,6 +119,16 @@ function readPublicOrigin(env: Record<string, string | undefined>): string | und
   return raw;
 }
 
+/** SYNC_GITHUB_API_BASE：远程同步的 API 基地址（测试指向本地桩）；非法值抛错，不静默回退。 */
+function readSyncApiBase(env: Record<string, string | undefined>): string {
+  const raw = readString(env, 'SYNC_GITHUB_API_BASE');
+  if (raw === undefined) return 'https://api.github.com';
+  if (!/^https?:\/\/[^\s]+$/.test(raw)) {
+    throw new Error(`配置错误：SYNC_GITHUB_API_BASE 必须是 http(s):// 开头的地址，实际 "${raw}"`);
+  }
+  return raw.replace(/\/+$/, '');
+}
+
 function readPositiveInt(
   env: Record<string, string | undefined>,
   name: string,
@@ -150,5 +165,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     corsOrigins: readCorsOrigins(env),
     trustProxy: readTrustProxy(env),
     publicOrigin: readPublicOrigin(env),
+    syncGitHubApiBase: readSyncApiBase(env),
   };
 }
