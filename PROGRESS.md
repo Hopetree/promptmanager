@@ -5141,3 +5141,63 @@ eq "跟随系统 = 太阳 + 月亮（无电脑图标）" "true" "$(v ac58_system
    要读 `DevToolsActivePort` 再从 `http://127.0.0.1:<port>/json/list` 里挑 `type === 'page'` 的目标。
 3. **`edit` 前必须先 `read`** —— 直接改 `app.css` 会报 `file has not been read`，读后重试即成功。
 
+## 阶段 59（2026-09-29）：远程数据同步（手动把全量快照推 / 拉到 GitHub 私有仓库）
+
+**规格来源（唯一）**：`BRIEF.md` **FR-125**（`:1438`）/ **AC-121**（`:2905`）/ **D-57**（`:3272`）。
+本文件只记录**执行细节与实测输出**，不复制规格原文。
+
+**开工前状态**：HEAD `c4e2086`（host_manger 的 BRIEF v70 提交）；工作树干净；`package.json` version `1.4.1-beta.1`；
+`QUESTIONS.md` 无待决问题。
+
+### 1. 开工：AC-121 的 12 条 → 我实际要执行的检查命令
+
+自动化证据分三层：**(a) `tests/api-sync.test.ts`**（node:test，`app.inject` + **本地 HTTP 桩服务器**，
+真实走 `fetch` ⇒ 覆盖 base64 / 409 重试 / 错误映射）；**(b) 源码级断言**（不外连的静态证据、`path` 校验）；
+**(c) `tools/ac-stage59-sync.sh` + `tools/ac-stage59-sync-probe.mjs`**（真浏览器 CDP：双端截图、无横滚、
+不点按钮时零出网）。桩要能演六种形态：**200 / 404 / 409 / 401 / 403 / 网络异常（连接被拒）**。
+
+| AC-121 | 我要执行的命令 | 期望 |
+| --- | --- | --- |
+| A① | `node --test --test-name-pattern='AC-121 ①' tests/api-sync.test.ts` | `GET /api/sync/config` 响应里**没有** token 明文，只有 `token_set` + 尾 4 位；`sqlite3` 读 `sync_config` 的密文列 ≠ 原明文、且能解回原值 |
+| A② | `node --test --test-name-pattern='AC-121 ②' tests/api-sync.test.ts` | `path` 不含 `promptmanager/` ⇒ **400**；不以 `<instance>.json` 收尾 ⇒ **400**；`instance` 含非法字符 ⇒ **400** |
+| B③ | `node --test --test-name-pattern='AC-121 ③' tests/api-sync.test.ts` | **write** 令牌调 `POST /api/sync/push`、`/api/sync/pull` ⇒ **403 `session_required`**（两端点各一次） |
+| C④ | `node --test --test-name-pattern='AC-121 ④' tests/api-sync.test.ts` | `push {dry_run:true}` 返回条数 / 目录数 / 解析后完整路径 / 新建或覆盖，且**桩侧没有任何 PUT**（远端 sha 不变） |
+| C⑤ | `node --test --test-name-pattern='AC-121 ⑤' tests/api-sync.test.ts` | 真 `push` 后桩侧内容 **==** `GET /api/export`（除 `exported_at`）；第二次 `push` ⇒ 桩侧 commit 计数 +1 |
+| C⑥ | `node --test --test-name-pattern='AC-121 ⑥' tests/api-sync.test.ts` | 桩第一次 PUT 答 **409** ⇒ 服务端**取新 sha 重试一次**并成功（桩侧 PUT 计数 = 2），**不无限重试** |
+| D⑦ | `node --test --test-name-pattern='AC-121 ⑦' tests/api-sync.test.ts` | `pull mode=merge`：远端 1 条 + 本地独有 1 条 ⇒ 本地 2 条（本地独有**没被删**） |
+| D⑧ | `node --test --test-name-pattern='AC-121 ⑧' tests/api-sync.test.ts` | 不带 `confirm` ⇒ **400**；带 `confirm:true` ⇒ 清表重建，且 `<DATA_DIR>/pre-restore-*.json` **确实存在**、内容是执行前状态 |
+| E⑨ | `node --test --test-name-pattern='AC-121 ⑨' tests/api-sync.test.ts` | 造含中文 + emoji 的 prompt ⇒ push ⇒ 清库 ⇒ pull ⇒ 标题/正文**逐字相等** |
+| E⑩ | `node --test --test-name-pattern='AC-121 ⑩' tests/api-sync.test.ts` | 桩答 401 / 404 ⇒ 两种**不同**的中文提示；桩答 200 但该路径无文件 ⇒「云端还没有文件」；桩端口不监听 ⇒ 中文网络错误、**响应体里不出现**裸状态码 |
+| F⑪ | `grep -rn 'setInterval' src/ \|\| echo NONE` + `node --test --test-name-pattern='AC-121 ⑪' tests/api-sync.test.ts` | 静态：`src/` 内无同步用定时器；运行时：探针在**不点任何按钮**的整段会话里记录同步出网请求数 = **0** |
+| G⑫ | `bash tools/ac-stage59-sync.sh` | PC **1440×900 DPR2** / 移动 **440×956 DPR3** 各截图（落 `tmp/shots/stage59/`）+ 实测 `innerWidth/innerHeight/devicePixelRatio` + 页面级横向溢出 = **0**；上传确认框显示**条数 + 完整路径**；`replace` 二次确认（截图为证） |
+
+> 边界：**真实 GitHub 联通验收（AC-121 C⑤ / E⑨ 的"真仓库"版本）不在我这边** —— D-57 ④ 明确由 host_manger
+> 在测试环境执行；我做的是**同一断言对本地桩**的自动化版本。收尾会把它单列为"留给 host_manger 的项"。
+
+### 2. 端口与开发实例
+
+开工实测（原样输出）：
+
+```
+$ ss -ltn | grep -E '876[0-9]'
+LISTEN 0      511                0.0.0.0:8767       0.0.0.0:*
+```
+
+⇒ 8765–8770 里只有 **8767** 被占（host_manger 的测试环境，**全程不碰**）。本阶段开发/验收实例用 **8765**
+（`HOST=0.0.0.0`，内网可达）；自动化脚本一律**自起自停**、不常驻。认证沿用既有 cookie 会话（`pm_sid`）+ 口令；
+`/api/sync/*` 一律**仅会话可用**（令牌 ⇒ 403 `session_required`）。
+
+### 3. 计划（未完成 → 完成后补实测）
+
+1. 迁移 `007_sync-config.sql`（表 `sync_config`，单行配置 + token 密文列）+ `src/db/schema.ts` 表类型；
+2. `src/services/sync-config.ts`（`repo` 归一化、`path`/`instance` 校验、读写与脱敏读取）+
+   `src/services/sync-github.ts`（Contents API GET/PUT、**可注入** base URL、409 重试一次、错误中文化、5MB 上限）+
+   `src/services/sync.ts`（test / push dry_run+real / pull merge+replace + `pre-restore` 快照）；
+3. `src/server/routes/sync.ts` 四个端点 + `src/server/auth.ts` 把 `/api/sync` 并入**仅会话**前缀 + `app.ts` 注册；
+4. `tests/api-sync.test.ts`（本地 HTTP 桩）+ 源码级断言（零出网静态证据、`path` 规则）；
+5. 前端 `web/src/components/SyncModal.tsx` + `web/src/api.ts` + `web/src/types.ts` + `web/src/lazy.ts` +
+   `web/src/components/AppHeader.tsx` 菜单项（新增 `'sync'` 键插在 `'import-export'` 之后 —— AC-48 断言的是**相对顺序**，不受影响）；
+6. `tools/ac-stage59-sync.sh` + `tools/ac-stage59-sync-probe.mjs`（真浏览器双端 + 截图 + 零出网运行时证据）；
+7. 文档：`README.md` 新增「远程数据同步」章节（含最小权限 token 指引、**删除不传播**）、`docs/dependencies.md`（本阶段**零新增依赖**）；
+8. 回归：本阶段属「接口 + 迁移」类 ⇒ 按规范**全量复跑** `npm test` + `bash tools/ci-check.sh`（范围理由见收尾小节）。
+
