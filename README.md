@@ -3,6 +3,11 @@
 **轻量、自托管、数据自持的 Prompt 管理器。** 一个进程、一个端口、一个数据库文件，浏览器打开就能用。
 不联网、不发遥测 —— 数据全在你自己机器上。
 
+[![CI](https://github.com/Hopetree/promptmanager/actions/workflows/ci.yml/badge.svg)](https://github.com/Hopetree/promptmanager/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hopetree/promptmanager)](https://hub.docker.com/r/hopetree/promptmanager)
+[![Node](https://img.shields.io/badge/node-%E2%89%A524-brightgreen)](.nvmrc)
+
 MIT 许可 · 镜像 `hopetree/promptmanager` · 需要 Node ≥ 24（源码运行时）
 
 ## 能做什么
@@ -17,6 +22,14 @@ MIT 许可 · 镜像 `hopetree/promptmanager` · 需要 Node ≥ 24（源码运�
 - **移动端与暗色**：手机浏览器可用（单栏 + 抽屉）；主题跟随系统，也可手动三态切换
 
 其它能力（拖拽排序、批量操作、导入导出、使用统计、文件夹嵌套、令牌分权限等）见下方「怎么用」。
+
+## 看一眼
+
+| 分栏视图（桌面默认） | 卡片视图（移动端默认） | 暗色主题 |
+| --- | --- | --- |
+| ![分栏视图](docs/shots/02-split.png) | ![卡片视图](docs/shots/04-cards.png) | ![暗色主题](docs/shots/08-dark.png) |
+
+全部 8 张（表格 / 编辑器 / 详情与版本对比 / 移动端 / 登录页）见 [`docs/shots/`](docs/shots/)。
 
 ## 快速开始
 
@@ -228,6 +241,16 @@ PUBLIC_ORIGIN=https://prompt.example.com   # 会话 cookie 追加 Secure
 | 依赖清单与许可证 | [`docs/dependencies.md`](docs/dependencies.md) |
 | 开发者文档（构建 / 测试 / 项目结构 / 验收） | [`docs/development.md`](docs/development.md) |
 | AI 代理操作指南 | [`AGENTS.md`](AGENTS.md) |
+| 参与贡献 / 提 PR | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| 安全策略 / 报告漏洞 | [`SECURITY.md`](SECURITY.md) |
+| `docs/` 里有什么、还算不算数 | [`docs/README.md`](docs/README.md) |
+
+## 参与
+
+欢迎 issue 与 PR。开工前请读 [`CONTRIBUTING.md`](CONTRIBUTING.md)（环境、质量门、几条硬规矩）；
+提交前跑一遍 `rm -rf dist && bash tools/ci-check.sh`。
+
+**安全漏洞请不要开公开 issue** —— 走 [`SECURITY.md`](SECURITY.md) 的私密渠道。
 
 ## License
 

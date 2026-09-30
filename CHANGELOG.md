@@ -6,6 +6,14 @@
 
 ## [未发布]
 
+### 新增（Added）
+
+- **开源社区文件**（2026-09-30 项目体检第二批，纯文档）：
+
+  - **`SECURITY.md`**：私密报告渠道（**GitHub Security Advisories**，不开公开 issue）、支持版本、响应节奏、**范围界定**（哪些算本项目的问题、哪些请自行处理），以及一节「**已知的安全设计**」—— 把 argon2id、令牌只存 sha256、同步令牌 AES-256-GCM、仅会话端点等**有意为之**的设计讲清楚，避免被当成漏洞报上来。
+  - **`CONTRIBUTING.md`**：环境要求（Node ≥24 + `engine-strict`）、**质量门**（`rm -rf dist && bash tools/ci-check.sh`）、五条硬规矩（**不改已应用的迁移**、迁移必须幂等、依赖只减不增、`docs/` 只放最终状态、改接口要同步 `api.md`）、commit 规范、PR 与 issue 各要带什么。
+  - `README.md`：**加 4 个徽章**（CI / License / Docker Pulls / Node）、**内嵌 3 张截图**（分栏 / 卡片 / 暗色，其余 5 张仍在 `docs/shots/`）、文档索引补 `CONTRIBUTING` / `SECURITY` / `docs/README`、新增「**参与**」段。
+
 ### 文档（Documentation）
 
 - **一轮「文档与实现对齐」整改**（2026-09-30 项目体检，**纯文档、零代码改动** —— 未碰 `src/`、`web/`、`tests/`、`migrations/`、`package.json`）：
