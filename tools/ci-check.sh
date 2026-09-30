@@ -5,6 +5,7 @@
 #   ⓪ 文档体积预算（`AGENTS.md` 必须留在 AI 代理的指令预算内）
 #   ① 依赖就绪（`node_modules` 存在；CI 里由 workflow 先 `npm ci`）
 #   ①b 静态检查（`npm run lint` = oxlint）
+#   ①c 依赖台账一致性（`docs/dependencies.md` 必须与实际版本相符）
 #   ② 构建（`npm run build`）
 #   ③ 类型检查（`npm run typecheck:web` + `npm run typecheck:tests`）
 #   ④ 全量测试（`npm test`，自带构建与类型检查）
@@ -98,6 +99,15 @@ fi
 line "①b 静态检查（oxlint）"
 npm run lint >"$LOG_DIR/lint.log" 2>&1
 record "①b npm run lint" $? "$(grep -oE 'Found [0-9]+ warnings? and [0-9]+ errors?' "$LOG_DIR/lint.log" | tail -1)"
+
+# ---------------------------------------------------------------- ①c 依赖台账一致性
+# 为什么：`docs/dependencies.md` 是**手工维护**的版本台账，而版本会被自动化改动
+# （dependabot / `npm install`）改掉 —— 一次合并就可能让台账过期，**且没有任何东西会发现**。
+# 2026-09-30 的 dependabot 合并（vite / marked / MCP SDK）就是这样把台账弄过期的。
+# 判据：package.json 的每个直接依赖都必须在台账里有一行 `| \`name\` | <version> |`。
+line "①c 依赖台账一致性"
+node tools/check-deps-ledger.mjs >"$LOG_DIR/deps-ledger.log" 2>&1
+record "①c 依赖台账一致性" $? "$(tail -1 "$LOG_DIR/deps-ledger.log")"
 
 # ---------------------------------------------------------------- ② 构建
 # 必须在 ③ 之前：tests 的类型检查依赖 ../dist/**（见文件头"为什么必须先构建"）。

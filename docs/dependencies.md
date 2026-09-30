@@ -29,7 +29,7 @@
 | `@fastify/cookie` | 11.1.2 | MIT | 会话 cookie 的读写/签名/清除（FR-1 阶段 2）；不自写 cookie 解析与序列化（STANDARDS §4.2） |
 | `@fastify/rate-limit` | 11.2.0 | MIT | `/api/login` 的 per-IP 请求级洪泛保护（防"拿 argon2 烧 CPU"）。**只计请求数**，失败阈值语义见 §4.7 |
 | `@fastify/cors` | 11.3.0 | MIT | FR-17 CORS 精确白名单（默认不注册 = 关闭）、预检处理；不自写 CORS 头与 OPTIONS 逻辑，见 §4.10 |
-| `@modelcontextprotocol/sdk` | 1.30.0 | MIT | **官方 MCP TypeScript SDK**（FR-18）：`McpServer` + `StdioServerTransport`；STANDARDS §4.2 禁止手写 JSON-RPC 框架，见 §4.11 |
+| `@modelcontextprotocol/sdk` | 1.30.1 | MIT | **官方 MCP TypeScript SDK**（FR-18）：`McpServer` + `StdioServerTransport`；STANDARDS §4.2 禁止手写 JSON-RPC 框架，见 §4.11 |
 | `zod` | 4.6.5 | MIT | MCP 工具的入参 schema（SDK 的 `registerTool` 用 zod raw shape；zod 同时是 SDK 的 peerDependency，故必须直接声明） |
 | `@node-rs/argon2` | 2.2.1 | MIT | 口令哈希 Argon2id（BRIEF §5「argon2 优先」，阶段 2）。选择理由见 §4.5 |
 | `better-sqlite3` | 13.0.3 | MIT | SQLite 驱动（BRIEF §5 二选一，理由见 §4.1）。同步 API、事务原语、FTS5 可用 |
@@ -38,7 +38,7 @@
 | `react-dom` | 19.3.0 | MIT | React 渲染器 |
 | `antd` | 6.6.4 | MIT | **指定组件库**（BRIEF D-11 / AC-20 / AC-21）。peer `react >=18`，React 19 原生支持，**不需要** `@ant-design/v5-patch-for-react-19` |
 | `@ant-design/icons` | 6.3.4 | MIT | 组件库配套图标（BRIEF §5；不手绘图标、不引图标字体 CDN） |
-| `marked` | 18.0.13 | MIT | Markdown 渲染（FR-9；BRIEF §5 指定 `marked` 或 `markdown-it`，取前者，见 §4.8） |
+| `marked` | 18.0.14 | MIT | Markdown 渲染（FR-9；BRIEF §5 指定 `marked` 或 `markdown-it`，取前者，见 §4.8） |
 | `@dnd-kit/core` | 6.3.1 | MIT | **拖拽排序引擎**（FR-70 / D-28）：DndContext / sensors / 碰撞检测。BRIEF 明确"禁止自己手写拖拽引擎"，它是 React 生态最主流的无 jQuery 拖拽库（peer `react >=16.8`，React 19 可用），见 §4.12 |
 | `@dnd-kit/sortable` | 10.0.0 | MIT | 列表/网格排序策略（`SortableContext` / `useSortable` / `arrayMove` / 键盘坐标），与 core 同作者、peer `@dnd-kit/core ^6.3.0` |
 | `@dnd-kit/utilities` | 3.2.2 | MIT | `CSS.Transform` 等小工具（core/sortable 的传递依赖，显式声明便于版本固定） |
@@ -53,7 +53,7 @@
 | 包 | 版本 | 协议 | 用途 / 选型理由 |
 | --- | --- | --- | --- |
 | `typescript` | 7.0.2 | Apache-2.0 | 类型检查与服务端编译（BRIEF §5：TS strict + Node ESM） |
-| `vite` | 8.3.0 | MIT | 前端构建（BRIEF §5）；不自写打包器 |
+| `vite` | 8.3.1 | MIT | 前端构建（BRIEF §5）；不自写打包器 |
 | `@vitejs/plugin-react` | 6.1.1 | MIT | React JSX/Fast Refresh 支持 |
 | `@types/node` | 24.13.5 | MIT | Node 类型；**对齐运行时大版本 24**（非 latest 26）以避免用到 Node 24 不存在的 API |
 | `@types/react` | 19.3.0 | MIT | React 类型 |
@@ -207,7 +207,7 @@ AC-4 规定时序："连续 5 次错误口令后第 6 次 → 429"。
 - **不引的**：`react-beautiful-dnd`（已归档/不再维护）、`react-dnd`（HTML5 backend 触屏不可用）、`sortablejs`（非 React 语义，需手写 DOM 绑定）。
 - **代价**：新增 5 个包（含传递依赖 `@dnd-kit/accessibility`），构建体积 +约 45KB（落在 `vendor-misc` 块，最大 chunk 仍 467KB ≤500KB）。
 
-### 4.11 MCP：`@modelcontextprotocol/sdk@1.30.0`（+ `zod@4.6.5`）
+### 4.11 MCP：`@modelcontextprotocol/sdk@1.30.1`（+ `zod@4.6.5`）
 
 FR-18/D-15 要求 stdio MCP server；STANDARDS §4.2 与 BRIEF §5 **明令禁止手写 JSON-RPC 框架**，故使用**官方 TS SDK**。
 协议版本对齐（BRIEF §5 硬要求）实测：SDK 的 `LATEST_PROTOCOL_VERSION = '2025-11-25'`，与真实对端
@@ -216,7 +216,7 @@ FR-18/D-15 要求 stdio MCP server；STANDARDS §4.2 与 BRIEF §5 **明令禁�
 **取舍说明（如实登记）**：该 SDK 同时内置 HTTP/SSE 等传输，会带来较多传递依赖（本阶段 `node_modules` 从 207 → 281 个包，
 其中 74 个来自 SDK 依赖树：express/hono/jose/ajv 等）。我们只用到 `stdio` 传输与 `McpServer`。
 接受这一体积的原因是：**自研 JSON-RPC/MCP 实现是被规格禁止的**，而 SDK 是官方维护、MIT、且当前版本
-`osv_vulns=0`（历史 3 条 GHSA 的修复上界分别为 1.26.0 / 1.25.2 / 1.24.0，均早于 1.30.0）。
+`osv_vulns=0`（历史 3 条 GHSA 的修复上界分别为 1.26.0 / 1.25.2 / 1.24.0，均早于 1.30.1）。
 
 ### 4.10 CORS：`@fastify/cors@11.3.0`
 
@@ -253,7 +253,7 @@ antd                       6.6.4      osv_vulns=0
 @ant-design/icons          6.3.4      osv_vulns=0
 react                      19.3.0     osv_vulns=0
 react-dom                  19.3.0     osv_vulns=0
-vite                       8.3.0      osv_vulns=0
+vite                       8.3.1      osv_vulns=0
 typescript                 7.0.2      osv_vulns=0
 @vitejs/plugin-react       6.1.1      osv_vulns=0
 ```
@@ -289,7 +289,7 @@ $ python3 - <<'PY'   # 逐包 POST api.osv.dev/v1/query（package+version）
 @fastify/cors             11.3.0      osv_vulns=0
 @fastify/rate-limit       11.2.0      osv_vulns=0
 @fastify/static           10.1.4      osv_vulns=0
-@modelcontextprotocol/sdk 1.30.0      osv_vulns=0
+@modelcontextprotocol/sdk 1.30.1      osv_vulns=0
 @node-rs/argon2            2.2.1      osv_vulns=0
 antd                       6.6.4      osv_vulns=0
 better-sqlite3            13.0.3      osv_vulns=0
@@ -299,7 +299,7 @@ fastify                    5.12.5     osv_vulns=0
 highlight.js              11.12.0     osv_vulns=0
 jsdom                     30.1.0      osv_vulns=0
 kysely                    0.29.6      osv_vulns=0
-marked                    18.0.13     osv_vulns=0
+marked                     18.0.14     osv_vulns=0
 react                     19.3.0      osv_vulns=0
 react-dom                 19.3.0      osv_vulns=0
 zod                        4.6.5      osv_vulns=0
@@ -310,7 +310,7 @@ zod                        4.6.5      osv_vulns=0
 @types/react-dom          19.3.0      osv_vulns=0
 @vitejs/plugin-react       6.1.1      osv_vulns=0
 typescript                 7.0.2      osv_vulns=0
-vite                       8.3.0      osv_vulns=0
+vite                       8.3.1      osv_vulns=0
 --- 直接依赖 31 个，OSV 命中漏洞合计 0
 ```
 
@@ -330,7 +330,7 @@ vite                       8.3.0      osv_vulns=0
 阶段 4 新增（5 个，**装前**查 + 装后复跑 audit 均为 0）：
 
 ```
-marked                     18.0.13    osv_vulns=0
+marked                     18.0.14    osv_vulns=0
 dompurify                  3.4.15     osv_vulns=0
 jsdom                      30.1.0     osv_vulns=0
 highlight.js               11.12.0    osv_vulns=0
@@ -346,7 +346,7 @@ diff                       9.0.0      osv_vulns=0
 阶段 7 新增（2 个，装前查 + 装后复跑 audit 均为 0）：
 
 ```
-@modelcontextprotocol/sdk  1.30.0     osv_vulns=0（历史 GHSA 上界 ≤1.26.0）
+@modelcontextprotocol/sdk  1.30.1     osv_vulns=0（历史 GHSA 上界 ≤1.26.0）
 zod                        4.6.5      osv_vulns=0
 ```
 

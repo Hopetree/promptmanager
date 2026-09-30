@@ -52,14 +52,15 @@ test('AC-89 ②：脚本注释里写明了「为什么必须先构建」（否�
   assert.ok(ci.includes('38'), '注释要写明实测错误数（38）');
 });
 
-test('AC-89 ①：步骤编号与顺序 —— 2026-09-30 起为 8 项（新增 ⓪ 文档体积预算 + ①b lint）', () => {
+test('AC-89 ①：步骤编号与顺序 —— 2026-09-30 起为 9 项（新增 ⓪ 文档体积预算 / ①b lint / ①c 台账一致性）', () => {
   // 每个步骤有"成功/失败"两个分支各调一次 record，所以按出现顺序去重后再比
   const records = [...new Set([...ci.matchAll(/^\s*record "([^"]+)"/gm)].map((m) => m[1]))];
-  assert.equal(records.length, 8, `ci-check.sh 必须恰好 8 项（实际 ${String(records.length)}：${records.join(' / ')}）`);
+  assert.equal(records.length, 9, `ci-check.sh 必须恰好 9 项（实际 ${String(records.length)}：${records.join(' / ')}）`);
   assert.deepEqual(records, [
     '⓪ AGENTS.md 体积预算',
     '① 依赖已安装',
     '①b npm run lint',
+    '①c 依赖台账一致性',
     '② npm run build',
     '③a typecheck:web',
     '③b typecheck:tests',
