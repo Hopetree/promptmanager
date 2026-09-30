@@ -32,3 +32,5 @@ export const LazyPasswordModal = lazy(() => import('./components/PasswordModal')
 export const LazyAboutModal = lazy(() => import('./components/AboutModal'));
 /** 填变量对话框（复制含变量的条目时才需要） */
 export const LazyVarsDialog = lazy(() => import('./components/VarsDialog'));
+/** FR-125：远程数据同步弹窗（只在点菜单时加载；手动触发才出网） */
+export const LazySyncModal = lazy(() => import('./components/SyncModal'));

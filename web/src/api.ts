@@ -12,6 +12,11 @@ import type {
   PromptListResponse,
   PromptWritable,
   RenderResult,
+  SyncConfigInput,
+  SyncConfigView,
+  SyncPullResult,
+  SyncPushResult,
+  SyncTestResult,
   Tag,
   TokenSummary,
   UsageSummary,
@@ -186,6 +191,27 @@ export const api = {
   revealToken: (id: number) => request<{ token: string }>('POST', `/api/tokens/${String(id)}/reveal`),
   /** FR-96：**硬删除**已撤销的 token（未撤销 → 409；真删行、审计一并消失）。 */
   deleteTokenPermanently: (id: number) => request<void>('DELETE', `/api/tokens/${String(id)}/permanent`),
+
+  // ───────────────────── FR-125 远程数据同步（阶段 59，仅会话可用） ─────────────────────
+
+  /** 读同步配置：**只回脱敏形状**（`token_set` + 尾 4 位），永远拿不到明文。 */
+  syncConfig: () => request<SyncConfigView>('GET', '/api/sync/config'),
+
+  /** 写同步配置：`token` 省略 = 沿用库里已有的密文（界面看不到明文，改分支不必重粘）。 */
+  putSyncConfig: (input: SyncConfigInput) => request<SyncConfigView>('PUT', '/api/sync/config', input),
+
+  /** 测试连接：区分 token 无效 / 无权限 / 仓库或路径不存在 / 云端还没有文件。 */
+  syncTest: () => request<SyncTestResult>('POST', '/api/sync/test'),
+
+  /**
+   * 上传全量快照。`dryRun: true`（界面一律先走这步）= **只读远端**，返回条数 / 目录数 /
+   * 解析后的完整目标路径 / 新建还是覆盖，供界面弹二次确认；真正推送才传 `false`。
+   */
+  syncPush: (dryRun: boolean) => request<SyncPushResult>('POST', '/api/sync/push', { dry_run: dryRun }),
+
+  /** 从云端恢复：`replace` 必须带 `confirm: true`，且服务端会先自动写本地快照。 */
+  syncPull: (mode: 'merge' | 'replace', confirm: boolean) =>
+    request<SyncPullResult>('POST', '/api/sync/pull', { mode, confirm }),
 };
 
 /** 统一的用户可读错误文案（401 单独判，用于把用户踢回登录页）。 */

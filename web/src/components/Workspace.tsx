@@ -11,6 +11,7 @@ import {
   LazyImportExportModal,
   LazyPasswordModal,
   LazyPromptEditor,
+  LazySyncModal,
   LazyTokenDrawer,
   LazyUsageDrawer,
   LazyVarsDialog,
@@ -130,6 +131,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   const [usageOpen, setUsageOpen] = useState(false);
   const [tokensOpen, setTokensOpen] = useState(false);
   const [importExportOpen, setImportExportOpen] = useState(false);
+  /** FR-125：远程数据同步弹窗（阶段 59） */
+  const [syncOpen, setSyncOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   /** FR-67：修改密码弹窗 */
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -548,7 +551,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   }, [onSignedOut]);
 
   const overlayOpen =
-    copier.varsPrompt !== null || aboutOpen || importExportOpen || usageOpen || tokensOpen;
+    copier.varsPrompt !== null || aboutOpen || importExportOpen || syncOpen || usageOpen || tokensOpen;
 
   // 快捷键（FR-41c）：/ 聚焦搜索 · Ctrl/Cmd+K 聚焦 · Esc 关详情/关闭编辑器 · ↑↓ 选择 · Enter 复制
   useEffect(() => {
@@ -726,6 +729,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         onOpenUsage={() => setUsageOpen(true)}
         onOpenTokens={() => setTokensOpen(true)}
         onOpenImportExport={() => setImportExportOpen(true)}
+        onOpenSync={() => setSyncOpen(true)}
         onOpenSettings={() => setAboutOpen(true)}
         onOpenPassword={() => setPasswordOpen(true)}
         onLogout={logout}
@@ -832,6 +836,12 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       {importExportOpen && (
         <Suspense fallback={null}>
           <LazyImportExportModal open onClose={() => setImportExportOpen(false)} onImported={refresh} />
+        </Suspense>
+      )}
+      {syncOpen && (
+        <Suspense fallback={null}>
+          {/* FR-125：远程数据同步（阶段 59）—— 每次出网都由弹窗里的按钮触发，无定时器 */}
+          <LazySyncModal open onClose={() => setSyncOpen(false)} onPulled={refresh} />
         </Suspense>
       )}
       {usageOpen && (

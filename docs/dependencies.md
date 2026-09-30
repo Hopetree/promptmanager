@@ -354,6 +354,13 @@ Markdown 预览的代码高亮**样式表**复用既有 `highlight.js@11.12.0` �
 **刻意没有引入**：react-router（列表↔编辑器用应用内视图状态）、状态管理库（只有会话 + 列表两处共享状态）、
 任何第二套 CSS 框架（不引 Tailwind）；理由与取舍记在 `PROGRESS.md`「阶段 8 开工前 §3 决策 1/4」。
 
+阶段 59（远程数据同步，FR-125）新增：**0 个**。GitHub 传输层用 Node 内置 `fetch` + `AbortSignal.timeout`
+（Node 24.18.0 自带），只走 Contents API 的两个端点（GET / PUT，409 冲突时取新 sha 重试一次），
+**没有**引入 `octokit` 之类 SDK —— 本项目只用两个端点，引 SDK 只会多一棵依赖树与对应的 CVE 面；
+快照格式复用既有导出（`src/services/export.ts`），恢复复用既有导入（`src/services/import.ts`），
+令牌加密复用既有 `src/services/token-crypto.ts`（AES-256-GCM），均无新依赖。
+自动化验证用的 GitHub 桩（`tools/ac-stage59-sync-stub.mjs`）只用 `node:http`，属于测试脚本、不是产品依赖。
+
 **③ 维护活跃度**：27 个直接依赖的 `npm view <pkg> time.modified` 全部在 2025-08 ~ 2026-09 之间
 （近一年有发布/维护），符合 STANDARDS §4.3 第 2 条。
 

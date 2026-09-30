@@ -84,6 +84,7 @@
 | 55 | FR-119~123 **五项小修**（FR-119 使用统计口径文案〔两处，**口径本身零改动**〕/ FR-120 空态区分「库为空」与「搜索无匹配」〔按 `hasActiveFilter` 判定，两处视图同口径〕/ FR-121 分隔符对比度**亮 3.26:1·深 3.51:1**〔原 1.70/2.25〕，**只调颜色**、形态未动/ FR-122 Token 掩码**单行**〔列 104→120 + nowrap，7 列均>0、名称非0、可横滚 0→256、末列按钮 362.2≤440〕/ FR-123 移动端「文件夹」列**不折行**〔`width:86→minWidth:110`，横滚不回归〕）：**只做这 5 项**、无新增迁移；`ac-stage55.sh` 73/73 + 新增 8 条断言（红绿 6/8 变红）；更新 2 条既有断言（体积 +116B、AC-87 文件夹列宽口径）；`npm test` 464/464、ci-check 6/6 | 本文件「阶段 55」 |
 | 56 | FR-124 **关于页改为开源项目形态**（原纯运维视角、整页零链接）—— **①身份区**（一句话定位〔取自 `package.json.description`〕+ 版本/在线/重新探测〔运行时动态〕+ **访问地址**〔从服务区移来、随协议、阶段 53 R-9 未回归〕+ 8 个关键词标签）**②出处与去向区（核心增量）**（代码仓库 / Docker 镜像〔可复制、提示 `:latest` 不写死历史版本号〕/ 文档 / 问题反馈 / 许可证 **五项**，href **0→4**，统一 `ExtLink` 带 `target=_blank`+`rel=noopener noreferrer`）**③使用·维护区**（移动端默认折叠，折叠态 `611<956` 不用滚、展开无裁切）；**⛔ 不做版本检查**（无入口 + 实测**出网请求 0**）；**「服务区」整个去掉**（含错的「拷贝 pm.db」，不改成别的样子）；**元信息不硬编码**（`vite.config.ts` 构建期 `define` 注入，组件里零 `github.com`/`hopetree`/`MIT` 字面量）；维护区 5 条命令逐条核对仍成立；更新 3 条既有断言 + 新增 11 条（红绿 6/11 变红）；`npm test` 476/476、ci-check 6/6 | 本文件「阶段 56」 |
 | 57 | FR-58 **反转**（用户 2026-09-28 要求；BRIEF v69）**主题「跟随系统」图标由「太阳 + 月亮并排」改回电脑图标 `DesktopOutlined`**：`AppHeader.tsx` 的 `themeIcon` system 分支改**单枚** `<DesktopOutlined />`（class `anticon-desktop`）+ 补 import + 注释改写为「亮 = 太阳 / 暗 = 月亮 / 跟随系统 = 电脑图标」并点明这是用户决定；删除**只**服务并排图标的 `.pm-theme-icon-both` 两条 CSS（删前确认全库仅此一处引用）；`tests/navigation-hygiene.test.ts` AC-58 **反向** —— 跟随系统**必须**出现 `anticon-desktop`、**不得**出现 `pm-theme-icon-both`（用例名同步改，断言维度比原来更严）；`tests/stage18-bundle.test.ts` 按既有记账口径补 `STAGE57_ACCOUNTED_DELTA = 112`（421,728 → 421,840 B）；**只改图标** —— 三态循环顺序 / 点击行为 / tooltip 文案 / 亮暗两态图标一字未动；真鼠标点三下实测三态 class 依次 `anticon-desktop` / `anticon-sun` / `anticon-moon`、并排 span 全程 0；`npm test` 476/476、ci-check 6/6 | 本文件「阶段 57」 |
+| 59 | FR-125 **远程数据同步**（手动把全量快照推 / 拉到 GitHub **私有**仓库；BRIEF v70）—— 配置（仓库 `owner/repo` / 实例名 / 仓库内路径 / 分支 / GitHub 令牌）；新增迁移 **`007_sync-config.sql`**（`sync_config` 单行配置；**令牌加密落库**，读接口只回 `token_set` + 尾 4 位）；三个**手动**动作〔**测试连接**（区分 令牌无效 / 无权限 / 仓库不存在 / 云端还没文件）/ **立即上传**（**必须先 `dry_run`**，二次确认框写明"将推送 prompt N 条 / 文件夹 N 个" + **解析后完整路径** + 明示**快照包含提示词正文全文**；5 MB 上限；409 取新 sha **只重试一次**）/ **从云端恢复**（**复用既有导入**：`merge` 缺省不删本地、`replace` 需 `confirm:true` 且清空前自动写 `<DATA_DIR>/pre-restore-<ts>.json` 并**保留 3 份**）〕；`/api/sync/*` **仅会话可用**（API 令牌 ⇒ 403 `session_required`，与 `/api/tokens` 同一闸门）；⛔ **不做自动/定时上传**、**删除不传播**、错误一律中文化、中文/emoji 无损；前端 `SyncModal`（**第 7 个懒加载块**）+ 顶栏 ⋯更多 菜单项；GitHub 传输层**可注入** base URL（测试用本地桩，**绝不用真实 token**）；**零新增依赖**（内置 `fetch` + Contents API 两端点，不引 octokit；导出/导入/加密三方复用）；自证＝`tests/api-sync.test.ts` **13/13** + `tools/ac-stage59-sync.sh` 真浏览器**双端各 18/18**（PC 1440×900 DPR2 / 移动 440×956 DPR3；`ZERO_OUTBOUND=true`、只发一条 `GET /api/sync/config`、`OVERFLOW=0`、取消后桩 PUT/commit 全 0、四张截图）；`tests/stage18-bundle.test.ts` 按既有口径补 `STAGE59_ACCOUNTED_DELTA = 5_138`（421,850 → 426,988 B 实测）；**真实 GitHub 联通验收留给 host_manger**（D-57 ④）；`npm test` 489/489、ci-check 6/6 | 本文件「阶段 59」 |
 | 41 | FR-102 **FIX 编辑保存后返回详情，版本历史仍是旧的**（刷新信号 `versionKey` 只在回滚时自增 ⇒ 编辑保存不触发重拉）：改为以 **`prompt.version_no`** 为唯一刷新信号（编辑保存/回滚/移动端重拉都覆盖，无关操作不产生多余请求）；并把版本表格**显示**翻转为**最新在上**（接口是升序返回，原样渲染会把新版本压在最下面）；**接口/数据零改动** | 本文件「阶段 41」 |
 | 40 | FR-101 **FIX CLI 建的 token 没有密文**（`cli.ts` 的 `token create` 漏传 `cipher` ⇒ 界面 Token 列 `—`、`pm token reveal` 报 `token_not_revealable`）：照 HTTP 路惰性解析密钥、失败降级为 `undefined` 并补一条可读 warn（**创建永不因密钥失败**）；**不动** `createToken` 签名/HTTP 路/加密方案，**不动** CLI stdout 契约；存量无密文行**不回填**（文档写明"看值就撤销重建"） | 本文件「阶段 40」 |
 
@@ -5200,4 +5201,113 @@ LISTEN 0      511                0.0.0.0:8767       0.0.0.0:*
 6. `tools/ac-stage59-sync.sh` + `tools/ac-stage59-sync-probe.mjs`（真浏览器双端 + 截图 + 零出网运行时证据）；
 7. 文档：`README.md` 新增「远程数据同步」章节（含最小权限 token 指引、**删除不传播**）、`docs/dependencies.md`（本阶段**零新增依赖**）；
 8. 回归：本阶段属「接口 + 迁移」类 ⇒ 按规范**全量复跑** `npm test` + `bash tools/ci-check.sh`（范围理由见收尾小节）。
+
+### 4. 收尾：完成情况（2026-09-30）
+
+**全部 8 项完成**。两个提交：**`07664ae`**（后端：007 迁移 + `/api/sync/*` + 13 例测试，16 files / +1723 −17）
+与**本提交**（前端 + 真浏览器验收脚本 + 文档 + 记账与既有测试同步，14 files / +1153 −10）。
+
+#### 4.1 本提交改了什么
+
+| 文件 | 改动 |
+| --- | --- |
+| `web/src/components/SyncModal.tsx` | **新增** 379 行：配置表单（仓库 / 实例名 / 路径 / 分支 / 令牌，令牌只回"已设置 + 尾 4 位"）/ 保存 / 三个手动动作 / `merge`↔`replace` 单选 / 结果区 / 「删除不会传播到云端」告警 |
+| `web/src/api.ts` | +26：`syncConfig` / `putSyncConfig` / `syncTest` / `syncPush(dryRun)` / `syncPull(mode, confirm)` |
+| `web/src/types.ts` | +67：`SyncConfigInput` / `SyncConfigView` / `SyncTestResult` / `SyncPushResult` / `SyncPullResult` |
+| `web/src/lazy.ts` | +2：第 7 个懒加载块 `LazySyncModal` |
+| `web/src/components/AppHeader.tsx` | 菜单新增 `'sync'` 项（插在 `'import-export'` 之后）+ 一条顺序注释 |
+| `web/src/components/Workspace.tsx` | 接线：`syncOpen` 状态、`LazySyncModal` 渲染、`onOpenSync` |
+| `tools/ac-stage59-sync.sh` | **新增** 172 行：资源熔断 → 起桩 → 起服务 → 造数据 → 双端跑探针 → 26 条断言 → 端口复查 |
+| `tools/ac-stage59-sync-probe.mjs` | **新增** 286 行：零依赖 CDP 真浏览器，双端视口/零出网/中文错误/确认框/取消/溢出/截图 |
+| `tools/ac-stage59-sync-stub.mjs` | **新增** 139 行：本地 GitHub Contents API 桩（200/404/409/401/403/网络异常 + `/__stats`、`/__mode`） |
+| `README.md` | +31：`### 远程数据同步（手动推 / 拉到 GitHub 私有仓库）`（配置表、三个动作、fine-grained 最小权限、5MB、`pre-restore` 快照、⚠️ 删除不传播 / 无自动上传、`/api/sync/*` 仅会话） |
+| `docs/dependencies.md` | +7：阶段 59 **零新增依赖**（内置 `fetch`，只走 Contents API 两个端点，不引 octokit；导出/导入/加密三方复用） |
+| `tests/stage18-bundle.test.ts` | +17/−2：按既有记账口径补 `STAGE59_ACCOUNTED_DELTA = 5_138`（预算 421,882 → 427,020 B） |
+| `tests/migrate-prompt-order.test.ts` | 2 处 `version, 6` → `version, 7`（007 迁移；与 `07664ae` 里另外 5 个测试同一批口径） |
+| `tests/stage43-token-set-scope.test.ts` | 源码级正则放宽为「首项必须是 `/api/tokens`，后面可追加其它仅会话前缀」（原因见 4.5） |
+
+#### 4.2 实测输出（原样）
+
+`node --test tests/api-sync.test.ts` ⇒ **tests 13 / pass 13 / fail 0**（AC-121 ①–⑪ 各一条 + 一条 `path` 规则源码断言；
+⑫ 由下面的真浏览器脚本覆盖）。`bash tools/ac-stage59-sync.sh` ⇒ **rc=0**：
+
+```
+=== 4. 真浏览器实测（PC 1440×900 @DPR2） ===
+VIEWPORT:{"innerWidth":1440,"innerHeight":900,"devicePixelRatio":2}
+MENU_SYNC:true
+ZERO_OUTBOUND:true
+SYNC_API_CALLS:["GET /api/sync/config"]
+STUB_REQUESTS_BEFORE:0
+TARGET:Hopetree/sync-data-test@main:promptmanager/pm.json
+TEST_STAGE:no_file
+TEST_ERROR_ZH:测试未通过 | GitHub 令牌无效或已过期（401）。请到 GitHub → Settings → Developer settings → Fine-grained tokens 重新签发：只勾选这一个仓库，权限只给 Contents: Read and write。 | Hopetree/sync-data-test@main:promptmanager/pm.json
+CONFIRM_TEXT:确认上传到云端？ | 将推送 prompt 1 条 / 文件夹 1 个 / 标签 1 个。 | 目标文件：Hopetree/sync-data-test@main:promptmanager/pm.json | 云端还没有这个文件，将新建。 | 快照包含提示词正文全文（含 system prompt 与版本历史）。 | 取 消 | 上 传
+CONFIRM_CANCELLED:true
+DRYRUN_PUTS:0
+STUB_COMMITS:0
+OVERFLOW:0
+  ✅ pc …（18 条全绿，含视口三项、零出网、只发一条 GET /api/sync/config、解析后完整路径、
+           no_file 阶段、401 中文可执行提示、确认框条数/路径/正文全文、取消后关闭、dry_run 无写入、无横滚、两张截图）
+=== 5. 真浏览器实测（移动 440×956 @DPR3） ===
+VIEWPORT:{"innerWidth":440,"innerHeight":956,"devicePixelRatio":3}
+（其余键同 PC；18 条全绿）
+=== 6. 收尾：桩全程无写入（两次都只走 dry_run + 取消） ===
+  ✅ 桩累计 PUT 次数 = 0
+  ✅ 桩累计 commit 次数 = 0
+=== 结果 ===
+✅ 全部通过
+rc=0
+```
+
+截图四张：`tmp/shots/stage59-sync/{pc-1-modal,pc-2-confirm,mobile-1-modal,mobile-2-confirm}.png`（已逐张目视：
+PC 弹窗里「目标文件（解析后完整路径）＝ `Hopetree/sync-data-test@main:promptmanager/pm.json`」「令牌：已设置（尾 0001）」、
+移动端确认框「将推送 prompt 1 条 / 文件夹 1 个 / 标签 1 个」+「快照包含提示词正文全文」+ 取消/上传两键均可读、无裁切）。
+
+`bash tools/ci-check.sh` ⇒ **rc=0，6/6**：
+
+```
+=== ④ 全量测试 ===
+  ✅ ④ npm test（rc=0）  ℹ tests 489 ℹ pass 489 ℹ fail 0
+=== ⑤ 体积预算 ===
+  ✅ ⑤ 体积预算（最大 chunk ≤ 500KB）（rc=0）  最大 vendor-antd-DKPItAkg.js = 470932 B（全部 js 合计 1327 KB）
+  ✅ 代码质量检查全部通过（6 项）
+```
+
+#### 4.3 体积记账（既有口径，**不是**放宽预算）
+
+`git stash push -u -- web/src` 暂存本阶段前端改动 → 同一 `node_modules` 下 `npm run build:web`
+⇒ 总 gzip **421,850 B**；恢复改动重建 ⇒ **426,988 B** ⇒ 实测增量 **+5,138 B**，据此登记
+`STAGE59_ACCOUNTED_DELTA = 5_138`（预算 = 399,175 基线 + 各阶段实测增量 = **427,020 B**）。
+构成：新增懒加载 chunk `SyncModal`（约 3.5 KB gzip）+ 主包里的 api/types/lazy/AppHeader/Workspace 接线（约 1.6 KB）。
+AC-61 ①（单 chunk ≤500KB，实测 470,932 B）与 ②（入口 ≤100KB）不变。注：阶段 58 只改 `tools/`，无前端改动 ⇒ 无 STAGE58 增量（已在测试文件里注明）。
+
+#### 4.4 回归范围与理由
+
+本阶段同时改**接口**（新增 4 个端点 + `/api/sync` 并入仅会话前缀）、**迁移**（007，schema 6→7）与**前端**（新弹窗 + 顶栏菜单），
+属于规范里「必须全量复跑」的组合 ⇒ 跑 `npm test`（489 用例）而非子集；`ci-check.sh` 6 项全绿。
+迁移 007 使 schema 版本号变化，故同步更新 6 个既有测试（`07664ae` 里 5 个 + 本提交的 `tests/migrate-prompt-order.test.ts`）。
+
+#### 4.5 一处判定为 **B 类**（断言侧过窄，**不是产品回归**）
+
+`tests/stage43-token-set-scope.test.ts:269` 原本用 `/SESSION_ONLY_PREFIXES = \['\/api\/tokens'\]/` 断言
+「令牌管理仍是仅会话」。本阶段把 `/api/sync` 并入**同一个数组**（`src/server/auth.ts:47`
+`const SESSION_ONLY_PREFIXES = ['/api/tokens', '/api/sync'];`）⇒ 正则失配。
+核对产品事实：`/api/tokens` 仍是首项、`isSessionOnly()` 对两个前缀一视同仁 ⇒ **闸门没有变弱，是断言把实现写法当成了规格**。
+已放宽为 `\['\/api\/tokens'(?:\s*,\s*'[^']+')*\]`：首项必须是 `/api/tokens`，后面允许追加其它仅会话前缀 —— 守卫仍承重
+（若有人把 `/api/tokens` 从数组里拿掉，仍会红）。
+
+#### 4.6 留给 host_manger 的项（**不在我这边**）
+
+真实 GitHub 联通验收（AC-121 C⑤ / E⑨ 的"真私有仓库"版本）：D-57 ④ 明确由 host_manger 在测试环境用真实仓库执行。
+我侧按用户明令**全程只用本地桩**，六种形态（200 / 404 / 409 / 401 / 403 / 网络异常）都演过；⛔ 未用真实 token、未引入自动/定时上传。
+
+#### 4.7 踩坑留痕（都是真实卡过一轮的）
+
+1. **桩把自己算成流量**：`/__stats` 自身也是一次 HTTP 请求 ⇒ 计数语句必须放在控制面分支**之后**，否则"零出网/dry_run 无写入"判据自污染（首跑即假红）。
+2. **antd 两字按钮中间插空格**：`CONFIRM_TEXT` 里是「取 消」「上 传」⇒ 找取消键要先把空白去掉再比。
+3. **接口失败走 toast 不是 Alert**：`message.error` 渲染在 `.ant-message` 容器里，读结果 Alert 会读空。
+4. **`cdp.reqs.length = 0` 的位置**：必须放在**打开弹窗之前**，否则 `GET /api/sync/config` 发生在清空之前，`SYNC_API_CALLS` 恒为 `[]`。
+5. **`ApiError.message` 是 `HTTP 400 sync_unauthorized`**，中文在 `serverMessage` 里 ⇒ 前端必须优先用 `serverMessage`，
+   否则 FR-125 ④.7「错误中文化、不裸抛状态码」落空（`SyncModal.tsx` 里为此加了 `explain()`，5 处调用点统一走它）。
+6. `git stash push -u -- web/src` 量基线时要注意 `SyncModal.tsx` 是**未跟踪**文件 —— 少了 `-u` 它不会被暂存，增量会被低估。
 

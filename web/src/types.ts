@@ -111,3 +111,70 @@ export interface ExportFile {
   tags: unknown[];
   prompts: unknown[];
 }
+
+// ───────────────────────── FR-125 远程数据同步（阶段 59） ─────────────────────────
+
+/** `GET/PUT /api/sync/config` 的响应：**只回脱敏形状**，绝不含 token 明文。 */
+export interface SyncConfigView {
+  configured: boolean;
+  repo: string;
+  instance: string;
+  path: string;
+  branch: string;
+  /** 库里是否已存令牌（密文）。 */
+  token_set: boolean;
+  /** 令牌尾 4 位（只用于让用户确认"是不是这把"）。 */
+  token_tail: string | null;
+}
+
+/** `PUT /api/sync/config` 的请求体：`token` 省略 = 沿用库里已有的。 */
+export interface SyncConfigInput {
+  repo: string;
+  instance: string;
+  path: string;
+  token?: string;
+  branch?: string;
+}
+
+/** `POST /api/sync/test` 的结果：`stage` 是机器可读的区分度，`message` 是中文可执行提示。 */
+export interface SyncTestResult {
+  ok: boolean;
+  stage: 'ok' | 'unauthorized' | 'forbidden' | 'not_found' | 'no_file' | 'rate_limited' | 'network' | 'upstream';
+  message: string;
+  repo: string;
+  path: string;
+  branch: string;
+  file_exists: boolean | null;
+  file_sha: string | null;
+  can_push: boolean | null;
+  default_branch: string | null;
+}
+
+/** `POST /api/sync/push` 的结果（`dry_run: true` 时 `commit_sha` 为 null）。 */
+export interface SyncPushResult {
+  dry_run: boolean;
+  repo: string;
+  path: string;
+  branch: string;
+  prompts: number;
+  folders: number;
+  tags: number;
+  bytes: number;
+  exists: boolean;
+  action: 'create' | 'overwrite';
+  current_sha: string | null;
+  remote_sha: string | null;
+  commit_sha: string | null;
+  attempts: number;
+  exported_at: string;
+}
+
+/** `POST /api/sync/pull` 的结果。 */
+export interface SyncPullResult {
+  mode: 'merge' | 'replace';
+  imported: { folders: number; tags: number; prompts: number };
+  remote_sha: string;
+  /** `replace` 前自动写的本地快照文件名（`merge` 时为 null）。 */
+  snapshot: string | null;
+  snapshot_kept: number;
+}

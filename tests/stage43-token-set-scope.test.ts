@@ -265,8 +265,13 @@ test('AC-107 ⑨（源码级）：改权限只在会话通道，且日志行不�
   assert.ok(fields !== '', '必须能定位到日志字段');
   assert.ok(!/token(_hash|_enc)?\b/.test(fields), `日志字段里不得出现令牌值：${fields}`);
   // 闸门未改动：/api/tokens 前缀仍是"仅会话"（防自我提权的唯一依赖点）
+  // 阶段 59（v70 / FR-125）：同一数组里合法地追加了 '/api/sync'（同步接口也只允许会话调用），
+  // 所以匹配放宽为「首项必须是 '/api/tokens'，后面可以还有别的仅会话前缀」——守卫本身不变。
   const auth = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'auth.ts'), 'utf8');
-  assert.ok(/SESSION_ONLY_PREFIXES = \['\/api\/tokens'\]/.test(auth), '令牌管理必须仍是仅会话（含 PATCH）');
+  assert.ok(
+    /SESSION_ONLY_PREFIXES = \['\/api\/tokens'(?:\s*,\s*'[^']+')*\]/.test(auth),
+    '令牌管理必须仍是仅会话（含 PATCH）',
+  );
 });
 
 test('AC-107 ⑥（源码级）：状态列权限文本可点击（Dropdown 两项、手型、title 提示），**仍是 6 列**，已撤销行无入口', () => {

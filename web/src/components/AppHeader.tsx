@@ -1,5 +1,6 @@
 import {
   BarChartOutlined,
+  CloudSyncOutlined,
   DesktopOutlined,
   EllipsisOutlined,
   ExportOutlined,
@@ -29,6 +30,8 @@ interface AppHeaderProps {
   onOpenUsage: () => void;
   onOpenTokens: () => void;
   onOpenImportExport: () => void;
+  /** FR-125：「远程数据同步」弹窗（阶段 59；手动触发才出网） */
+  onOpenSync: () => void;
   /** 「关于」（技术信息落点）；testid 仍为 `pm-settings`（FR-48） */
   onOpenSettings: () => void;
   /** FR-67：「修改密码」弹窗（取代 v20 那个只读的登录信息项） */
@@ -41,8 +44,8 @@ interface AppHeaderProps {
 /**
  * 顶栏（FR-47 / FR-48 / D-23）：**只有一栏**，自左至右固定为
  * 品牌 · `＋新建`（`header-new`）· `⋯更多`（`header-more`）· 主题图标（`pm-theme-toggle`）· 登出（`header-logout`）。
- * **不显示登录用户信息**；`⋯更多` 子项顺序（FR-48 v27 修订）=
- * 使用统计 → API 令牌 → 导入 / 导出 → 关于 → **修改密码** → 登出。
+ * **不显示登录用户信息**；`⋯更多` 子项顺序（FR-48 v27 修订 + FR-125 v71 新增「远程数据同步」）=
+ * 使用统计 → API 令牌 → 导入 / 导出 → **远程数据同步** → 关于 → **修改密码** → 登出。
  * 锚点仍是 `pm-topnav`（AC-31）。
  */
 export default function AppHeader({
@@ -55,6 +58,7 @@ export default function AppHeader({
   onOpenUsage,
   onOpenTokens,
   onOpenImportExport,
+  onOpenSync,
   onOpenSettings,
   onOpenPassword,
   onLogout,
@@ -62,12 +66,13 @@ export default function AppHeader({
 }: AppHeaderProps) {
   const { token } = theme.useToken();
 
-  // FR-48 / FR-67（v27 修订）：顺序逐项固定（AC-67 ① 按 DOM 顺序断言）——
-  // 使用统计 → API 令牌 → 导入 / 导出 → 关于 → **修改密码**（取代 v20 那个只读的登录信息项）→ 登出
+  // FR-48 / FR-67（v27 修订）+ FR-125（v71 新增同步项）：顺序逐项固定（AC-67 ① 按 DOM 顺序断言）——
+  // 使用统计 → API 令牌 → 导入 / 导出 → **远程数据同步** → 关于 → **修改密码**（取代 v20 那个只读的登录信息项）→ 登出
   const moreItems: MenuProps['items'] = [
     { key: 'usage', icon: <BarChartOutlined />, label: '使用统计' },
     { key: 'tokens', icon: <KeyOutlined />, label: 'API 令牌' },
     { key: 'import-export', icon: <ExportOutlined />, label: '导入 / 导出' },
+    { key: 'sync', icon: <CloudSyncOutlined />, label: <span data-testid="pm-menu-sync">远程数据同步</span> },
     { key: 'settings', icon: <SettingOutlined />, label: <span data-testid="pm-settings">关于</span> },
     {
       key: 'password',
@@ -81,6 +86,7 @@ export default function AppHeader({
     if (key === 'usage') onOpenUsage();
     else if (key === 'tokens') onOpenTokens();
     else if (key === 'import-export') onOpenImportExport();
+    else if (key === 'sync') onOpenSync();
     else if (key === 'settings') onOpenSettings();
     else if (key === 'password') onOpenPassword();
     else if (key === 'logout') onLogout();
