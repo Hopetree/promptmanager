@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import type { CliResult } from './helpers.ts';
 import {
-  PROJECT_ROOT,
   assertCliOk,
   cookieOf,
   login,

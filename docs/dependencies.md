@@ -60,6 +60,7 @@
 | `@types/react-dom` | 19.3.0 | MIT | ReactDOM 类型 |
 | `@types/better-sqlite3` | 9.6.0 | MIT | better-sqlite3 类型（该包自身不发布类型） |
 | `@types/jsdom` | 30.0.0 | MIT | jsdom 类型（该包自身不发布类型） |
+| `oxlint` | 1.86.0 | MIT | **静态检查**（2026-09-30 体检 P2-15）：Rust 实现、毫秒级、零配置；`npm run lint` 已挂进 `tools/ci-check.sh` 的 ①b。范围见该步骤注释（不含一次性验收脚本 `tools/`） |
 
 **未引入的包（有意为之）**
 

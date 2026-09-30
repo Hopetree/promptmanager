@@ -41,7 +41,8 @@ test('AC-74 ①：表格行手柄复用 SortableItem（不新增列、不新增�
   assert.ok(/components=\{\{ body: \{ row: SortableTableRow \} \}\}/.test(useView), 'antd Table 走 components.body.row');
   assert.ok(useView.includes('handleTestIdPrefix="pm-drag-row"'), '行手柄 testid 前缀 pm-drag-row');
   assert.ok(useView.includes('RowHandleContext'), '手柄经 context 注入「标题」单元格（不新增列 ⇒ 列宽不变）');
-  assert.ok(useView.includes('<RowDragHandle promptId={prompt.id} />'), '标题单元格内渲染手柄');
+  // 2026-09-30（P2-15 lint 整改）：手柄组件的 `promptId` 属性从未被使用，已去掉（行为不变）。
+  assert.ok(useView.includes('<RowDragHandle />'), '标题单元格内渲染手柄');
   assert.ok(useView.includes("title: '标题',"), '列定义未变（没有新增手柄列）');
 });
 

@@ -77,7 +77,7 @@ test('检索三种长度：>=3 命中目标、2 码点 LIKE 兜底、无命中�
 
     const short = await searchPrompts(qe, { ...base, q: '交接' });
     assert.equal(short.total, 2, '2 码点必须由 LIKE 兜底命中（trigram 单独做不到）');
-    assert.deepEqual([...short.rows.map((r) => r.id)].sort(), [ids[0], ids[1]]);
+    assert.deepEqual(short.rows.map((r) => r.id).sort(), [ids[0], ids[1]]);
     assert.equal(short.order, 'recent');
 
     const none = await searchPrompts(qe, { ...base, q: '不存在的词' });

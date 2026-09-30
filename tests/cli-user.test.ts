@@ -3,15 +3,10 @@ import { existsSync } from 'node:fs';
 import { test } from 'node:test';
 import type { CliResult } from './helpers.ts';
 import {
-  PROJECT_ROOT,
-  assertCliOk,
   makeTempDir,
   removeTempDir,
   runCliProcess,
 } from './helpers.ts';
-
-/** CLI 子进程的本地安全阀（真卡住时给出明确诊断；**不是重试**）。 */
-const CLI_TIMEOUT_MS = 30_000;
 
 /**
  * 跑一次 CLI（子进程）。

@@ -24,7 +24,6 @@ function sources(dir: string): Array<{ rel: string; text: string }> {
 
 const webSrc = sources('web/src');
 const serverSrc = sources('src');
-const blob = [...webSrc, ...serverSrc].map((file) => file.text).join('\n');
 
 function hits(pattern: RegExp): string[] {
   return [...webSrc, ...serverSrc]

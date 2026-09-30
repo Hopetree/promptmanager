@@ -182,7 +182,7 @@ test('AC-27 ⑤：?sort=recent_used —— 用过的在前、从未用过的排�
     await new Promise((resolve) => setTimeout(resolve, 5));
     const usedSecond = await createPrompt(fx, cookie, { title: '后被用过' });
     await new Promise((resolve) => setTimeout(resolve, 5));
-    const neverUsed = await createPrompt(fx, cookie, { title: '从未用过' });
+    await createPrompt(fx, cookie, { title: '从未用过' }); // 只为造这条数据，变量本身不用
 
     /**
      * ⚠️ **v61（FR-114）改写**：`sort=recent_used` 原来靠"打开详情"制造使用记录；

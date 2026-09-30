@@ -2,7 +2,7 @@ import type { QueryEngine } from '../db/index.js';
 import { pruneVersions } from '../db/prompt-versions.js';
 import { InvalidImportError, isConstraintError } from '../errors.js';
 import { nowIso } from './auth.js';
-import { EXPORT_APP, SUPPORTED_SCHEMA_VERSION, type ExportFile } from './export.js';
+import { EXPORT_APP, SUPPORTED_SCHEMA_VERSION } from './export.js';
 
 export type ImportMode = 'replace' | 'merge';
 

@@ -4,7 +4,6 @@ import {
   EditOutlined,
   FolderOpenOutlined,
   SearchOutlined,
-  StarFilled,
   StarOutlined,
 } from '@ant-design/icons';
 import {
@@ -75,7 +74,7 @@ function SortableTableRow(props: React.HTMLAttributes<HTMLTableRowElement> & { '
 }
 
 /** 表格「标题」单元格里的拖拽手柄（真正的 listeners 由行组件经 RowHandleContext 提供） */
-function RowDragHandle({ promptId }: { promptId: number }) {
+function RowDragHandle() {
   const handle = useContext(RowHandleContext);
   if (handle === null || handle === undefined) {
     return <span style={{ width: 24, flex: '0 0 auto' }} aria-hidden="true" />;
@@ -327,7 +326,7 @@ export default function UseView({
       render: (_v, prompt) => (
         // FR-74 ①：手柄在标题单元格内（不新增列 ⇒ 列宽/表头不变；24px 不增高行高）
         <Flex align="center" gap={4} style={{ minWidth: 0 }}>
-          <RowDragHandle promptId={prompt.id} />
+          <RowDragHandle />
           <Typography.Text strong ellipsis style={{ minWidth: 0 }}>
             {prompt.title === '' ? '(无标题)' : prompt.title}
           </Typography.Text>

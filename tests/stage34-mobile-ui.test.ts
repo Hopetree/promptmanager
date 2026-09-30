@@ -48,7 +48,7 @@ test('FR-92 ①：档位顺序按断点（桌面 分栏→表格→卡片；移�
   // 移动端就是桌面的**倒序**（用户原话"顺序变成卡片，表格，分栏"）
   assert.deepEqual(
     viewModeOptions(true).map((option) => option.value),
-    [...viewModeOptions(false).map((option) => option.value)].reverse(),
+    viewModeOptions(false).map((option) => option.value).reverse(),
   );
   // 组件确实取用该函数（顺序只有一处定义）
   assert.ok(/options=\{viewModeOptions\(isMobile\)\}/.test(useView), 'UseView 必须用 viewModeOptions(isMobile)');

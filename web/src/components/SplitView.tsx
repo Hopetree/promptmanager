@@ -68,7 +68,6 @@ export default function SplitView({
   busy,
   onCopy,
   onDelete,
-  onEdit,
   onEditDetail,
   onReload,
   onUnauthorized,

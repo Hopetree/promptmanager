@@ -5,7 +5,6 @@ import path from 'node:path';
 import { test } from 'node:test';
 import type { CliResult } from './helpers.ts';
 import {
-  PROJECT_ROOT,
   assertCliOk,
   makeTempDir,
   removeTempDir,

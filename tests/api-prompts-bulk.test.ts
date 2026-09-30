@@ -150,7 +150,7 @@ test('AC-78 ⑨：批量接口负例 → 400（空 ids / 重复 id / 不存在 i
   try {
     const cookie = cookieOf(await login(fx.app));
     const a = await newPrompt(fx, cookie, 'A');
-    const b = await newPrompt(fx, cookie, 'B');
+    await newPrompt(fx, cookie, 'B'); // 只为造第二条数据，变量本身不用
     const stableFavorite = (await getPrompt(fx, cookie, a)).favorite;
 
     const cases: Array<[string, object]> = [

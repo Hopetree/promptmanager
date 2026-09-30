@@ -52,12 +52,13 @@ test('AC-89 ②：脚本注释里写明了「为什么必须先构建」（否�
   assert.ok(ci.includes('38'), '注释要写明实测错误数（38）');
 });
 
-test('AC-89 ①：步骤编号与行数不变 —— 仍是 6 项，顺序为 依赖 → 构建 → 类型检查 → 测试 → 体积预算', () => {
+test('AC-89 ①：步骤编号与顺序 —— 2026-09-30 起为 7 项（新增 ①b lint），其余顺序不变', () => {
   // 每个步骤有"成功/失败"两个分支各调一次 record，所以按出现顺序去重后再比
   const records = [...new Set([...ci.matchAll(/^\s*record "([^"]+)"/gm)].map((m) => m[1]))];
-  assert.equal(records.length, 6, `ci-check.sh 必须仍恰好 6 项（实际 ${String(records.length)}：${records.join(' / ')}）`);
+  assert.equal(records.length, 7, `ci-check.sh 必须恰好 7 项（实际 ${String(records.length)}：${records.join(' / ')}）`);
   assert.deepEqual(records, [
     '① 依赖已安装',
+    '①b npm run lint',
     '② npm run build',
     '③a typecheck:web',
     '③b typecheck:tests',
@@ -75,7 +76,7 @@ test('AC-89 ③：`typecheck:tests` 自己声明了构建前置 —— 裸跑（
   // 只调 ci-check 的顺序**不足以**满足它（裸跑仍然会 38 个 TS2307），所以脚本自身要带构建前缀。
   const script = pkg.scripts['typecheck:tests'] ?? '';
   assert.ok(
-    /^npm run build:server && /.test(script),
+    script.startsWith('npm run build:server && '),
     `typecheck:tests 必须以 \`npm run build:server &&\` 开头（实际：${JSON.stringify(script)}）`,
   );
   assert.ok(/tsc -p tsconfig\.tests\.json/.test(script), '前缀之后仍必须是原来的 tsc 命令');

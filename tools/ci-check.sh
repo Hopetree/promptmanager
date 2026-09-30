@@ -3,6 +3,7 @@
 #
 # 步骤（与 BRIEF AC-77 ③ / AC-89 一致）：
 #   ① 依赖就绪（`node_modules` 存在；CI 里由 workflow 先 `npm ci`）
+#   ①b 静态检查（`npm run lint` = oxlint）
 #   ② 构建（`npm run build`）
 #   ③ 类型检查（`npm run typecheck:web` + `npm run typecheck:tests`）
 #   ④ 全量测试（`npm test`，自带构建与类型检查）
@@ -59,6 +60,14 @@ else
   printf '\n  依赖没装，后续步骤跳过。\n'
   exit 1
 fi
+
+# ---------------------------------------------------------------- ①b 静态检查（lint）
+# oxlint（Rust 实现，全仓 200+ 文件毫秒级）。**范围刻意不含 `tools/`** ——
+# 那里 53 个 `ac-stage*.sh` + 44 个 `*-probe.mjs` 是**一次性验收脚本**（`VERIFY.md` 直接引用它们当证据），
+# 为风格去改它们没有收益、还会让证据链变味。被 lint 的是**会长期维护的代码**：src / web/src / tests / bin。
+line "①b 静态检查（oxlint）"
+npm run lint >"$LOG_DIR/lint.log" 2>&1
+record "①b npm run lint" $? "$(grep -oE 'Found [0-9]+ warnings? and [0-9]+ errors?' "$LOG_DIR/lint.log" | tail -1)"
 
 # ---------------------------------------------------------------- ② 构建
 # 必须在 ③ 之前：tests 的类型检查依赖 ../dist/**（见文件头"为什么必须先构建"）。

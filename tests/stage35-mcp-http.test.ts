@@ -170,7 +170,7 @@ test('AC-95 ③④：凭据透传 —— 服务端 env 无 PM_API_TOKEN 也能�
   try {
     const cookie = cookieOf(await login(fx.app));
     const tokenA = await newToken(fx, cookie, 'token-A');
-    const tokenB = await newToken(fx, cookie, 'token-B');
+    await newToken(fx, cookie, 'token-B'); // 只为造第二个令牌，变量本身不用
     const id = await createPrompt(fx, cookie, 'AC35 透传夹具', '正文');
 
     // 关键设置：**进程 env 里没有任何 token**（若工具回退到 env，就会返回"缺少凭据"错误）

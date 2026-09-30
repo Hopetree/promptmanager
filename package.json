@@ -11,6 +11,7 @@
     "build": "npm run build:server && npm run build:web",
     "build:server": "tsc -p tsconfig.json",
     "build:web": "vite build",
+    "lint": "oxlint src web/src tests bin",
     "typecheck:web": "tsc -p web/tsconfig.json",
     "start": "node dist/server/index.js",
     "migrate": "npm run build:server && node bin/pm.mjs migrate",
@@ -49,6 +50,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
+    "oxlint": "^1.86.0",
     "typescript": "7.0.2",
     "vite": "8.3.0"
   },

@@ -9,7 +9,6 @@ import {
   apiRequest,
   resolveApiEnv,
   type ApiEnv,
-  type ApiResponse,
 } from '../client/pm-api.js';
 
 const USAGE = `用法：node bin/pm.mjs <命令> [选项]

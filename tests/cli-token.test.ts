@@ -1,16 +1,12 @@
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
 import type { CliResult } from './helpers.ts';
 import {
-  PROJECT_ROOT,
   assertCliOk,
   cookieOf,
   login,
   makeFixture,
   makeTempDir,
-  readDb,
   removeTempDir,
   runCliProcess,
 } from './helpers.ts';

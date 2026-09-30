@@ -99,7 +99,7 @@ test('AC-120 ⑥⑦⑧：仓库规范形式、镜像名与 CI 一致、许可证
   assert.match(viteConfig, /replace\(\/\^git\\\+\/, ''\)/, '必须剥掉 git+ 前缀');
   assert.match(viteConfig, /replace\(\/\\\.git\$\/, ''\)/, '必须剥掉 .git 后缀（AC-120 ⑥）');
   // 镜像名由仓库地址反推（不另写一份），并小写（Docker Hub 要求）
-  assert.match(viteConfig, /github\\\.com\\\/\(\[\^\/\]\+\)\\\/\(\[\^\/\?\#\]\+\)/, '镜像名应从仓库地址反推');
+  assert.match(viteConfig, /github\\\.com\\\/\(\[\^\/\]\+\)\\\/\(\[\^\/\?#\]\+\)/, '镜像名应从仓库地址反推');
   assert.match(viteConfig, /\.toLowerCase\(\)/, '镜像名必须小写');
   // package.json 的原始值确实是 git+…git 形式（证明规范化确有必要）
   const repoUrl = ((pkg.repository ?? {}) as { url?: string }).url ?? '';

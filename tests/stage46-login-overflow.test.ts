@@ -4,7 +4,6 @@
 // 居中与留白参数未被改动；README 的部署章节与 FAQ 有镜像拉取指引、且不绑定具体镜像站。
 // 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 tools/ac-stage46.sh + ac-stage46-probe.mjs。
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -50,16 +49,6 @@ test('AC-110 ①（源码级）：不存在全局把登录页高度写死的其�
  * ⚠️ 不能用 `HEAD`：本阶段的 README 改动一旦提交，`HEAD` 就变成"改后"了 ⇒ 断言会自己失效
  * （自指的基线）。所以固定引用**本阶段的起点提交**（v57 规格提交，即本阶段开工前的树）。
  */
-const BASELINE_README_REF = '5dbd37a';
-
-const baselineReadme = (): string => {
-  try {
-    return execFileSync('git', ['show', `${BASELINE_README_REF}:README.md`], { cwd: PROJECT_ROOT, encoding: 'utf8' });
-  } catch {
-    return '';
-  }
-};
-
 /**
    * 文档级断言的定位助手。
    *

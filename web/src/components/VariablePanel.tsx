@@ -1,6 +1,6 @@
 import { CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
-import { App as AntdApp, Alert, Button, Card, Flex, Form, Input, Space, Tag, Typography } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { App as AntdApp, Alert, Button, Card, Flex, Form, Input, Space, Tag } from 'antd';
+import { useEffect, useState } from 'react';
 import { api, ApiError, describeError } from '../api';
 import { writeClipboard } from '../use-copy';
 import type { RenderResult } from '../types';

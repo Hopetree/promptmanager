@@ -9,7 +9,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
-import type { InjectOptions } from 'fastify';
 import { runMigrations } from '../dist/db/migrate.js';
 import type { Fixture } from './helpers.ts';
 import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';

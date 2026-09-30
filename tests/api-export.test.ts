@@ -96,7 +96,7 @@ test('导出：结构符合 §6.4（字段名、确定性排序、布尔 favorit
     }
     assert.deepEqual(
       file.tags.map((t: { id: number }) => t.id),
-      [...file.tags.map((t: { id: number }) => t.id)].sort((a: number, b: number) => a - b),
+      file.tags.map((t: { id: number }) => t.id).sort((a: number, b: number) => a - b),
     );
 
     // prompts：id 升序 + 字段齐备 + tags 名称升序 + versions 按 version_no 升序

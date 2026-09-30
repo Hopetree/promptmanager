@@ -1,4 +1,4 @@
-import { CloudDownloadOutlined, CloudSyncOutlined, CloudUploadOutlined, LinkOutlined } from '@ant-design/icons';
+import { CloudDownloadOutlined, CloudUploadOutlined, LinkOutlined } from '@ant-design/icons';
 import { Alert, App as AntdApp, Button, Card, Descriptions, Flex, Form, Input, Modal, Segmented, Space, Typography } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, describeError } from '../api';

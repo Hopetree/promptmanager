@@ -5,8 +5,6 @@ import { test } from 'node:test';
 import { loadConfig } from '../dist/config.js';
 import { PROJECT_ROOT, login, makeFixture } from './helpers.ts';
 
-const FIXTURE_PW = 'ac-fixture-pw-20260918';
-
 async function wrongLogins(fx: Awaited<ReturnType<typeof makeFixture>>, xff: string): Promise<number> {
   const res = await fx.app.inject({
     method: 'POST',
