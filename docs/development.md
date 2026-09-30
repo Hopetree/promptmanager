@@ -18,7 +18,7 @@
 | `src/mcp/` | MCP 工具面（`server.ts`，三个只读工具） |
 | `src/client/pm-api.ts` | 使用侧 CLI 走的 HTTP 客户端 |
 | `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/pure.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
-| `migrations/` | `001_init.sql`、`002_tokens-and-usage.sql`、`003_prompt-sort-order.sql`（**已应用的不要改**，新增走 `004_*.sql`） |
+| `migrations/` | `001_init.sql` … `007_sync-config.sql`（**共 7 个**；**已应用的不要改**，新增走**下一个编号** —— 当前是 `008_*.sql`，以目录里最大号为准） |
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
 | `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`ui-shots.sh` + `ui-shot.mjs`（界面自证）、`ac-stage<N>.sh` + `ac-stage<N>-probe.mjs`（分阶段验收自检）、`seed-prompts.mjs`、`search-zh-poc.mjs`、`mcp-client-smoke.py` |
 | `deploy/` | 交付物（**本仓库不部署它们**）：systemd unit / env 模板 / 部署说明 / 反代样例 / 容器说明 |
@@ -37,10 +37,10 @@ npm ci                    # 冷装（按 package-lock.json；本沙箱 /root/.np
 npm run build             # 服务端 tsc → dist/server，前端 vite → dist/web
 npm run build:server      # 只构建服务端
 npm run build:web         # 只构建前端
-npm test                  # 全量测试（自带构建 + 类型检查；当前 329 个用例）
+npm test                  # 全量测试（自带构建 + 类型检查；用例数只增不减，以 CI 输出为准）
 npm run typecheck:web     # 前端类型检查
 npm run typecheck:tests   # 测试类型检查（**自带 build:server 前置**，见 §3）
-npm run migrate           # 幂等迁移 → ok: schema at v3
+npm run migrate           # 幂等迁移 → ok: schema at v7
 npm start                 # 启动服务（默认 0.0.0.0:8767）
 ```
 
@@ -104,7 +104,7 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 - **过程记录**：根目录 `PROGRESS.md` = 当前状态 + 阶段索引；完整过程（每条 AC 的命令与原样输出、逐张识图、
   决策与踩坑）在 `docs/dev-history/PROGRESS.md`。验收结论由 host_manger 写在 `VERIFY.md`。
 - **文档通道**：`BRIEF.md` / `PROGRESS.md` / `QUESTIONS.md` / `VERIFY.md` 的写作规范见
-  `/root/greenhouse/STANDARDS.md` §5；`docs/` 只放**最终状态**文档，过程产物一律进 `tmp/`（同规范 §5.2）。
+  `/root/greenhouse/STANDARDS.md` §5（**该文件在维护者沙箱机上，不在本仓库内**）；`docs/` 只放**最终状态**文档，过程产物一律进 `tmp/`（同规范 §5.2）。
 
 ### 验证脚本清单
 

@@ -6,7 +6,21 @@
 
 ## [未发布]
 
-- （无）
+### 文档（Documentation）
+
+- **一轮「文档与实现对齐」整改**（2026-09-30 项目体检，**纯文档、零代码改动** —— 未碰 `src/`、`web/`、`tests/`、`migrations/`、`package.json`）：
+
+  - `AGENTS.md` / `docs/development.md`：**机器可核对的数字全部对齐实际** —— 版本号 `1.0.2`→**`1.5.0`**；schema 版本 `v6`/`v4`/`v3`→**`v7`**；迁移清单补齐 **005–007**，「新增走 `005_xxx.sql`」→「走**下一个编号**（当前 **008**，以目录最大号为准）」；用例数 `348`/`329`→**`489`**，并**改为"以 CI 输出为准"、不再写死会腐化的数字**；`62 files`→**`82`**；补 sync 子系统进项目结构表。**（原文档照做会创建撞号的迁移文件。）**
+  - `docs/api.md`：**补上整个「远程数据同步」章节**（`### 3.12`，5 个 `/api/sync/*` 端点 + 契约要点 + 错误码），原「错误码速查」顺延为 `### 3.13`；环境变量表补 **`SYNC_GITHUB_API_BASE`**；「仅会话可用」的两处清单补 `/api/sync/*`。
+  - `CHANGELOG.md` / `docs/versioning.md`：**修正 `[1.5.0]` 条目里我自己写错的数字** —— 端点 `6`→**`5`**（并删掉**不存在的** `GET /api/sync/status`）、配置项 `4`→**`5`**。
+  - `docs/dependencies.md`：修掉与 `package.json` **直接冲突**的两处「无 zod / `zod` 已决定不引入」（zod 实为 `@modelcontextprotocol/sdk` 的 peerDependency，只在依赖树里）；§6 去掉停在「阶段 8/9」的陈旧描述。
+  - `deploy/promptmanager.env.example`：把**全库零引用的死变量** `ADMIN_PASSWORD` / `SESSION_SECRET` 注释掉并写明原因（避免自架者设了以为生效）。
+  - `README.md` / `docker-compose.yml` / `Dockerfile`：陈旧版本串 —— healthz 示例 `1.3.0`→当前版本；本地构建镜像 tag `promptmanager:1.0.0`→中性 **`promptmanager:local`**。
+  - `CHANGELOG.md`：`[1.0.0]` 日期 `2026-09-20`→**`2026-09-21`**（与 tag `v1.0.0` 一致）。
+  - `PROGRESS.md`：修掉**头部自相矛盾**的状态表（`阶段 1–52 / v1.2.0`、版本 `1.1.1`、更新于 `2026-09-22` → **`阶段 1–59 / v1.5.0 / 2026-09-30`**），并补阶段 53–59 摘要。
+  - `docs/brief-changelog.md`：标明**只覆盖 v1–v32**（v33 及之后在 `BRIEF.md` §12），避免被误读为当前口径。
+  - `docs/versioning.md`：新增 **§4.1 发版检查单**，把「`api.md` / `AGENTS.md` / README 同步」固化成**发版动作**，防止同类过期再犯。
+  - 新增 `docs/README.md`（`docs/` 目录索引 + 两条边界说明）、`docs/dev-history/README.md`（归档区索引 + 与根目录同名文件的分工）、`.nvmrc`（24）、`.npmrc`（`engine-strict=true`）。
 
 ## [1.5.0] — 2026-09-30
 
@@ -23,8 +37,8 @@
     且需显式 `confirm`。
   - **云端路径有强制规则**：必须含 `promptmanager/` 且以 `<实例名>.json` 收尾 —— 防止多个实例用同一路径**静默互相覆盖**。
   - **令牌加密落库**（复用既有 `token-crypto`）；读取接口**只回「已设置」+ 尾 4 位**，永不回明文。
-- 新接口 **6 个**：`GET/PUT /api/sync/config`、`POST /api/sync/test`、`POST /api/sync/push`（支持 `dry_run`）、
-  `POST /api/sync/pull`、`GET /api/sync/status`。
+- 新接口 **5 个**：`GET /api/sync/config`、`PUT /api/sync/config`、`POST /api/sync/test`、
+  `POST /api/sync/push`（支持 `dry_run`）、`POST /api/sync/pull`（`mode` = `merge`/`replace`）。
 - 新增迁移 **`007_sync-config.sql`**（`sync_config` 表；schema 6 → 7）。
 - 顶栏「⋯更多」新增「同步」入口（懒加载，不进主包）。
 
@@ -286,7 +300,7 @@ tag `v1.4.0`（阶段 53–56）。
 - 新增 10 例单测（CI 步骤顺序 5 例 + 登录页 5 例）；`npm test` **319 → 329**。
 - 逐条 AC 与实测输出见 `docs/dev-history/PROGRESS.md` 的阶段 32 小节与根目录 `VERIFY.md`。
 
-## [1.0.0] — 2026-09-20
+## [1.0.0] — 2026-09-21
 
 **首个正式版**：一个进程、一个端口、一个 SQLite 文件，自带浏览器管理后台 + 对外 API + agent（MCP）取用面。
 以下按能力类型归并（不含逐阶段流水账；逐条 AC 与实测输出见 `docs/dev-history/PROGRESS.md`）。

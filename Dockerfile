@@ -1,7 +1,7 @@
 #
 # promptmanager 容器镜像（多阶段构建）
 #
-# 构建（项目根目录）： docker build -t promptmanager:1.0.0 .
+# 构建（项目根目录）： docker build -t promptmanager:local .
 # 运行：              见 deploy/container.md，或直接用 docker-compose.yml
 #
 # 设计要点：

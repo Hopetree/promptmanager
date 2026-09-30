@@ -19,7 +19,7 @@
 services:
   promptmanager:
     build: .
-    image: promptmanager:1.0.0
+    image: promptmanager:local
     container_name: promptmanager
     restart: unless-stopped
     ports:

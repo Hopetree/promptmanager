@@ -61,6 +61,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `SESSION_TTL_HOURS` | `720` | 会话有效期（服务端会话，过期即失效） |
 | `LOGIN_MAX_FAILURES` | `5` | 登录失败阈值（窗口内按 `username + 来源 IP` 计；达阈值后第 6 次 `429` + `Retry-After`） |
 | `LOGIN_WINDOW_SECONDS` | `60` | 登录失败统计窗口（窗口过期自动解锁；登录成功清除该键失败记录） |
+| `SYNC_GITHUB_API_BASE` | `https://api.github.com` | **远程数据同步**用的 GitHub API 基地址（指向自建 GitHub 兼容 API 时改它）；**必须以 `http(s)://` 开头**，非法值启动即报错，不静默回退 |
 
 > 另有**常量**（非环境变量）：`/api/login` 每 IP 30 次 / 60 秒的请求级洪泛保护；改密码接口复用同一套失败阈值。
 
@@ -205,7 +206,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | --- | --- | --- | --- |
 | **资源读** | `GET /api/prompts*`（列表 / 详情 / versions / variables）、`GET /api/folders`、`GET /api/tags`、`GET /api/export*`、`GET /api/usage*`、`GET /api/me`，以及 **`POST /api/prompts/:id/render`** 与 **`POST /api/render/markdown`**（**只渲染、不改资源 ⇒ 归读**） | ✅ | ✅ |
 | **资源写** | `POST/PUT/PATCH/DELETE /api/prompts*`（建 / 改 / 排序 / 批量 / 回滚 / 删）、`POST/PUT/PATCH/DELETE /api/folders*`、`POST/PUT/DELETE /api/tags*`、`POST /api/import` | ❌ **403 `insufficient_scope`** | ✅ |
-| **不属于资源** | `GET/POST/DELETE /api/tokens*`（列表 / 新建 / 撤销 / 硬删 / reveal）、`POST /api/password`、`POST /api/logout` | ❌ **403 `session_required`** | ❌ **403 `session_required`** |
+| **不属于资源** | `GET/POST/DELETE /api/tokens*`（列表 / 新建 / 撤销 / 硬删 / reveal）、`/api/sync/*`（配置 / 测试 / 上传 / 恢复）、`POST /api/password`、`POST /api/logout` | ❌ **403 `session_required`** | ❌ **403 `session_required`** |
 
 要点：
 - **令牌管理与账号操作（改口令 / 登出）一律"仅会话"**，与 scope 无关 —— 否则一把泄漏的令牌可以**枚举令牌、再造新钥匙**（撤销泄漏的那把也没用）。
@@ -310,7 +311,29 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 - ⚠️ **契约值 `app` 恒为小写 `promptmanager`** —— 改它会让已有导出文件全部导入失败。
 - ⚠️ 若导出文件里某个 prompt 的版本**多于 10 个**，导入后只留最近 10 个（版本保留上限优先）⇒ "再导出"会比原文件少掉最旧的几版。
 
-### 3.12 错误码速查
+### 3.12 远程数据同步
+
+把**全量快照**手动推 / 拉到自己的 GitHub **私有**仓库（换台机器接着用）。
+
+**仅浏览器会话可用**：用 API 令牌调（**含 write 令牌**）⇒ 一律 **`403 session_required`** —— 与「令牌管理」同级，因为它能整体覆盖 / 清空数据。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| `GET` | `/api/sync/config` | 读配置。**永不回令牌明文**，只回 `token_set`（bool）与 `token_tail`（尾 4 位）；未配置时 `configured:false` |
+| `PUT` | `/api/sync/config` | 写配置。请求体 `{repo, instance, path, token?, branch?}`；**`token` 省略 = 保留原值**；写回同样是脱敏形状 |
+| `POST` | `/api/sync/test` | 用**已存**配置调一次 GitHub（读仓库信息），验证仓库 / 分支 / 令牌可用 |
+| `POST` | `/api/sync/push` | 生成全量快照并推到云端路径（**覆盖**）。请求体 `{dry_run?: true}` —— `dry_run` 只回报「将推送 N 条 prompt / M 个目录」与解析后的完整路径，**不写远端** |
+| `POST` | `/api/sync/pull` | 从云端拉回并导入。请求体 `{mode?: 'merge' \| 'replace', confirm?: true}` |
+
+**契约要点**
+
+- `repo` 形如 `owner/repo`；`path` **必须**含 `promptmanager/` 且以 `<实例名>.json` 收尾 —— 防止多个实例用同一路径**静默互相覆盖**。
+- `mode` 缺省 `merge`（只新增 / 更新，不清库）；`replace` 会**清空本地内容表**再按快照重建，故**必须先写本地快照**（`<DATA_DIR>/pre-restore-<ts>.json`，保留最近 3 份）且要求显式 `confirm: true`。非法 `mode` ⇒ `400 invalid_sync_mode`。
+- 上传前界面会**二次确认**，明示条数与解析后的完整路径，并加粗提示**快照包含提示词正文全文**。
+- **删除不会传播到云端**；**不做自动 / 定时上传** —— 每一次出网都由用户点击触发。
+- 令牌加密落库（复用 `token-crypto`，AES-256-GCM）；`SYNC_GITHUB_API_BASE` 可指向自建 GitHub 兼容 API。
+
+### 3.13 错误码速查
 
 | 码 | 含义 |
 | --- | --- |
@@ -320,7 +343,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `401` | 未认证（除 `/healthz`、`/api/login` 外的全部 `/api/*`） |
 | `404` | prompt / 版本 / 令牌不存在（含"回滚到已被裁剪掉的版本"） |
 | `409 folder_not_empty` | 删除仍有子目录或仍有 prompt 归属的文件夹 |
-| `403 session_required` | 用**令牌**调"不属于资源"的端点：`/api/tokens*`（列表 / 新建 / **`PATCH /api/tokens/:id` 改权限** / 撤销 / 硬删 / reveal）、`POST /api/password`、`POST /api/logout` —— **只允许浏览器会话** |
+| `403 session_required` | 用**令牌**调"不属于资源"的端点：`/api/tokens*`（列表 / 新建 / **`PATCH /api/tokens/:id` 改权限** / 撤销 / 硬删 / reveal）、`/api/sync/*`（配置 / 测试 / 上传 / 恢复）、`POST /api/password`、`POST /api/logout` —— **只允许浏览器会话** |
 | `403 insufficient_scope` | **只读令牌**（`scope=read`）调**资源写**端点（建 / 改 / 删 prompt、文件夹、标签、导入）—— 需要读写令牌 |
 | `409 token_not_revealable` | 该 token 是迁移前创建的（没有密文），明文不可恢复 |
 | `409 token_revoked` | 对一条**已撤销**的令牌调 `PATCH /api/tokens/:id`（改权限）—— 撤销行只保留历史记录，要恢复请重建一个 |

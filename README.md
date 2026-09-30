@@ -45,7 +45,7 @@ printf '%s\n' '你的强口令' | docker exec -i promptmanager \
   node bin/pm.mjs user set-password --username admin
 
 # ④ 自检
-curl -s http://127.0.0.1:8767/healthz     # 形如 {"status":"ok","version":"1.3.0"}
+curl -s http://127.0.0.1:8767/healthz     # 形如 {"status":"ok","version":"1.5.0"}（版本号随发版变化）
 ```
 
 浏览器打开 `http://<主机>:8767/`，用 `admin` + 刚设的口令登录。

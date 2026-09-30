@@ -68,7 +68,7 @@
 - **无 CDN 资源**（AC-20 ④：构建产物与源码零外链）。
 - **无 lodash/axios/moment 之类**：能一个包解决就不叠三个（STANDARDS §4.3 第 5 条）。
 - **无 bcrypt**：口令哈希统一走 Argon2id（见 §4.5），不同时堆两套哈希库。
-- **无 zod**：请求校验用 fastify 自带的 JSON Schema/ajv（框架能力），未额外引校验库（需要更复杂校验时再评估）。
+- **无额外的请求校验库**：HTTP 请求校验一律用 fastify 自带的 JSON Schema/ajv（框架能力）。**注意** `zod` **确实在依赖树里**（§2.2 已登记），但它是 `@modelcontextprotocol/sdk` 的 peerDependency、**只用于 MCP 工具的入参 schema**，不参与 HTTP 校验。
 
 ## 3. 传递依赖（由 lockfile 固定，不手工干预）
 
@@ -370,8 +370,7 @@ Markdown 预览的代码高亮**样式表**复用既有 `highlight.js@11.12.0` �
 
 ## 6. 后续阶段计划引入的依赖（**尚未安装**）
 
-**暂无**：阶段 8（前端 P0）已按计划**零新增依赖**完成（只用已固定的 antd 6.6.4 + 既有 React/Vite/highlight.js）；
-阶段 9 只做收尾（README/截图/测试），预计不需要新依赖。若后续确需新依赖，按 STANDARDS §4.3/§4.4 两道闸门先查后装并登记在此。
+**暂无**：自阶段 8 起未再引入新的**直接**依赖（新增能力一律复用既有技术栈）。若后续确需新依赖，按 STANDARDS §4.3/§4.4 两道闸门先查后装并登记在此。
 
 > 上述包**未进入当前依赖树**；阶段门只按当前 `package.json` / lockfile 计数与审计。
-> `zod` 已决定**不引入**（用 fastify 自带 JSON Schema），见 §2.2 之后的"未引入的包"。
+> `zod` **已在依赖树内**（`@modelcontextprotocol/sdk` 的 peerDependency，用于 MCP 工具入参 schema），见 §2.2；HTTP 请求校验仍走 fastify 自带 JSON Schema。
