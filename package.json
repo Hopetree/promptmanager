@@ -37,7 +37,7 @@
     "highlight.js": "11.12.0",
     "jsdom": "30.1.0",
     "kysely": "0.29.6",
-    "marked": "18.0.13",
+    "marked": "18.0.14",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "zod": "4.6.5"
