@@ -2577,3 +2577,122 @@ $ bash tools/ac-stage16.sh        → 退出码 1
 ⇒ **测试过严，非契约**。**我做的修改（如实记录）**：把正则放宽为
 `/^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/` —— **仍守卫"必须是 X.Y.Z 或 X.Y.Z-预发布"**，
 只是允许了预发布后缀。全仓另一处严格正则（`tests/stage22-drag.test.ts:28`）是**依赖 pin 精确版本**，与版本号无关，未动。
+
+---
+
+## 阶段 59 验收（2026-09-30，host_manger）
+
+**范围**：FR-125 远程数据同步（手动推/拉到 GitHub 私有仓库）。
+被验收提交：**`426cc7d`**（本阶段 3 个提交 `f9af436` → `07664ae` → `426cc7d`，31 文件 +3046/−27）。
+`QUESTIONS.md` 无待决问题（33 行是文件模板骨架）⇒ 不阻塞。
+
+### 结论：**通过** ✅ —— AC-121 十二条**逐条实测**（含**真实 GitHub 联通**）
+
+---
+
+## 一、我实跑它的自检（不采信粘贴）
+
+| 项 | 结果 |
+| --- | --- |
+| `bash tools/ac-stage59-sync.sh` | **rc=0、0 个 ❌**（26 条断言；真浏览器双端 + 桩 + 零出网） |
+| `bash tools/ci-check.sh` | **rc=0、6/6**；`npm test` **489/489**（+13 条新测试） |
+| 独立核验体积（自己算 gzip） | 实际总 gzip **425,651 B ≤ 预算 427,020 B**（余量 1,369 B）；`STAGE59_ACCOUNTED_DELTA = 5,138` 走既有记账口径 |
+
+**静态查"不外连"**：`src/` 内**无 `setInterval`**；启动路径**无自动同步调用** ⇒ AC-121 F⑪ 成立。
+
+---
+
+## 二、AC-121 逐条（**真实联通部分由我在临时实例上跑，不依赖它的桩**）
+
+**A 配置**
+1. ✅ **token 绝不回明文**：`GET/PUT /api/sync/config` 都只回 `token_set:true, token_tail:"mJJ4"`；DB 里是 `sync_config.token_enc` 列，实测值为 `FIFBqeU5LGnydToLJKGx83DrbPCYWa64meN2…`（**密文**）。
+2. ✅ **path 规则**：三种不合规全部 **400** —— `wat/pm.json`（不含 `promptmanager/`）、`promptmanager/other.json`、`promptmanager/pm.txt`（不以 `pm.json` 收尾），均带中文原因。
+
+**B 权限**
+3. ✅ **非会话主体**：用 **write 令牌**调 `POST /api/sync/push` 与 `pull` ⇒ 均 **403 `session_required`**；
+   同一令牌调 `GET /api/prompts` ⇒ **200**（证明令牌有效，403 是**刻意拦截**）。
+
+**C 上传**
+4. ✅ **`dry_run` 不改远端**：返回 `prompts:1, bytes:1095, action:"create"`；随后直接查 GitHub Contents ⇒ **仍 404**。
+5. ✅ **真实 push 内容 == 本地导出**：先推（`action:"create"`，commit `81e4d9c9`）→ 从 GitHub 取回文件 base64 解码
+   → 与本地 `GET /api/export` 逐字段比对（忽略每次都变的 `exported_at`）⇒ **完全一致**；
+   第二次推 ⇒ `action:"overwrite"` + **新 commit `d832ae3b`**。
+6. ✅ **409 冲突重试一次**：测试里**两条** ——「409 ⇒ 重试一次后成功，`attempts=2`」+ **反例**「两次都 409 ⇒
+   报 `sync_conflict`，不无限重试、远端不被写坏」。
+
+**D 恢复**
+7. ✅ `merge` ⇒ 只新增/更新（实测 `imported:{prompts:1}`），**不产生快照**（符合"只有 replace 需要"）。
+8. ✅ `replace` **不带 `confirm`** ⇒ **400 `confirm_required`**（中文提示"会清空本地全部内容表…必须显式二次确认"）；
+   带 `confirm` ⇒ 恢复成功，且**自动快照确实落盘**：`pre-restore-2026-09-30T03-16-27-698Z.json`（`snapshot_kept:3`）。
+
+**E 编码与错误**
+9. ✅ **中文 + emoji 往返逐字一致**：造含中文/emoji 的 prompt（正文 59 字符，含 `🎉 「」 —— ✅`）⇒ push ⇒
+   把本地内容**故意改坏** ⇒ `pull replace` ⇒ 取回内容与期望**逐字相同**（59 == 59），`title`（含 🚀）与
+   `system_prompt`（含 🙌）也完好。
+   —— 对应那篇文章里 `btoa` 的坑；本项目走服务端 `Buffer`，实测无此问题。
+10. ✅ **`test` 三态可区分**：`unauthorized`（401，坏令牌）/ `not_found`（404，仓库不存在）/
+    `no_file`（仓库在但该路径无文件，且 `can_push:true`）—— 各有**可执行的中文提示**。
+
+**F 不外连**
+11. ✅ 静态无 `setInterval` + 启动路径无自动同步；它的 AC 脚本另断言 **`ZERO_OUTBOUND:true`**、
+    **`SYNC_API_CALLS:["GET /api/sync/config"]`**（只发这一条，且**必须点开弹窗才发生**）。
+
+**G 界面（**我亲自逐张识图**）**
+12. ✅ PC **1440×900 @DPR2** 与移动 **440×956 @DPR3** 四张截图我都看了：
+    - 令牌显示为 **"已设置（尾 0001）"**（不显明文）；
+    - **"目标文件（解析后完整路径）"** 显著展示 `Hopetree/sync-data-test@main:promptmanager/pm.json`；
+    - 确认框含**条数**（prompt 1 条/文件夹 1 个/标签 1 个）+ **完整路径** + 加粗的
+      **"快照包含提示词正文全文（含 system prompt 与版本历史）"** + 取消/上传两键；
+    - 401 中文可执行提示、**"删除不会传播到云端"** 警示、fine-grained 最小权限建议 均在位；
+    - 移动端两端均可读、无裁切。
+
+---
+
+## 三、它做的一处测试改动（我复核过，**不是****放宽**）
+
+`tests/stage43-token-set-scope.test.ts:272` 原本把 `SESSION_ONLY_PREFIXES = ['/api/tokens']` 当规格；
+本阶段把 `/api/sync` 并入**同一数组**（`src/server/auth.ts` 的 `['/api/tokens','/api/sync']`）⇒ 原正则失配。
+它放宽成 `/SESSION_ONLY_PREFIXES = \['\/api\/tokens'(?:\s*,\s*'[^']+')*\]/`。
+
+**我独立验证这条仍承重**（拿正则跑四个变体）：
+
+| 源码变体 | 结果 |
+| --- | --- |
+| 现状 `['/api/tokens','/api/sync']` | 匹配（绿）✓ |
+| 只有 `['/api/tokens']` | 匹配（绿）✓ |
+| **【破坏】拿掉 tokens** `['/api/sync']` | **不匹配（红）** ✓ |
+| **【破坏】tokens 不是首项** | **不匹配（红）** ✓ |
+
+⇒ **闸门没变弱**（产品事实是"`/api/tokens` 仍是首项、`isSessionOnly()` 对两个前缀一视同仁"，
+它此前把**实现写法**当成了规格）⇒ 判为 B 类正确。
+
+---
+
+## 四、边界与纪律
+
+- **未动** `BRIEF.md` / `VERIFY.md` / `docs/shots/`（我 `git diff --name-only` 查过，只改它自己的范围）。
+- **未引入自动/定时上传**；**未使用真实 token**（它全程用桩，符合 D-57 ④）—— 真实联通由我在**临时实例**上跑，
+  用完**当场清理**（删临时 DATA_DIR 含加密 token、覆写并删除落到 228 的 token 文件、停服务、复查端口）。
+- **测试仓库现状**（用户提供的 `Hopetree/sync-data-test`，私有）：现有 `promptmanager/pm.json`（1095 B，2 个 commit）
+  —— 我的真实联通验收留下的**测试产物，未删**（如要清掉说一声）。
+
+---
+
+## 五、验收方的失误（如实记录）
+
+我的 401 场景第一次**跑出了假绿**：脚本里 `put()` 函数**定义了却没在请求前调用**，
+于是 `/api/sync/test` 读到的是上一轮的**正常配置** ⇒ 报 `ok=True stage=ok`。
+当场发现（结论与我预置的坏令牌自相矛盾）并**重做**：先落盘坏令牌配置、再调 test ⇒
+正确得到 `ok=False stage=unauthorized`。
+→ 教训同源：**"判据/夹具写错"比"产品错"常见**；本次是夹具顺序错。
+
+---
+
+## 六、待办
+
+- [x] AC-121 十二条逐条实测（含真实联通）
+- [x] 体积、边界、静态不外连、测试改动复核
+- [ ] **是否上线到 106**：本阶段含**迁移 007（schema 6→7）** ⇒ 按既定纪律**先问**（不自动上线）
+- [ ] BRIEF 规格提交 `c4e2086` 随本次 VERIFY 一并推远程（规格类提交等验收通过才推）
+
+> 当前生产仍为 `v1.4.1-beta.1`（`3c5c2e5`），**未含**本阶段。
