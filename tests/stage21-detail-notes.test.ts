@@ -1,6 +1,6 @@
 // 阶段 21 / FR-69（BRIEF v28 §4 + §8 AC-69）：详情面「标题行之下、字段页签行之上」新增备注行。
 // 源码级断言：锚点 / 纯文本 / 空备注不渲染 / 样式（13px、2 行省略、行高 1.6）/ title 全文 / 位置。
-// 运行时段（真鼠标 + computedStyle + 真实像素 + 三态截图）见 tools/ac-stage21.sh 与 tools/ac-stage21-probe.mjs。
+// 运行时段（真鼠标 + computedStyle + 真实像素 + 三态截图）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

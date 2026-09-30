@@ -2,7 +2,7 @@
 //
 // 覆盖：迁移 v5 与两列、三类边界的**逐端点 HTTP 码**、只读令牌的渲染类 POST 仍可用、
 // 默认只读、存量 NULL 视作 write（迁移回填口径）、usage 的 token_id 归因。
-// 真实令牌打真端点的**原样输出**在 tools/ac-stage42.sh（含官方 Python MCP 客户端握手 / 界面真鼠标）。
+// 真实令牌打真端点的**原样输出**在 本地验收记录（含官方 Python MCP 客户端握手 / 界面真鼠标）。
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

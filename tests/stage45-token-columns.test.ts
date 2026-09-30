@@ -2,7 +2,7 @@
 //
 // 覆盖：`scroll.x` **必须由列定义的 `minWidth` 求和得出**（不得再手写数值、不得用 max-content）、
 // 名称列有可读下限（≥ 60px）、6 列定义齐全且顺序不变，以及阶段 44 的两条能力（可横滚、移动端竖排）不被破坏。
-// 真实 390×844 与 1600×900 下的**逐列像素**证据在 tools/ac-stage45.sh + ac-stage45-probe.mjs
+// 真实 390×844 与 1600×900 下的**逐列像素**证据在 本地验收记录 + ac-stage45-probe.mjs
 // （真浏览器 + 真鼠标 + 等抽屉动画结束）。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

@@ -9,7 +9,7 @@
 #   · ui-shots.sh    ：**自起临时实例 + 临时 DATA_DIR**，尺寸 1280×800 / DPR 1（自证用）
 #   · 本脚本（--key）：**打测试环境 8767**（真实数据），尺寸按规范 + DPR 2/3（给人看的展示图）
 #
-# 规范尺寸（/root/greenhouse/STANDARDS.md §5.2、BRIEF 双端交付基线）：
+# 规范尺寸（双端交付基线）：
 #   PC  ≡ 1440 × 900 CSS px @ DPR 2（MacBook Air M1 13.3"）
 #   移动 ≡ 440 × 956 CSS px @ DPR 3（iPhone 17 Pro Max）
 #

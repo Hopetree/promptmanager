@@ -1,6 +1,6 @@
 // 阶段 22 / FR-70（BRIEF v29 §4 + §8 AC-70 + §9 D-28）的源码级断言：
 // 拖拽用成熟库 @dnd-kit（不手写引擎）；手柄热区 24×24 且不增高行高；过渡 ≤150ms；两处手柄锚点；排序档「自定义」。
-// 端到端（真鼠标拖拽 + 刷新持久 + 像素回归 + 接口负例）见 tools/ac-stage22.sh / ac-stage22-probe.mjs 与 tests/api-order.test.ts。
+// 端到端（真鼠标拖拽 + 刷新持久 + 像素回归 + 接口负例）见本地验收记录 / ac-stage22-probe.mjs 与 tests/api-order.test.ts。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

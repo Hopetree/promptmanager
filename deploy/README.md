@@ -2,7 +2,7 @@
 
 > **交付 ≠ 已部署。** 本目录是**交付物**（BRIEF §5、§7；STANDARDS §3.6）：
 > 只提供 unit / 环境变量模板 / 本文档，**dsh 不执行安装**。
-> **实际部署（装到系统、开机自启、反代、对外暴露）是单独立项，只在用户明确要求时由 host_manger 执行**；
+> **实际部署（装到系统、开机自启、反代、对外暴露）是单独立项，只在用户明确要求时由 部署方 执行**；
 > 备份同样不默认做。
 
 | 交付物 | 说明 |
@@ -19,7 +19,7 @@
 
 | 项 | 值 | 说明 |
 | --- | --- | --- |
-| 主机 | 228（CentOS Stream 9） | **当前无 Docker**，本服务是**非容器**形态；⚠️ **即将新增容器化部署**（`Dockerfile` + `docker-compose.yml`，由 **host_manger** 交付，见 §5） |
+| 主机 | 228（CentOS Stream 9） | **当前无 Docker**，本服务是**非容器**形态；⚠️ **即将新增容器化部署**（`Dockerfile` + `docker-compose.yml`，由 **部署方** 交付，见 §5） |
 | Node | `/usr/bin/node`（v24.18.0） | 系统自带，不换版本、不装 nvm |
 | 代码目录 | `/opt/promptmanager` | unit 的 `WorkingDirectory` |
 | 环境文件 | `/etc/promptmanager/promptmanager.env` | unit 的 `EnvironmentFile`（**600**） |
@@ -28,7 +28,7 @@
 | 监听 | `0.0.0.0:8767` | 内网可达；**有认证**（除 `/healthz` 与登录接口外全部 401） |
 | 日志 | journald | `journalctl -u promptmanager -f` |
 
-> 若 host_manger 决定换路径/换端口：三处必须同步改 —— unit（`WorkingDirectory`/`ExecStart`/`ReadWritePaths`）、
+> 若 部署方 决定换路径/换端口：三处必须同步改 —— unit（`WorkingDirectory`/`ExecStart`/`ReadWritePaths`）、
 > `promptmanager.env`（`PORT`/`DATA_DIR`）、项目 `README.md` 与合集端口台账。
 
 ---
@@ -50,7 +50,7 @@ sudo -u promptmanager npm run migrate                   # 幂等迁移，输出 
 # 1.3 设置管理员口令（口令从 stdin 读，只落库、绝不进日志/git/环境文件）
 printf '%s\n' '<你的强口令>' | sudo -u promptmanager node bin/pm.mjs user set-password --username admin
 
-# 1.4 装 unit 与环境文件（systemd 相关操作只在部署阶段由 host_manger 执行）
+# 1.4 装 unit 与环境文件（systemd 相关操作只在部署阶段由 部署方 执行）
 sudo install -d -m 755 /etc/promptmanager
 sudo install -m 600 deploy/promptmanager.env.example /etc/promptmanager/promptmanager.env
 sudo cp deploy/promptmanager.service /etc/systemd/system/promptmanager.service
@@ -88,7 +88,7 @@ curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8767/api/prompts  
 ```
 
 > 228 无 firewalld / iptables 规则，绑上 `0.0.0.0` 即内网可达；**不要**做端口转发 / NAT / 公网映射
-> （这些只由 host_manger 在用户明确要求时处理，STANDARDS §3.3）。
+> （这些只由 部署方 在用户明确要求时处理，STANDARDS §3.3）。
 
 ### 2.6 口令与会话运维（阶段 2 起）
 
@@ -140,7 +140,7 @@ sudo sed -i 's/^TRUST_PROXY=$/TRUST_PROXY=1/; s|^PUBLIC_ORIGIN=$|PUBLIC_ORIGIN=h
 sudo systemctl restart promptmanager
 
 # 2) 反代：参考 deploy/reverse-proxy.example.conf（占位符要替换；证书路径/域名不入库）
-sudo cp deploy/reverse-proxy.example.conf /etc/nginx/conf.d/promptmanager.conf   # 部署时由 host_manger 执行
+sudo cp deploy/reverse-proxy.example.conf /etc/nginx/conf.d/promptmanager.conf   # 部署时由 部署方 执行
 sudo nginx -t && sudo systemctl reload nginx
 
 # 3) 验证：证书 + 转发头 + cookie 带 Secure
@@ -149,7 +149,7 @@ curl -s -D - -o /dev/null -X POST -H 'Content-Type: application/json' \
   -d '{"username":"admin","password":"<口令>"}' https://<你的公网域名>/api/login | grep -i '^set-cookie'
 ```
 
-> ⚠️ **公网暴露动作（反代/证书/防火墙/DNS）属于安全红线，只由 host_manger 在用户授权后执行**；
+> ⚠️ **公网暴露动作（反代/证书/防火墙/DNS）属于安全红线，只由 部署方 在用户授权后执行**；
 > 本项目只交付配置样例与文档。服务仍必须带认证（cookie + Bearer 双通道），`/healthz` 与 `/api/login` 之外一律 401。
 
 ### 3.4 MCP server（stdio，给 agent 取用；不占端口）
@@ -209,7 +209,7 @@ sudo systemctl start promptmanager
 - **备份 = 拷文件**：`DATA_DIR/pm.db`（WAL 模式下连同 `pm.db-wal`/`pm.db-shm` 一起拷，或先停服务再拷）。
 - **备份 = 导出 JSON（可选、逻辑级）**：`sudo -u promptmanager node bin/pm.mjs export --out /path/backup.json`；
   恢复用 `POST /api/import`（`mode=replace` 清空重建 / `mode=merge` 合并且 prompt 新建，单事务原子、失败不改数据）。
-  ⚠️ **本项目不默认做备份**：以上只是可用机制，是否接备份任务由用户在需要时单独提出、由 host_manger 执行。
+  ⚠️ **本项目不默认做备份**：以上只是可用机制，是否接备份任务由用户在需要时单独提出、由 部署方 执行。
 - 迁移是**幂等**的（`schema_migrations` 记录已应用版本）；回滚代码到旧版本时，若旧版本 schema 更旧，
   它会按自己的 `migrations/` 重新判断——**不要手工改 `schema_migrations`**。
 
@@ -220,9 +220,9 @@ sudo systemctl start promptmanager
 - dsh **没有**在本文件之外做任何系统改动：没有 `systemctl` 调用、没有创建账号/目录、没有改防火墙。
 - 本地验收时服务是**临时进程**或"AC 自起自停"（`DATA_DIR=$(mktemp -d) PORT=8767 npm start`），验收后即杀。
 - `deploy/` 三件套是**文件交付物**；AC-18 只核"文件齐备 + 语法/约定正确"，**不代表已部署**。
-- 若真要部署：**由用户点名、由 host_manger 执行**（含反代/证书/防火墙/DNS），dsh 不碰系统配置。
+- 若真要部署：**由用户点名、由 部署方 执行**（含反代/证书/防火墙/DNS）；应用本身不碰系统配置。
 - ⚠️ **即将新增容器化部署**：`Dockerfile` + `docker-compose.yml`（含数据卷 `DATA_DIR` 挂载、端口 8767 映射、健康检查）
-  **由 host_manger 交付**；本仓库**当前不含**任何容器文件，本节的三步 systemd 流程仍是唯一已交付形态。
+  **由 部署方 交付**；本仓库**当前不含**任何容器文件，本节的三步 systemd 流程仍是唯一已交付形态。
   容器形态落地后，本节需补一节"容器安装/验证/回滚"，两套形态共用同一个 `pm.db`（不要同时起两份进程写同一数据目录）。
 
 ---
@@ -278,4 +278,4 @@ curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8767/healthz   # 期�
 ```
 
 > 边界：本节只涉及**本项目自己的** unit / drop-in / 服务重启，不涉及防火墙、NAT、内核参数等系统配置
-> （那些只由 host_manger 在部署时处理）。
+> （那些只由 部署方 在部署时处理）。

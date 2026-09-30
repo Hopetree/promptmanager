@@ -3,7 +3,7 @@
 // 覆盖：新增的 `POST /api/prompts/:id/copy`（**只记账、不返正文、不产生 view**）、
 // 前端无变量分支复制成功后调它（+1）、含变量分支**不调它**（弹窗不记、复制结果走 render +1）、
 // 以及 FR-113/FR-114 的口径不回归（一次复制一条 / 打开详情只留痕 / 列表搜索不记）。
-// 真实界面 + 查库对账（四条分支逐条实测）在 tools/ac-stage51.sh + ac-stage51-probe.mjs。
+// 真实界面 + 查库对账（四条分支逐条实测）在 本地验收记录 + ac-stage51-probe.mjs。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -1,7 +1,7 @@
 // 阶段 25 / FR-76 / D-31（BRIEF v32 §4 + §8 AC-76）：
 //   顶栏品牌文字 = `PromptM`（**只此一处**）；其余四处（<title>/登录页/关于页/pure.ts 错误文案）保持 `PromptManager`；
 //   导出契约值 `app: 'promptmanager'` 一字不动（显示名 ≠ 契约值）；图标 mark 与移动端行为不变。
-// 运行时段（桌面/移动视口 + 截图）见 tools/ac-stage25.sh 与 tools/ac-stage25-probe.mjs。
+// 运行时段（桌面/移动视口 + 截图）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

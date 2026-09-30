@@ -1,5 +1,5 @@
 // 阶段 8 前端 P0 的结构化验收（静态断言）。
-// 渲染级证据（真实 DOM 里的 ant-* 类名、截图）由 `tools/ac-stage8.sh` / `tools/ui-shots.sh` 产出；
+// 渲染级证据（真实 DOM 里的 ant-* 类名、截图）由 本地验收记录 / `tools/ui-shots.sh` 产出；
 // 这里断言的是"界面源码里确实实现了 BRIEF §4 FR-11 / FR-11b / §5 硬性要求"。
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';

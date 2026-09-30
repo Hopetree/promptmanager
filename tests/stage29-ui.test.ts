@@ -1,5 +1,5 @@
 // 阶段 29 / FR-82 / FR-83（BRIEF v38 §4 + §8 AC-84 / AC-85）的**前端源码级**断言。
-// 运行时段（真鼠标 + 真实像素 + 长内容夹具 + chip 样式对比）见 tools/ac-stage29.sh 与 tools/ac-stage29-probe.mjs。
+// 运行时段（真鼠标 + 真实像素 + 长内容夹具 + chip 样式对比）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -6,6 +6,30 @@
 
 ## [未发布]
 
+### 变更（Changed）· 仓库瘦身：只保留交付态内容
+
+- **把过程态全部移出仓库**（2026-09-30）。移出的内容**没有删除**，而是搬到**本地** `tmp/dev-process/`
+  （镜像本仓库布局；`tmp/` 已 gitignore、可随时整体删除；移出前的完整内容仍在 git 历史里）：
+  - 需求合同 `BRIEF.md`、进度日志 `PROGRESS.md`、验收记录 `VERIFY.md`、提问模板 `QUESTIONS.md`；
+  - `docs/dev-history/`（早期过程记录 + 设计打样归档）、`docs/brief-changelog.md`、`docs/ui-verification-report.md`；
+  - `tools/` 下 **101 个**一次性验收脚本（`ac-stage*.sh` / `*-probe.mjs`）与 `design-compare.mjs`。
+  - **`tools/` 现在只剩可复用工具**（质量门禁、界面截图、夹具、检索 PoC、MCP 冒烟、开发数据重置），
+    因此 `npm run lint` 的范围从「排除 `tools/`」变成**全仓**（`oxlint .`；169 个文件 **0 告警**）。
+- **`AGENTS.md` 瘦身 21%**（43332 → **34082 B**，指令预算占用 **70.6% → 52%**）：
+  - §1 从「逐条 FR 详情」压成**红线清单**（契约 / 安全 / 顺序与环境陷阱三类，每条 ≤3 行）；
+    被移出的**根因与实测值**进新文档 [`docs/traps.md`](docs/traps.md)。
+  - 新增 **§13「本地工作文件」**：说明需求 / 进度 / 验收文件在哪（**不在仓库里**）。
+  - §11 文档地图、§5.1 落点规则、§4 结构表按新的仓库形态重写；页头加了「保持简短」的说明。
+  - 去掉全部内部痕迹：阶段号、内部角色名、沙箱路径、指向已移出文件的引用。
+- **新增文档体积门禁**（`tools/ci-check.sh` 步骤 **⓪**，跑在最前、快速失败）：按**渲染后**字节
+  （文件本身 + `Instructions from:` 段头）对照 AI 代理的注入预算 **65536 B** —— **预警 55%（36000 B）、
+  红线 61%（40000 B）**。超红线即 CI 红灯，避免"新会话静默丢约束"。
+- **新增 [`docs/traps.md`](docs/traps.md)**：12 节，承接所有「为什么代码长这样」的根因与实测值
+  （令牌权限、抽屉与 0 宽列、登录页溢出、取用计数、卡片元信息、状态列配色、中文检索、版本上限、
+  导入清理顺序、内网剪贴板、沙箱环境、文档落点）。**新规则：红线进 `AGENTS.md`（≤3 行），证据进这里。**
+- 顺带：`docs/README.md` 重写（目录索引 + 边界）、`docs/development.md` 删掉整段「验证脚本清单」、
+  `deploy/README.md` 里的内部角色名改为「部署方」、**43 个测试文件**里指向已移出脚本的注释改成中性说法。
+
 ### 新增（Added）
 
 - **引入静态检查（lint）并挂进质量门**（2026-09-30 体检 P2-15）：
@@ -14,8 +38,6 @@
   - **顺带清掉 30 处既有告警**（`no-unused-vars` × 29、`no-useless-escape` × 1）：删掉未使用的导入与死变量
     （含 `web/src` 里 5 个组件、`src/` 2 个未用类型、`tests/` 一批未用导入）；测试里"**故意创建但不用**"的夹具
     （`neverUsed` / `b` / `tokenB`）**保留调用、只去掉赋值** —— 行为零变化。`src` / `web/src` / `tests` 现为 **0 告警**。
-  - **范围刻意不含 `tools/`**：那里 53 个 `ac-stage*.sh` + 44 个 `*-probe.mjs` 是一次性验收脚本，
-    `VERIFY.md` 直接引用它们当证据 —— 为风格去改没有收益，还会让证据链变味。理由写在该步骤注释里。
 
 ### 修复 / 加固（Fixed · Security）
 
@@ -67,10 +89,8 @@
   - `deploy/promptmanager.env.example`：把**全库零引用的死变量** `ADMIN_PASSWORD` / `SESSION_SECRET` 注释掉并写明原因（避免自架者设了以为生效）。
   - `README.md` / `docker-compose.yml` / `Dockerfile`：陈旧版本串 —— healthz 示例 `1.3.0`→当前版本；本地构建镜像 tag `promptmanager:1.0.0`→中性 **`promptmanager:local`**。
   - `CHANGELOG.md`：`[1.0.0]` 日期 `2026-09-20`→**`2026-09-21`**（与 tag `v1.0.0` 一致）。
-  - `PROGRESS.md`：修掉**头部自相矛盾**的状态表（`阶段 1–52 / v1.2.0`、版本 `1.1.1`、更新于 `2026-09-22` → **`阶段 1–59 / v1.5.0 / 2026-09-30`**），并补阶段 53–59 摘要。
-  - `docs/brief-changelog.md`：标明**只覆盖 v1–v32**（v33 及之后在 `BRIEF.md` §12），避免被误读为当前口径。
   - `docs/versioning.md`：新增 **§4.1 发版检查单**，把「`api.md` / `AGENTS.md` / README 同步」固化成**发版动作**，防止同类过期再犯。
-  - 新增 `docs/README.md`（`docs/` 目录索引 + 两条边界说明）、`docs/dev-history/README.md`（归档区索引 + 与根目录同名文件的分工）、`.nvmrc`（24）、`.npmrc`（`engine-strict=true`）。
+  - 新增 `docs/README.md`（`docs/` 目录索引 + 两条边界说明）、`.nvmrc`（24）、`.npmrc`（`engine-strict=true`）。
 
 ## [1.5.0] — 2026-09-30
 

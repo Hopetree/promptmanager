@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // S0 技术验证：中文检索方案实测（BRIEF §6.8 / §6.6 / D-3）。
-// 目的：在 228 上复核 host_manger 的实测结论——trigram 对中文 ≥3 字符可用、<3 字符 0 命中、
+// 目的：复核已记录的中文检索实测结论——trigram 对中文 ≥3 字符可用、<3 字符 0 命中、
 // 默认 unicode61 对中文 0 命中、特殊字符不报错、2000 条规模下性能可用。
 // 用法：node tools/search-zh-poc.mjs
 import { performance } from 'node:perf_hooks';

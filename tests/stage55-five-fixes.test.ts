@@ -1,7 +1,7 @@
 // 阶段 55 / FR-119 ~ FR-123 / AC-119 ⑮：为**可量化**的部分补自动化断言，防止后续回归。
 //
 // 本文件是**源码级 / 纯逻辑级**断言（不依赖浏览器）；真浏览器的像素与几何证据见
-// tools/ac-stage55.sh + tools/ac-stage55-verify.mjs。
+// 本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -2,7 +2,7 @@
 //
 // 覆盖：`TOKEN_SCOPE_TAG_COLOR` 的两个档位必须**不同**且语义正确（读写比只读"重"、只读不得红色系）、
 // 已撤销走中性色、渲染处按 scope 取色（不再写死 green）、列结构与可点击入口未被破坏。
-// 真实渲染值（亮/暗两主题的 getComputedStyle + 真鼠标改权限）在 tools/ac-stage48.sh + ac-stage48-probe.mjs。
+// 真实渲染值（亮/暗两主题的 getComputedStyle + 真鼠标改权限）在 本地验收记录 + ac-stage48-probe.mjs。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -2,7 +2,7 @@
 //
 // 覆盖：表格**必须有可滚动容器**（`scroll.x`）、移动端表单竖排（`isMobile` 由 `Workspace` 下发）、
 // Alert 文案无 Markdown 星号，以及"桌面 6 列 / 列宽 / 折叠已移除"这些**不该被改坏**的口径。
-// 真实 390×844 与 1600×900 下的像素级证据在 tools/ac-stage44.sh + ac-stage44-probe.mjs（真浏览器 + 真鼠标）。
+// 真实 390×844 与 1600×900 下的像素级证据在 本地验收记录 + ac-stage44-probe.mjs（真浏览器 + 真鼠标）。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

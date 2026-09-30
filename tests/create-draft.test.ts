@@ -1,5 +1,5 @@
 // FR-45 / AC-43 的**源码级**锚点：新建必须是"内存草稿 → 点保存才 POST 创建"。
-// 运行时证据（total 不变 / 保存 +1）见 tools/ac-stage13.sh。
+// 运行时证据（total 不变 / 保存 +1）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';

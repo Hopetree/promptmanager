@@ -1,7 +1,7 @@
 // 阶段 19 / FR-63（BRIEF v25 §4 + §8 AC-63，**取代 AC-62 的形态要求**）：
 // 编辑器全屏 = 「应用内全屏」：**不调 Fullscreen API**；只隐藏编辑器内部左栏 `editor-list`；
 // 编辑栏 : 右栏 = 1 : 1；按钮与详情面 `pm-detail-fullscreen` 同款。
-// 运行时段（真鼠标 + 真实像素）见 `tools/ac-stage19.sh` / `tools/ac-stage19-probe.mjs`。
+// 运行时段（真鼠标 + 真实像素）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

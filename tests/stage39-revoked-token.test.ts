@@ -1,7 +1,7 @@
 // 阶段 39 / FR-100（BRIEF v50 §4 + §8 AC-102）**撤销后的 token 仍显示值并支持复制**断言。
 //
 // 这里覆盖**前端源码级**口径（预取过滤、「使用」列判断、不可恢复行的 title 说明、操作列不变）；
-// 真实像素 + 真鼠标 + 内网 IP 真粘贴在 tools/ac-stage39.sh + ac-stage39-probe.mjs 里跑。
+// 真实像素 + 真鼠标 + 内网 IP 真粘贴在 本地验收记录 + ac-stage39-probe.mjs 里跑。
 // 服务端**一行未改**（`revealToken` 本来就不看 `revoked_at`）= FR-100 的前提，见下面最后一条。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

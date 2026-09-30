@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 阶段 8 界面自证（AC-13）：**服务自起自停** + 零安装 headless chromium 截图 + 渲染后 DOM dump（供 AC-21 用）。
 #
-# ⚠️ 输出约定（FR-84 / `/root/greenhouse/STANDARDS.md` §5.2，2026-09-21 用户定）：
+# ⚠️ 输出约定（2026-09-21 定）：
 #   `docs/` 只放「**最终状态的、给人看的**」东西 ⇒ `docs/shots/` **只保留一套关键页面展示图（8 张）**；
 #   **过程/自证截图一律落 `tmp/`**（`tmp/` 在 `.gitignore` 里 ⇒ **不入库**，本地可随时查）。
 #   因此：

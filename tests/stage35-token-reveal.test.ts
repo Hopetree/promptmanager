@@ -1,5 +1,5 @@
 // 阶段 35 / FR-94（BRIEF v46 §4 + §8 AC-96）的 **token 可随时查看（AES-256-GCM）**断言。
-// 运行时证据（真鼠标点「复制」+ 读回剪贴板）在 tools/ac-stage35.sh 与 ac-stage35-probe.mjs 里。
+// 运行时证据（真鼠标点「复制」+ 读回剪贴板）在 本地验收记录 与 ac-stage35-probe.mjs 里。
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -32,7 +32,7 @@ test('AC-15：建 prompt → 停服 → 同一 DATA_DIR 重启 → 数据与正�
     await first.close(); // 模拟 kill：关闭 HTTP 与数据库连接
   }
 
-  // 端口应已释放（真实进程级验证由 tools/ac-stage2.sh 负责，这里验证连接已关）
+  // 端口应已释放（真实进程级验证由本地验收记录负责，这里验证连接已关）
   const second = await makeFixture({}, { dir, withUser: false });
   try {
     const list = await second.app.inject({ method: 'GET', url: '/api/prompts', headers: { cookie } });

@@ -2,7 +2,7 @@
 //
 // ⚠️ 本文件是 **tests/stage37-token-layout.test.ts 的接替者**：v48 的 FR-98「4 列 + 折叠」被用户推翻，
 //    AC-100 作废；这里按 FR-99 的 6 列口径**逐条改写**上一批断言（列头/宽度/名称/使用/操作/回归），
-//    并**新增**截断与掩码两条规则的断言。真实像素 + 真鼠标 + 内网 IP 真粘贴在 tools/ac-stage38.sh 里跑。
+//    并**新增**截断与掩码两条规则的断言。真实像素 + 真鼠标 + 内网 IP 真粘贴在本地验收记录里跑。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -1,7 +1,7 @@
 // 阶段 36 / FR-95 / FR-96 / FR-97（BRIEF v47 §4 + §8 AC-97 / AC-98 / AC-99）断言。
 //
 // 这里覆盖**接口语义 + 前端源码级**；**非安全上下文下的真鼠标复制/粘贴**（AC-97 ①②③⑤）
-// 与真鼠标删除/创建（AC-98 ① / AC-99 ①②）在 tools/ac-stage36.sh + ac-stage36-probe.mjs 里跑
+// 与真鼠标删除/创建（AC-98 ① / AC-99 ①②）在 本地验收记录 + ac-stage36-probe.mjs 里跑
 // —— 且**必须**用内网 IP（`127.0.0.1` 是安全上下文，会掩盖本阶段的 bug，阶段 35 就是这么漏的）。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

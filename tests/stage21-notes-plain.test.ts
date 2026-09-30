@@ -1,6 +1,6 @@
 // 阶段 21 / FR-68（BRIEF v28 §4 + §8 AC-68）：**备注 = 纯文本**。
 // 编辑器 Markdown 预览去掉「备注」字段；详情面「备注」页签按原样纯文本显示（不解析 Markdown、不请求 /api/render/markdown）。
-// 运行时段（真鼠标 + CDP 网络层计数 + DOM 元素计数）见 tools/ac-stage21.sh 与 tools/ac-stage21-probe.mjs。
+// 运行时段（真鼠标 + CDP 网络层计数 + DOM 元素计数）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

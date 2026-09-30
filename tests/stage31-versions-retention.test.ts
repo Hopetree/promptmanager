@@ -1,6 +1,6 @@
 // 阶段 31 / FR-86（BRIEF v41 §4 + §8 AC-88）的**数据层**断言：每个 prompt 最多保留最近 10 个版本。
 // 纪律要求：断言**直接查库**（`readDb` 拿 better-sqlite3 连接跑 `SELECT`），不能只看界面 / 只看接口回包。
-// 运行时段（真实 HTTP + sqlite3 CLI 直查 + 回滚/导入/文案截图）见 tools/ac-stage31.sh 与 tools/ac-stage31-probe.mjs。
+// 运行时段（真实 HTTP + sqlite3 CLI 直查 + 回滚/导入/文案截图）见本地验收记录。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cookieOf, login, makeFixture, readDb } from './helpers.ts';

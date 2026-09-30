@@ -1,6 +1,6 @@
 // v17（BRIEF FR-43 / FR-44）的**源码级**结构锚点：
 // 取消「使用 / 管理」双模式、顶栏精简、管理动作并入表格视图、主题图标按钮。
-// 运行时证据见 tools/ac-stage13.sh（AC-41 / AC-42 / AC-43）。
+// 运行时证据见本地验收记录（AC-41 / AC-42 / AC-43）。
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';

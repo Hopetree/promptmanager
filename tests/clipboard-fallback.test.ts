@@ -1,6 +1,6 @@
 // 阶段 19 / FR-65（BRIEF v25 §4 + §8 AC-65）：
 // 内网 IP + HTTP 不是安全上下文 → `navigator.clipboard` 不存在，写剪贴板必须走
-// `document.execCommand('copy')` 兜底（jsdom 单测；真实内网 IP 的端到端验收见 tools/ac-stage19.sh）。
+// `document.execCommand('copy')` 兜底（jsdom 单测；真实内网 IP 的端到端验收见本地验收记录）。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';

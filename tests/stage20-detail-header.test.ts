@@ -1,6 +1,6 @@
 // 阶段 20 / FR-66（BRIEF v27 §4 + §8 AC-66）：详情页去掉冗余的「当前字段 + 预览」头部。
 // MarkdownPreview 在 fields.length === 1（详情面）时隐藏头部；编辑器页（3 字段）保持现状。
-// 运行时段（真鼠标 + 真实像素 + 切换预览）见 tools/ac-stage20.sh 与 tools/ac-stage20-probe.mjs。
+// 运行时段（真鼠标 + 真实像素 + 切换预览）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

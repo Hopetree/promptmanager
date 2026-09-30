@@ -1,7 +1,7 @@
 // 阶段 56 / FR-124 / AC-120：关于页改为开源项目形态的自动化断言。
 //
 // 本文件是**源码级**断言（不依赖浏览器）；真浏览器的渲染/几何/截图证据见
-// tools/ac-stage56-about.sh 与 tools/ac-stage56-about-probe.mjs。
+// 本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

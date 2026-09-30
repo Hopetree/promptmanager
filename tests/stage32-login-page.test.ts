@@ -1,6 +1,6 @@
 // 阶段 32 / FR-88（BRIEF v42 §4 + §8 AC-90）的**源码级**断言：登录页简化 + 不暴露账号名。
 // 运行时段（真鼠标登录 / 错误提示 / 亮暗截图 / 移动端不溢出 / 运行时 DOM 无账号名）见
-// tools/ac-stage32.sh 与 tools/ac-stage32-probe.mjs。
+// 本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

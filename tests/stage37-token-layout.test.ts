@@ -4,7 +4,7 @@
 //   这里保留"FR-98 的两个目标"（**无横向滚动 + 名称不被挤压**）并额外断言
 //   **折叠方案已彻底清除**（不能留下任何 4 列/展开的残留）。
 //    6 列的列头 / 截断 / 掩码 / 操作语义在 tests/stage38-token-columns.test.ts 里断言。
-//    真实像素 + 真鼠标 + 内网 IP 真粘贴在 tools/ac-stage38.sh 里跑。
+//    真实像素 + 真鼠标 + 内网 IP 真粘贴在本地验收记录里跑。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

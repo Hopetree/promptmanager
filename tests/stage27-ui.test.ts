@@ -1,5 +1,5 @@
 // 阶段 27 / FR-77 ~ FR-81（BRIEF v34 §4 + §8 AC-78 ~ AC-82）的**前端源码级**断言。
-// 运行时段（真鼠标 + 落库读数 + 请求计数 + 真实像素）见 tools/ac-stage27.sh 与 tools/ac-stage27-probe.mjs。
+// 运行时段（真鼠标 + 落库读数 + 请求计数 + 真实像素）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -1,6 +1,6 @@
 # 依赖与开源协议登记（promptmanager）
 
-> 规范依据：`STANDARDS.md` §4（能不造轮子就别造；安全 + 协议两道闸门；依赖必须登记）
+> 规范：能不造轮子就别造；安全 + 协议两道闸门；依赖必须登记。
 > 与 BRIEF §5 / §7 / D-10。**本文件只登记事实与理由，不代替 lockfile**。
 > 最后更新：2026-09-20（**上线准备 P1：全量复核** —— 逐条对照 `package.json` / `package-lock.json`（31 个直接依赖：23 生产 + 8 开发，
 > 0 缺失 / 0 版本不一致），并按当前版本重跑 OSV 查询（31/31 = 0 漏洞，见 §5 ② 的"本次复核"段）。
@@ -18,7 +18,7 @@
 ## 2. 直接依赖（阶段 1 已安装并 pin 版本）
 
 > 判据：**安全**（无未修高危 CVE、维护活跃、pin 精确版本 + 提交 lockfile）+ **协议**（MIT/Apache/BSD/ISC 直接用；
-> MPL/LGPL 可用；GPL/AGPL/无协议先问）。全部满足，无需 `QUESTIONS.md`。
+> MPL/LGPL 可用；GPL/AGPL/无协议先问）。全部满足。
 
 ### 2.1 生产依赖（`dependencies`）
 
@@ -179,7 +179,7 @@ AC-4 规定时序："连续 5 次错误口令后第 6 次 → 429"。
 
 **为什么不写 QUESTIONS**：限流的"基础设施"（窗口存储、键、标准响应头、per-IP 限速算法）由插件承担；
 自研的部分是**对本项目已有表的领域查询**，且契约（`LOGIN_MAX_FAILURES`/`LOGIN_MAX_FAILURES 窗口`/AC-4 时序）
-明确要求"按失败计数"，属于业务规则而非重造轮子。若 host_manger 认为应改为纯库方案，需要同时修订 AC-4 的时序定义
+明确要求"按失败计数"，属于业务规则而非重造轮子。若维护者认为应改为纯库方案，需要同时修订 AC-4 的时序定义
 （已在 PROGRESS 阶段 2 §4 决策 1 留痕）。
 
 ### 4.8 Markdown 渲染 / 净化 / 高亮：`marked` + `dompurify`(+`jsdom`) + `highlight.js`
@@ -211,7 +211,7 @@ AC-4 规定时序："连续 5 次错误口令后第 6 次 → 429"。
 
 FR-18/D-15 要求 stdio MCP server；STANDARDS §4.2 与 BRIEF §5 **明令禁止手写 JSON-RPC 框架**，故使用**官方 TS SDK**。
 协议版本对齐（BRIEF §5 硬要求）实测：SDK 的 `LATEST_PROTOCOL_VERSION = '2025-11-25'`，与真实对端
-（Python `mcp` 1.30.0）**完全相同** —— 详见 `PROGRESS.md` 阶段 7 开工前 §2 与收尾节的真实对端输出。
+（Python `mcp` 1.30.0）**完全相同**。
 
 **取舍说明（如实登记）**：该 SDK 同时内置 HTTP/SSE 等传输，会带来较多传递依赖（本阶段 `node_modules` 从 207 → 281 个包，
 其中 74 个来自 SDK 依赖树：express/hono/jose/ajv 等）。我们只用到 `stdio` 传输与 `McpServer`。
@@ -354,14 +354,14 @@ zod                        4.6.5      osv_vulns=0
 Markdown 预览的代码高亮**样式表**复用既有 `highlight.js@11.12.0` 的 `styles/github.css` / `styles/github-dark.css`
 （`web/src/styles/markdown.css` 按 `prefers-color-scheme` 用带媒体查询的 `@import` 引入 → 随 Vite 本地打包，仍**零 CDN**）。
 **刻意没有引入**：react-router（列表↔编辑器用应用内视图状态）、状态管理库（只有会话 + 列表两处共享状态）、
-任何第二套 CSS 框架（不引 Tailwind）；理由与取舍记在 `PROGRESS.md`「阶段 8 开工前 §3 决策 1/4」。
+任何第二套 CSS 框架（不引 Tailwind）。
 
 阶段 59（远程数据同步，FR-125）新增：**0 个**。GitHub 传输层用 Node 内置 `fetch` + `AbortSignal.timeout`
 （Node 24.18.0 自带），只走 Contents API 的两个端点（GET / PUT，409 冲突时取新 sha 重试一次），
 **没有**引入 `octokit` 之类 SDK —— 本项目只用两个端点，引 SDK 只会多一棵依赖树与对应的 CVE 面；
 快照格式复用既有导出（`src/services/export.ts`），恢复复用既有导入（`src/services/import.ts`），
 令牌加密复用既有 `src/services/token-crypto.ts`（AES-256-GCM），均无新依赖。
-自动化验证用的 GitHub 桩（`tools/ac-stage59-sync-stub.mjs`）只用 `node:http`，属于测试脚本、不是产品依赖。
+同步功能的自动化测试用的 GitHub 桩只用 `node:http`，属于测试脚本、不是产品依赖。
 
 **③ 维护活跃度**：27 个直接依赖的 `npm view <pkg> time.modified` 全部在 2025-08 ~ 2026-09 之间
 （近一年有发布/维护），符合 STANDARDS §4.3 第 2 条。

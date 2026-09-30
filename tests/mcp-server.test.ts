@@ -8,7 +8,7 @@ import { PROJECT_ROOT, cookieOf, login, makeFixture, readDb } from './helpers.ts
 /**
  * 这些用例用 **官方 TS SDK 客户端** 经 stdio 跑端到端，作为回归防线。
  * ⚠️ 注意：BRIEF AC-25 明确要求"真实对端"（Python `mcp` 1.30.0，协议 2025-11-25）——
- * 那份证据在 tools/ac-stage7.sh 里，**不能用这里的 SDK 自测代替**。
+ * 那份证据在本地验收记录里，**不能用这里的 SDK 自测代替**。
  */
 const ENTRY = path.join(PROJECT_ROOT, 'bin', 'pm-mcp.mjs');
 

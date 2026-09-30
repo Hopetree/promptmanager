@@ -138,7 +138,7 @@ const STAGE57_ACCOUNTED_DELTA = 112;
  * （打进主包的部分约 1.6 KB gzip）。**无新增依赖、无新增非懒加载 chunk**；
  * 未压缩的最大 chunk 仍是 vendor-antd（470,919 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。
  * 这笔体积是 FR-125 这个**用户要求的新功能**的代价，故按既有口径（基线 + 逐阶段实测增量）对账进预算，
- * **不是**放宽预算。注：阶段 58 只改 `tools/ac-stage*.sh|*.mjs`，无前端改动 ⇒ 没有 STAGE58 增量。
+ * **不是**放宽预算。注：该批只改本地验收脚本，无前端改动 ⇒ 没有相应增量。
  */
 const STAGE59_ACCOUNTED_DELTA = 5_138;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */

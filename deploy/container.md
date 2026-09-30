@@ -76,7 +76,7 @@ docker build -t promptmanager:1.0.1 .
 **与"本机/106 上手工构建"的关系**
 
 workflow 的构建参数与 `docker build -t promptmanager:<ver> .` **等价**：`context=.`、`file=Dockerfile`、
-无自定义 `target`、平台 `linux/amd64`（见 `docs/dev-history/PROGRESS.md` 阶段 33 的对照表与实测记录）。
+无自定义 `target`、平台 `linux/amd64`。
 本地没有 Docker 的机器（如 228）**不需要**为了发版装 Docker —— 交给 Actions 即可。
 
 ## 3. 运行
@@ -172,7 +172,7 @@ MCP 端点本身**无状态**（不建会话、不做 SSE 长连），所以不�
 - 端口默认 **8767**（与 systemd 部署一致）；改端口要同步改 compose 的 `PORT` 与反代配置；
 - **本服务不做 TLS**：公网形态请在前面放反向代理终结 HTTPS，并设 `TRUST_PROXY=1` + `PUBLIC_ORIGIN`。
 
-## 9. 验证记录（host_manger 实测，2026-09-20，Docker 26.0.2 / Compose v2.26.1）
+## 9. 验证记录（实测，2026-09-20，Docker 26.0.2 / Compose v2.26.1）
 
 | 项 | 结果 |
 | --- | --- |

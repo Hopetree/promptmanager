@@ -1,7 +1,7 @@
 // 阶段 20 / FR-67（BRIEF v27 §4 + §8 AC-67）的**源码级**断言（界面侧）：
 // ⋯更多 删「已登录」、原位置「修改密码」；弹窗三密码框 + autoComplete + 前端校验（≥8 码点 / 不同 / 一致）；
 // 统一走 api.changePassword（POST /api/password，snake_case）；关于页维护区提到界面入口。
-// 运行时段（真鼠标 + 内网 IP + 真实会话与限流）见 tools/ac-stage20.sh 与 tools/ac-stage20-probe.mjs。
+// 运行时段（真鼠标 + 内网 IP + 真实会话与限流）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

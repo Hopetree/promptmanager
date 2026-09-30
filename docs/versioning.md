@@ -117,14 +117,14 @@ sudo bash /root/pm-deploy-local.sh v2.2.2-beta.1 --dry-run # 只预演
 # 3) 本地质量检查（与 CI 同一套），必须全绿
 bash tools/ci-check.sh          # 类型检查 → 全量测试 → 构建 → 体积预算 ≤500KB
 
-# 4) 打附注 tag（推送远程与绑定仓库由 host_manger/用户另行安排，dsh 不 push）
+# 4) 打附注 tag（推送远程由维护者另行安排）
 git tag -a v1.1.0 -m "promptmanager v1.1.0"
 ```
 
 发版后复核：
 
 ```bash
-# 部署侧（由 host_manger 执行）：重新构建并重启后，健康检查必须回报新版本
+# 部署侧：重新构建并重启后，健康检查必须回报新版本
 curl -s http://127.0.0.1:8767/healthz     # {"status":"ok","version":"1.1.0"}
 ```
 

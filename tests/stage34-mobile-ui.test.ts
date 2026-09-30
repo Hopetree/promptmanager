@@ -1,6 +1,6 @@
 // 阶段 34（BRIEF v45 §4 FR-90 / FR-92）的**源码级 / 纯逻辑**断言。
 // 运行时段（真浏览器 + CDP 量 getBoundingClientRect 的 358/374、档位顺序 DOM、默认档位按断点、截图）
-// 见 tools/ac-stage34.sh 与 tools/ac-stage34-probe.mjs。
+// 见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

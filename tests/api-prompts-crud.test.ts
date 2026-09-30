@@ -34,7 +34,7 @@ test('AC-5①：POST 全字段 + 1 个标签 → 201 version_no=1，GET 逐字�
     assert.equal(got.statusCode, 200);
     const fetched = got.json() as Record<string, unknown>;
 
-    // 逐字段比对（AC-5 的 python3 逐字段比对在 tools/ac-stage3.sh 里；这里是同等断言）
+    // 逐字段比对（AC-5 的 python3 逐字段比对在本地验收记录里；这里是同等断言）
     const comparisons: Array<[string, unknown, unknown]> = [
       ['title', fetched.title, SUBMITTED.title],
       ['user_prompt', fetched.user_prompt, SUBMITTED.user_prompt],

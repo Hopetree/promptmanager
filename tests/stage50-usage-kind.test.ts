@@ -2,7 +2,7 @@
 //
 // 覆盖：迁移 006 的存在与口径、`kind` 的类型/缺省、**打开详情记 `view` 且不计入**、
 // **render 与 MCP 计入**、三处聚合（详情 / 列表 / summary）**同一口径**、表结构与导出格式未变。
-// 真实查库对账（含旧库实测迁移）在 tools/ac-stage50.sh。
+// 真实查库对账（含旧库实测迁移）在 本地验收记录。
 import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

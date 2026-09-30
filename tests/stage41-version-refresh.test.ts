@@ -1,7 +1,7 @@
 // 阶段 41 / FR-102（BRIEF v52 §4 + §8 AC-104）**编辑保存后返回详情，版本历史即时更新**断言。
 //
 // 这是**前端状态刷新**问题 ⇒ 真正的证据是**真浏览器**里"改 → 保存 → 返回详情 → 不刷新页面"的数字对照，
-// 在 tools/ac-stage41.sh + ac-stage41-probe.mjs 里跑（AC-104 ①–⑥）。本文件只钉住**源码级契约**：
+// 在 本地验收记录 + ac-stage41-probe.mjs 里跑（AC-104 ①–⑥）。本文件只钉住**源码级契约**：
 // 刷新信号必须是 `prompt.version_no`（而不是"只在回滚时自增的内部 state"），且不得变成"每次渲染都拉"。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

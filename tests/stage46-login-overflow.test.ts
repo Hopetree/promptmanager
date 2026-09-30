@@ -2,7 +2,7 @@
 //
 // 覆盖：登录根容器**必须**是 `border-box`（否则 `minHeight:100vh` 不含上下 padding ⇒ 恒溢出 96px）、
 // 居中与留白参数未被改动；README 的部署章节与 FAQ 有镜像拉取指引、且不绑定具体镜像站。
-// 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 tools/ac-stage46.sh + ac-stage46-probe.mjs。
+// 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 本地验收记录 + ac-stage46-probe.mjs。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

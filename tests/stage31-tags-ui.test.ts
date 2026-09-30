@@ -1,5 +1,5 @@
 // 阶段 31 / FR-85（表格「标签」列加间距）+ FR-86 文案（版本面板可见说明）的**前端源码级**断言。
-// 运行时段（真实像素 gap / 卡片视图对照 / DOM 文案可见性）见 tools/ac-stage31.sh 与 tools/ac-stage31-probe.mjs。
+// 运行时段（真实像素 gap / 卡片视图对照 / DOM 文案可见性）见本地验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

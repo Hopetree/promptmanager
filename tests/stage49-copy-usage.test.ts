@@ -2,7 +2,7 @@
 //
 // 覆盖：复制路径**不得**为"拿正文"再请求一次会计数的 `GET /api/prompts/:id`；
 // 含变量路径仍保留 `render` 那一次；打开详情/列表搜索/MCP 的既有口径不受影响；表结构不变。
-// 真实界面操作的**查库对账**（四组对照 + 改前改后对照）在 tools/ac-stage49.sh + ac-stage49-probe.mjs。
+// 真实界面操作的**查库对账**（四组对照 + 改前改后对照）在 本地验收记录 + ac-stage49-probe.mjs。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

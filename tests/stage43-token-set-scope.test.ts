@@ -4,7 +4,7 @@
 // 改权限**立即生效**（同一个令牌紧接着就能/不能再写，没有重建、没有重新登录）、
 // 已撤销 → 409 `token_revoked`、入参校验（additionalProperties:false）、404、
 // 阶段 42 的三类边界不回归、界面/CLI 的源码级判据。
-// 真令牌打真端点的**原样输出**在 tools/ac-stage43.sh（含真鼠标改权限 + 服务端日志 grep）。
+// 真令牌打真端点的**原样输出**在 本地验收记录（含真鼠标改权限 + 服务端日志 grep）。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

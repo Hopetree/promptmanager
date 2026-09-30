@@ -2,7 +2,7 @@
 //
 // 为什么这里只做源码级断言、不做"删掉 dist 再跑一遍"的可执行断言：
 //   `npm test` 是**并发**跑所有测试文件的，而很多用例要读 `dist/web`；在某个测试进程里 `rm -rf dist`
-//   会把同批其它文件打挂（假红）。**真·干净环境的可执行验证**放在 `tools/ac-stage32.sh`（它先
+//   会把同批其它文件打挂（假红）。**真·干净环境的可执行验证**放在 本地验收记录（它先
 //   `rm -rf dist` 再跑 `bash tools/ci-check.sh`，并断言 rc=0 + 6 项全绿）。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -52,11 +52,12 @@ test('AC-89 ②：脚本注释里写明了「为什么必须先构建」（否�
   assert.ok(ci.includes('38'), '注释要写明实测错误数（38）');
 });
 
-test('AC-89 ①：步骤编号与顺序 —— 2026-09-30 起为 7 项（新增 ①b lint），其余顺序不变', () => {
+test('AC-89 ①：步骤编号与顺序 —— 2026-09-30 起为 8 项（新增 ⓪ 文档体积预算 + ①b lint）', () => {
   // 每个步骤有"成功/失败"两个分支各调一次 record，所以按出现顺序去重后再比
   const records = [...new Set([...ci.matchAll(/^\s*record "([^"]+)"/gm)].map((m) => m[1]))];
-  assert.equal(records.length, 7, `ci-check.sh 必须恰好 7 项（实际 ${String(records.length)}：${records.join(' / ')}）`);
+  assert.equal(records.length, 8, `ci-check.sh 必须恰好 8 项（实际 ${String(records.length)}：${records.join(' / ')}）`);
   assert.deepEqual(records, [
+    '⓪ AGENTS.md 体积预算',
     '① 依赖已安装',
     '①b npm run lint',
     '② npm run build',

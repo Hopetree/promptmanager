@@ -11,7 +11,7 @@
     "build": "npm run build:server && npm run build:web",
     "build:server": "tsc -p tsconfig.json",
     "build:web": "vite build",
-    "lint": "oxlint src web/src tests bin",
+    "lint": "oxlint .",
     "typecheck:web": "tsc -p web/tsconfig.json",
     "start": "node dist/server/index.js",
     "migrate": "npm run build:server && node bin/pm.mjs migrate",

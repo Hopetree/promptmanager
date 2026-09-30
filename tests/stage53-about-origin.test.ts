@@ -6,7 +6,7 @@
 //
 // 修法：取 `window.location.origin`（浏览器自身已知 scheme + host + port）。
 // 本文件断言「取值来源正确 + 不写死协议 + 复制内容 = 显示内容 + 不新增网络请求 + 其它信息不变」；
-// 真浏览器双场景（HTTP / HTTPS）证据见 tools/ac-stage53.sh 的 A 段。
+// 真浏览器双场景（HTTP / HTTPS）证据见本地验收记录 的 A 段。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

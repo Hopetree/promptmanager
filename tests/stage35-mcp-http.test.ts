@@ -1,5 +1,5 @@
 // 阶段 35 / FR-93（BRIEF v46 §4 + §8 AC-95）的 **MCP Streamable HTTP 传输**断言。
-// 运行时"真实对端"证据（官方 Python 客户端 mcp==1.30.0）在 tools/ac-stage35.sh 里，**不能用这里的 SDK 自测代替**。
+// 运行时"真实对端"证据（官方 Python 客户端 mcp==1.30.0）在本地验收记录里，**不能用这里的 SDK 自测代替**。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
