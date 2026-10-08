@@ -84,7 +84,7 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 | workflow | 触发 | 做什么 |
 | --- | --- | --- |
 | `.github/workflows/ci.yml` | push / PR | 只做 `npm ci` + 调 `tools/ci-check.sh`（Node 24，无 secrets，不部署） |
-| `.github/workflows/docker.yml` | push tag `v*`（正式版）/ push `main` / 手动 | 构建容器镜像；**仅正式版** tag（无 `-beta.` 等预发布后缀）时推送到 Docker Hub，`main` **只构建不推送** |
+| `.github/workflows/docker.yml` | push tag `v*` / 手动（**分支推送不触发**） | 构建容器镜像；**仅正式版** tag（无 `-beta.` 等预发布后缀）时推送到 Docker Hub，`main` **只构建不推送** |
 
 两个 workflow **互相独立**：`docker.yml` 不跑任何质量检查，`ci.yml` 不碰镜像。
 镜像发布需要仓库里配 `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN` 两个 secret（**只写名字，值不进仓库**），

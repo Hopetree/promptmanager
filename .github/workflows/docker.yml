@@ -15,7 +15,9 @@ name: docker
 #   · push tag `v*` **预发布**（如 `v2.2.2-beta.1` / `-rc.1` / `-alpha.3`）
 #                        → 只**构建**、**不推送**（仍让 CI 验证 Dockerfile 没坏；Docker Hub 上
 #                          只有正式版本 ⇒ `latest` 与各 `X.Y.Z` **永远指向正式版**）
-#   · push branch `main` → **只构建、不推送**（尽早发现 Dockerfile 被改坏；不需要任何 secret 即可跑）
+#   · ~~push branch `main` → 只构建~~（**2026-09-30 用户要求去掉**：不让 CI 再检查这个镜像。
+#      镜像构建改由发布/部署侧负责 —— 正式版走 CI 推送，预发布走 106 本地构建（§3.2）。
+#      ⇒ 分支推送**不再触发**本 workflow，`ci.yml` 仍照常跑代码质量检查。）
 #   · workflow_dispatch  → 手动补跑，按当前 ref 决定是否推送（正式版 tag 上 = 推送，其余 = 只构建）
 #
 # ⚠️ 判定写法：**GitHub Actions 的 `if` 不支持正则**，无法直接写「不含 `-`」。
@@ -30,7 +32,6 @@ name: docker
 on:
   push:
     tags: ['v*']
-    branches: [main]
   workflow_dispatch:
 
 # Docker Hub 与 GITHUB_TOKEN 无关 ⇒ 只需要读代码的权限（最小化；**不给** packages: write）
@@ -48,8 +49,8 @@ jobs:
       - name: 准备 buildx
         uses: docker/setup-buildx-action@v4
 
-      # 只有「确实要推送」（**正式版** tag `v*`，无预发布后缀）时才登录：分支/预发布构建**用不到 token**
-      # （注：镜像名本身由 DOCKERHUB_USERNAME 拼出 ⇒ 分支构建仍需先配好**这一个** secret，见 deploy/container.md §2.2）
+      # 只有「确实要推送」（**正式版** tag `v*`，无预发布后缀）时才登录：预发布构建**用不到 token**
+      # （2026-09-30 起分支推送不再触发本 workflow）
       - name: 登录 Docker Hub（仅正式版 tag 推送时）
         if: >-
           startsWith(github.ref, 'refs/tags/v') &&
@@ -65,7 +66,7 @@ jobs:
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/promptmanager
           # `latest=false` 关掉 action 的自动 latest，改由下面的 raw 规则显式给 —— 产出集合可预期：
-          #   tag 推送 v1.0.1 → 1.0.1 / 1.0 / latest ｜ 分支构建 main → main（不推送）
+          #   tag 推送 v1.0.1 → 1.0.1 / 1.0 / latest（分支推送不再触发本 workflow）
           flavor: |
             latest=false
           tags: |
@@ -73,7 +74,6 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             # latest 只给正式版（预发布不加 latest，避免把测试版顶成「最新」）
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-alpha.') && !contains(github.ref, '-beta.') && !contains(github.ref, '-rc.') && !contains(github.ref, '-pre.') && !contains(github.ref, '-dev.') && !contains(github.ref, '-nightly.') && !contains(github.ref, '-next.') && !contains(github.ref, '-canary.') }}
-            type=ref,event=branch
 
       - name: 构建并推送
         uses: docker/build-push-action@v6
@@ -81,8 +81,7 @@ jobs:
           context: .
           file: Dockerfile
           platforms: linux/amd64
-            # 只有**正式版** tag（无 -beta. 等预发布后缀）才推送；预发布与分支/手动一律只构建
-          # 只有**正式版** tag 才推送；预发布 tag（如 -beta.1）与分支/手动一律只构建
+          # 只有**正式版** tag 才推送；预发布 tag（如 -beta.1）与手动触发一律只构建
           # （判定与「登录 Docker Hub」保持一致）
           push: ${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-alpha.') && !contains(github.ref, '-beta.') && !contains(github.ref, '-rc.') && !contains(github.ref, '-pre.') && !contains(github.ref, '-dev.') && !contains(github.ref, '-nightly.') && !contains(github.ref, '-next.') && !contains(github.ref, '-canary.') }}
           tags: ${{ steps.meta.outputs.tags }}

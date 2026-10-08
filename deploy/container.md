@@ -36,8 +36,8 @@ docker build -t promptmanager:1.0.1 .
 | --- | --- |
 | push tag `v*` **正式版**（如 `v1.0.1`，无预发布后缀） | **构建并推送**（发版主路径） |
 | push tag `v*` **预发布**（如 `v2.2.2-beta.1`） | **只构建、不推送**（校验 Dockerfile；Docker Hub 不出现该版本） |
-| push branch `main` | **只构建、不推送**（尽早发现 Dockerfile 被改坏；**不需要 secret 也能跑**） |
-| 手动 `workflow_dispatch` | 按当前 ref 决定：tag 上 = 推送；分支上 = 只构建 |
+| push branch `main` | **不触发**（2026-09-30 用户要求：不让 CI 再检查这个镜像）|
+| 手动 `workflow_dispatch` | 按当前 ref 决定：正式版 tag 上 = 推送；其它 ref = 只构建 |
 
 **镜像坐标与 tag 规则**
 
@@ -56,16 +56,17 @@ docker build -t promptmanager:1.0.1 .
 | `DOCKERHUB_TOKEN` | Docker Hub **Access Token**（建议只给 `Read & Write` 的仓库级 token，不要用账号口令） |
 
 > **前提：先配 `DOCKERHUB_USERNAME`。** 镜像名由它拼出，缺了它镜像名不完整（会变成 `/promptmanager`），
-> 「计算镜像 tag」这一步产出的 tag 不可用。配好**这一个** secret 后，`main` 分支构建即可正常跑通
-> （只构建不推送，**用不到 token**）；`DOCKERHUB_TOKEN` **只在推 tag 时才需要**。
-> 也就是说"镜像能不能构建"这件事，在配 token 之前就能靠 `main` 分支构建验证。
+> 「计算镜像 tag」这一步产出的 tag 不可用。`DOCKERHUB_TOKEN` **只在推 tag 时才需要**
+> （预发布 tag 只构建、不推送 ⇒ 用不到 token）。
+> ⚠️ **2026-09-30 起分支推送不再触发本 workflow**（用户要求：不让 CI 再检查这个镜像）⇒
+> "镜像能不能构建"只能在**打 tag 时**验证，或在本地 / 106 手工 `docker build`（见 `docs/versioning.md` §3.2）。
 
 **失败时去哪里看日志**
 
 1. GitHub 仓库页 → **Actions** → 左侧选 **`docker`** workflow → 点那次 run → 展开失败的 step（`登录 Docker Hub` /
    `构建并推送` 是最常见的两处）；
 2. 常见原因：secret 名字拼错或未配（`登录 Docker Hub` 失败）、Docker Hub token 权限不足或过期、
-   `Dockerfile` 被改坏（`构建并推送` 失败 —— 这类错误在 `main` 分支构建上就会提前暴露）。
+   `Dockerfile` 被改坏（`构建并推送` 失败 —— 2026-09-30 起只在**打 tag 时**才会暴露）。
 
 **安全约定（硬性）**
 

@@ -6,7 +6,19 @@
 
 ## [未发布]
 
-- （无）
+### 变更（Changed）
+
+- **生产镜像基础改回 Node 24（LTS），并停止 CI 对镜像的构建检查**（2026-09-30 用户要求）：
+  - **`Dockerfile` 改回 `node:24` / `node:24-slim`**。dependabot 曾把基础镜像合到 `node:25`，
+    而 **Node 25 是非 LTS 的 current 线**（实测 nodejs.org：24 = LTS「Krypton」，25/26 均非 LTS），
+    且与 `ci.yml`（`node-version: '24'`，注释写明「与生产一致」）、`engines >=24`、
+    `@types/node 24`（文档口径「对齐运行时大版本 24」）、开发机（v24.18.0）**全部不一致**
+    —— 即 `ci.yml` 那句「与生产一致」当时是假的。现已恢复一致。
+  - **`docker.yml` 去掉 `push: branches: [main]` 触发**（用户要求「不让 CI 再检查这个镜像」）：
+    分支推送**不再**触发镜像构建；保留 `push tags: ['v*']`（正式版推送 / 预发布只构建）与
+    `workflow_dispatch`。顺带清掉只为分支构建服务的死配置（`type=ref,event=branch` 标签规则）。
+    ⇒ 影响：**「镜像能不能构建」不再由 CI 在每次 push 时验证**，只在打 tag 时（或本地 / 106 手工 `docker build`）验证。
+    文档同步：`docs/versioning.md` §3.1、`docs/development.md`、`deploy/container.md`。
 
 ## [1.6.0-beta.1] — 2026-09-30
 
