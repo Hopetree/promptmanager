@@ -144,6 +144,21 @@ const STAGE59_ACCOUNTED_DELTA = 5_138;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
+/**
+ * 依赖补丁升级带来的**构建侧漂移**（2026-09-30 的 bot 合并记账）。
+ *
+ * 起因：dependabot 一次性合了 9 个 PR（vite 8.3.1→8.3.2 / jsdom / dompurify /
+ * `@fastify/static` / `@modelcontextprotocol/sdk`），**每个 PR 单独跑 CI 都是绿的**，
+ * 合到一起后总 gzip 涨了 26 B ⇒ `main` 上的 `ci` 变红（典型的「语义冲突」）。
+ *
+ * 归因（已核实）：只有 **vite** 影响前端产物；其余四个都在服务端或开发侧
+ * （`grep marked|dompurify dist/web/assets/*.js` 为空 ⇒ 它们不进前端 bundle）。
+ *
+ * 口径：这类漂移**不是我们的代码增长**，但仍按本测试的纪律**逐项记账**
+ * —— 以后再合依赖补丁导致体积变化时，同样在这里加一条，不要放宽基线。
+ */
+const DEPS_2026_09_30_ACCOUNTED_DELTA = 26;
+
 const MAX_ENTRY_BYTES = 100_000;
 
 function walk(dir: string): string[] {
@@ -184,7 +199,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 + 2026-09-30 依赖补丁）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -201,7 +216,8 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE55_ACCOUNTED_DELTA +
     STAGE56_ACCOUNTED_DELTA +
     STAGE57_ACCOUNTED_DELTA +
-    STAGE59_ACCOUNTED_DELTA;
+    STAGE59_ACCOUNTED_DELTA +
+    DEPS_2026_09_30_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });
 
