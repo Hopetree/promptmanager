@@ -12,6 +12,11 @@ const TEXT = [
   '转义写法：\\{{保留}}。',
   '默认值写法不算是变量：{{name:张三}}。',
   '未提供的会被保留：{{未提供}}。',
+  // FR-126 / AC-122 ⑬：默认值场景也要逐字符一致
+  '语气：{{语气 | default(专业)}}；带引号：{{署名 | default(\'匿名\')}}。',
+  '空默认值：{{空默认 | default()}}；不认识的过滤器：{{x | upper}}；无括号：{{y | default}}。',
+  '转义的默认值写法：\\{{转义默认 | default(z)}}。',
+  '同名多处取首次：{{重复默认 | default(第一)}} 与 {{重复默认 | default(第二)}}。',
 ].join('\n');
 
 const CASES: Array<Record<string, string>> = [
@@ -20,9 +25,13 @@ const CASES: Array<Record<string, string>> = [
   { 姓名: '' },
   {},
   { 项目: '带 "引号" 与 \\反斜杠', 姓名: '李四', 未提供: 'x' },
+  // 默认值专项：不填 / 显式空串 / 显式给值 / 只填一半
+  { 语气: '随意', 署名: '' },
+  { 语气: '', 空默认: '', 重复默认: '' },
+  { 重复默认: '显式', 转义默认: '给了也不渲染' },
 ];
 
-test('previewRender 与服务端 /render 逐字符一致（5 组输入，含缺失值/空串/转义）', async () => {
+test('previewRender 与服务端 /render 逐字符一致（8 组输入，含缺失值/空串/转义/默认值）', async () => {
   const fx = await makeFixture();
   try {
     const cookie = await cookieOf(await login(fx.app));

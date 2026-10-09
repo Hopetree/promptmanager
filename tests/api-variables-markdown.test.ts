@@ -25,7 +25,8 @@ test('AC-8：变量提取（顺序=首次出现、去重、转义不算）', asy
 
     const res = await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(created.id)}/variables`, headers: { cookie } });
     assert.equal(res.statusCode, 200, res.body);
-    assert.deepEqual(res.json(), { variables: ['姓名', 'var-b'] });
+    // FR-126：`variables` 断言逐字不变（形状没动）；只多一个平行的加法字段 `defaults`。
+    assert.deepEqual(res.json(), { variables: ['姓名', 'var-b'], defaults: {} });
   } finally {
     await fx.close();
   }

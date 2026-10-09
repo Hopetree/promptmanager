@@ -236,14 +236,35 @@ export function formatListDateTime(iso: string | null): string {
 
 /**
  * 占位符正则：与服务端 `src/services/variables.ts` 的 `PLACEHOLDER` **逐字一致**。
- * 契约（BRIEF §6.5）：`{{` + 可选空白 + 名字(1–64，Unicode 字母/数字/_/-) + 可选空白 + `}}`；
+ * 契约（BRIEF §6.5 / FR-126）：`{{` + 可选空白 + 名字(1–64，Unicode 字母/数字/_/-) + 可选空白 + `}}`；
+ * 默认值写法 `{{name | default(默认值)}}`（竖线也可写成转义形式 `\|`）；
  * `\{{name}}` 是转义；`{{name:示例}}` 因 `:` 不在名字字符集内而**不是**变量（FR-41e ⑦）。
+ * 不认识的写法（`| upper`、`| default` 无括号…）一律按**字面文本**处理。
  */
-const PM_PLACEHOLDER = /(\\?)\{\{\s*([\p{L}\p{N}_-]{1,64})\s*\}\}/gu;
+const PM_PLACEHOLDER = /(\\?)\{\{\s*([\p{L}\p{N}_-]{1,64})\s*(?:\\?\|\s*default\s*\(([\s\S]*?)\)\s*)?\}\}/gu;
 
-/** 从若干段文本里按**首次出现顺序**提取变量名（去重、跳过转义的）——服务端同规则。 */
-export function extractVariablesLocal(...texts: Array<string | undefined>): string[] {
-  const names: string[] = [];
+/** `default(...)` 的原始内容 → 字面默认值；`undefined` = 没写默认值（服务端同规则）。 */
+function parseDefaultText(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.length >= 2) {
+    const first = trimmed[0];
+    if ((first === "'" || first === '"') && first === trimmed[trimmed.length - 1]) {
+      return trimmed.slice(1, -1);
+    }
+  }
+  return trimmed;
+}
+
+export interface VariableScan {
+  variables: string[];
+  defaults: Record<string, string>;
+}
+
+/** 扫描若干段文本：变量名单 + 默认值表（默认值取**首次出现**，保证全篇一致）——服务端同规则。 */
+export function scanVariablesLocal(...texts: Array<string | undefined>): VariableScan {
+  const variables: string[] = [];
+  const defaults: Record<string, string> = {};
   const seen = new Set<string>();
   for (const text of texts) {
     if (text === undefined || text === '') continue;
@@ -252,10 +273,17 @@ export function extractVariablesLocal(...texts: Array<string | undefined>): stri
       const name = match[2];
       if (name === undefined || seen.has(name)) continue;
       seen.add(name);
-      names.push(name);
+      variables.push(name);
+      const parsed = parseDefaultText(match[3]);
+      if (parsed !== undefined) defaults[name] = parsed;
     }
   }
-  return names;
+  return { variables, defaults };
+}
+
+/** 从若干段文本里按**首次出现顺序**提取变量名（去重、跳过转义的）——服务端同规则。 */
+export function extractVariablesLocal(...texts: Array<string | undefined>): string[] {
+  return scanVariablesLocal(...texts).variables;
 }
 
 /** 这条 prompt 是否含变量（决定"复制"是直接复制还是先弹填值对话框）。 */
@@ -265,16 +293,20 @@ export function hasVariables(...texts: Array<string | undefined>): boolean {
 
 /**
  * 填变量对话框的**实时预览**：按服务端 `renderVariables` 的规则做替换
- * （提供了字符串值 → 替换；转义 → 去掉反斜杠输出字面量；未提供 → **原样保留**）。
- * 这只是"对服务端给出的变量名做替换"，不是模板引擎（无表达式/循环/函数）。
+ * （提供了字符串值 → 替换；转义 → 去掉反斜杠、其余原样；没填但有默认值 → 用默认值；
+ * 没填且无默认值 → **原样保留**）。
+ * 这只是"对占位符做替换"，不是模板引擎（无表达式/循环/函数）。
  * ⚠️ 最终复制仍以服务端 `POST /api/prompts/:id/render` 的返回为准；两者一致性由
  * `tests/variables-preview-parity.test.ts` 逐字符对照。
  */
 export function previewRender(text: string, values: Record<string, string>): string {
+  const { defaults } = scanVariablesLocal(text);
   return text.replace(PM_PLACEHOLDER, (whole: string, escape: string, name: string) => {
-    if (escape === '\\') return `{{${name}}}`;
+    if (escape === '\\') return whole.slice(1);
     const value = Object.prototype.hasOwnProperty.call(values, name) ? values[name] : undefined;
     if (typeof value === 'string') return value;
+    const fallback = defaults[name];
+    if (fallback !== undefined) return fallback;
     return whole;
   });
 }

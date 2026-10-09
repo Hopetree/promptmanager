@@ -142,7 +142,7 @@ export function buildMcpServer(credentials: McpCredentials = {}): McpServer {
     'prompt_get',
     {
       title: '取单个 prompt',
-      description: '按 id 取一个 prompt 的完整内容（user_prompt / system_prompt / notes / 标签 / 变量列表）。这次取用会记入使用记录。',
+      description: '按 id 取一个 prompt 的完整内容（user_prompt / system_prompt / notes / 标签 / 变量列表 / 变量默认值）。这次取用会记入使用记录。',
       inputSchema: { id: z.number().int().positive().describe('prompt id') },
       annotations: { readOnlyHint: true },
     },
@@ -150,7 +150,7 @@ export function buildMcpServer(credentials: McpCredentials = {}): McpServer {
       const prompt = await requestJson<Record<string, unknown>>('GET', `/api/prompts/${String(id)}`, undefined, `prompt ${String(id)} 不存在`);
       if (!prompt.ok) return prompt.result;
 
-      const variables = await requestJson<{ variables: string[] }>(
+      const variables = await requestJson<{ variables: string[]; defaults: Record<string, string> }>(
         'GET',
         `/api/prompts/${String(id)}/variables`,
         undefined,
@@ -158,7 +158,8 @@ export function buildMcpServer(credentials: McpCredentials = {}): McpServer {
       );
       if (!variables.ok) return variables.result;
 
-      return ok({ ...prompt.data, variables: variables.data.variables });
+      // FR-126：`defaults` 是**加法**字段（只有写了 `| default(...)` 的变量才在里面）。
+      return ok({ ...prompt.data, variables: variables.data.variables, defaults: variables.data.defaults });
     },
   );
 

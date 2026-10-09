@@ -52,6 +52,8 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm }: VarsDi
   const { token } = theme.useToken();
   const [form] = Form.useForm<Record<string, string>>();
   const [variables, setVariables] = useState<string[] | null>(null);
+  /** FR-126：服务端给的默认值表（只有写了 `| default(...)` 的变量才在里面）。 */
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
 
@@ -62,6 +64,7 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm }: VarsDi
       const response = await api.variables(target.id);
       const remembered = readRemembered(target.id);
       setVariables(response.variables);
+      setDefaults(response.defaults);
       // 只预填**记忆里真的有的**值：未填的变量保持"未提供"，
       // 这样预览会原样显示 `{{项目}}`（与服务端一致），而不是先看到占位符凭空消失。
       const initial = filledValues(response.variables, remembered);
@@ -85,7 +88,8 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm }: VarsDi
   const preview = previewRender(prompt.user_prompt, values);
   // 变量名单来自服务端 `/variables`（单一真相源，不在前端另解析 prompt）；
   // `values` 只含已填项（`filledValues` 已剔除空串），因此"不在 values 里" == 未填。
-  const missing = (variables ?? []).filter((name) => values[name] === undefined);
+  // FR-126：**有默认值的变量不算"没填"**（留空 ⇒ 渲染时用默认值），计数与提示都不该把它算进去。
+  const missing = (variables ?? []).filter((name) => values[name] === undefined && defaults[name] === undefined);
 
   const confirm = (): void => {
     writeRemembered(prompt.id, values);
@@ -152,10 +156,13 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm }: VarsDi
                   <Form.Item
                     key={name}
                     name={name}
-                    label={name}
+                    label={defaults[name] !== undefined ? `${name}（可留空）` : name}
                     style={{ flex: '1 1 240px', minWidth: 200, marginBottom: 8 }}
                   >
-                    <Input placeholder={`{{${name}}} 的值`} data-testid={`pm-var-input-${name}`} />
+                    <Input
+                      placeholder={defaults[name] !== undefined ? `留空则用默认值：${defaults[name]}` : `{{${name}}} 的值`}
+                      data-testid={`pm-var-input-${name}`}
+                    />
                   </Form.Item>
                 ))}
               </Flex>

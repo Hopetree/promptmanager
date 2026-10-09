@@ -12,7 +12,7 @@ import {
   type CreatePromptInput,
   type UpdatePromptInput,
 } from '../../services/prompts.js';
-import { extractVariables, renderVariables } from '../../services/variables.js';
+import { renderVariables, scanVariables } from '../../services/variables.js';
 import { diffVersions, listVersions, rollbackToVersion } from '../../services/versions.js';
 import { kindForChannel, recordUsage } from '../../services/usage.js';
 import { currentPrincipal } from '../auth.js';
@@ -207,12 +207,17 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     return rollbackToVersion(app.qe, id, versionNo);
   });
 
-  // ---- 变量（FR-8 / AC-8）：提取自 user_prompt + system_prompt，渲染不写库 ----
+  /**
+   * 变量（FR-8 / AC-8 / FR-126）：提取自 user_prompt + system_prompt，渲染不写库。
+   * FR-126：`variables` 形状不变（仍是字符串数组），**新增平行字段** `defaults`
+   * （只有写了 `| default(...)` 的变量才在里面；没有默认值时是 `{}`，形状恒定）。
+   */
   app.get('/api/prompts/:id/variables', async (request) => {
     const id = parsePositiveId((request.params as { id?: string }).id);
     const prompt = await getPrompt(app.qe, id);
     if (prompt === null) throw new NotFoundError();
-    return { variables: extractVariables(prompt.user_prompt, prompt.system_prompt) };
+    const scan = scanVariables(prompt.user_prompt, prompt.system_prompt);
+    return { variables: scan.variables, defaults: scan.defaults };
   });
 
   app.post('/api/prompts/:id/render', { schema: { body: renderBodySchema } }, async (request) => {

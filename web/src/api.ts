@@ -133,7 +133,12 @@ export const api = {
   rollback: (id: number, versionNo: number) =>
     request<Prompt>('POST', `/api/prompts/${String(id)}/versions/${String(versionNo)}/rollback`),
 
-  variables: (id: number) => request<{ variables: string[] }>('GET', `/api/prompts/${String(id)}/variables`),
+  /**
+   * FR-126：`variables` 形状不变（字符串数组），**新增平行字段** `defaults`
+   * （只有写了 `| default(...)` 的变量才在里面；无默认值时是 `{}`）。
+   */
+  variables: (id: number) =>
+    request<{ variables: string[]; defaults: Record<string, string> }>('GET', `/api/prompts/${String(id)}/variables`),
 
   render: (id: number, values: Record<string, string>) =>
     request<RenderResult>('POST', `/api/prompts/${String(id)}/render`, { values }),

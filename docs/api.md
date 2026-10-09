@@ -158,14 +158,22 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/prompts/1/versions/1/ro
 
 提取范围 = `user_prompt` + `system_prompt`（按此顺序去重）；名字 1–64 字符、含中文、不含空白；`\{{name}}` 转义。
 
+**默认值（FR-126，Jinja 系）**：`{{ 名字 | default(默认值) }}` —— **没填**（`values` 里没有这个键）时用默认值；
+**显式传空串 ⇒ 渲染成空**（不回落默认值）；有默认值的变量不再进 `missing`；同名多处取**首次出现**、全篇一致。
+默认值是**字面文本**（内部 `{{…}}` 不再解析），两端成对引号会被剥掉（`default('y')` ⇒ `y`）；竖线也可写成转义形式 `\|`（Markdown 表格里需要）。
+**只支持 `default` 这一个过滤器**：`{{ x | upper }}`、`{{ x | default }}`（无括号）这类不认识的写法**按字面文本原样输出**（不报错、不猜）。
+
 ```bash
 curl -s -b /tmp/pm-jar http://127.0.0.1:8767/api/prompts/1/variables
+# → {"variables":["姓名","语气"],"defaults":{"语气":"专业"}}
 curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
   -d '{"values":{"姓名":"张三"}}' http://127.0.0.1:8767/api/prompts/1/render
 # → {"user_prompt":"…","system_prompt":"…","missing":["未填的变量"]}
 ```
 
-**未提供值的变量原样保留**并列入 `missing`（不会替换成空串）；**渲染不写库**。
+`variables` 是字符串数组（**形状不变**），`defaults` 是**加法**字段：只有写了 `| default(...)` 的变量才在里面，没有默认值时是 `{}`。
+**未提供值且无默认值**的变量原样保留并列入 `missing`（不会替换成空串）；**渲染不写库**。
+`render` 的请求体形状不变 —— 调用方不需要知道默认值的存在，服务端渲染时自动应用。
 
 ### 3.8 Markdown 渲染
 

@@ -141,6 +141,18 @@ const STAGE57_ACCOUNTED_DELTA = 112;
  * **不是**放宽预算。注：该批只改本地验收脚本，无前端改动 ⇒ 没有相应增量。
  */
 const STAGE59_ACCOUNTED_DELTA = 5_138;
+/**
+ * 阶段 60（FR-126 变量默认值）的**已对账**增量：**实测** +215 B gzip。
+ * 依据（2026-09-30）：`git stash push -- web/src` 暂存掉本阶段的前端改动，在同一 `node_modules` 下
+ * `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,046 B**；`git stash pop` 恢复后重建
+ * = **427,261 B** ⇒ 差值 **215 B**（正好等于 AC-61 ⑤ 的预算余量被吃掉的部分）。
+ * 构成：`web/src/pure.ts` 的默认值正则 + `scanVariablesLocal`/`parseDefaultText` + `previewRender` 分支、
+ * `web/src/api.ts` 的类型、`VarsDialog`/`VariablePanel` 的 `defaults` 状态与占位提示（全部打进主包）。
+ * **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 vendor-antd（470,919 B ≤ 500KB，AC-61 ① 不变），
+ * 入口 chunk 仍 ≤100KB（AC-61 ②）。这笔体积是 FR-126 这个**用户要求的新功能**的代价，
+ * 故按既有口径（基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
+ */
+const STAGE60_ACCOUNTED_DELTA = 215;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -199,7 +211,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 + 2026-09-30 依赖补丁）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 / 60 + 2026-09-30 依赖补丁）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -217,6 +229,7 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE56_ACCOUNTED_DELTA +
     STAGE57_ACCOUNTED_DELTA +
     STAGE59_ACCOUNTED_DELTA +
+    STAGE60_ACCOUNTED_DELTA +
     DEPS_2026_09_30_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });

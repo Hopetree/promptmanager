@@ -16,6 +16,8 @@ interface VariablePanelProps {
 export default function VariablePanel({ promptId, onUnauthorized }: VariablePanelProps) {
   const { message } = AntdApp.useApp();
   const [variables, setVariables] = useState<string[] | null>(null);
+  /** FR-126：服务端给的默认值表（只有写了 `| default(...)` 的变量才在里面）。 */
+  const [defaults, setDefaults] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [rendering, setRendering] = useState(false);
   const [result, setResult] = useState<RenderResult | null>(null);
@@ -24,6 +26,7 @@ export default function VariablePanel({ promptId, onUnauthorized }: VariablePane
   useEffect(() => {
     if (promptId === null) {
       setVariables([]);
+      setDefaults({});
       setLoading(false);
       setResult(null);
       return;
@@ -34,7 +37,10 @@ export default function VariablePanel({ promptId, onUnauthorized }: VariablePane
     void (async () => {
       try {
         const response = await api.variables(promptId);
-        if (alive) setVariables(response.variables);
+        if (alive) {
+          setVariables(response.variables);
+          setDefaults(response.defaults);
+        }
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           onUnauthorized();
@@ -112,8 +118,16 @@ export default function VariablePanel({ promptId, onUnauthorized }: VariablePane
       />
       <Form form={form} layout="vertical" onFinish={() => void render()}>
         {variables.map((name) => (
-          <Form.Item key={name} name={name} label={name} style={{ marginBottom: 8 }}>
-            <Input placeholder={`{{${name}}} 的值`} data-testid={`var-${name}`} />
+          <Form.Item
+            key={name}
+            name={name}
+            label={defaults[name] !== undefined ? `${name}（可留空）` : name}
+            style={{ marginBottom: 8 }}
+          >
+            <Input
+              placeholder={defaults[name] !== undefined ? `留空则用默认值：${defaults[name]}` : `{{${name}}} 的值`}
+              data-testid={`var-${name}`}
+            />
           </Form.Item>
         ))}
         <Flex gap={8} wrap>
