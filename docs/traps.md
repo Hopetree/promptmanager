@@ -207,6 +207,17 @@ prompt **零请求**，含变量的路径恰好一条事件（`render`）。
 - **「没填」= `values` 里根本没有这个键**；**显式传空串 ⇒ 渲染成空**（不回落默认值）。
   有默认值的变量**不再进 `missing`**，界面「还有 N 个没填」只统计无默认值的。
 - **同名多处默认值不同 ⇒ 取首次出现**，全篇一致（`scanVariables` 只记首次）。
+- **默认值表是「全篇」的，两段必须共用同一张**（返工 ①）。一条提示词有用户段 + 系统段，
+  `POST /render` 原先对两段**各扫各的**（`renderVariables` 内部 `scanVariables(text)` 只看本段），
+  于是 `U={{ m | default(甲) }}` + `S={{ m | default(乙) }}` 会出现
+  `GET /variables → {"defaults":{"m":"甲"}}` 而 `POST /render → {"user_prompt":"U=甲","system_prompt":"S=乙"}`
+  —— **界面说甲、成品填乙**。修法：`/render` 先算一次
+  `scanVariables(user_prompt, system_prompt).defaults`（与 `/variables` **同一张表**）再传给两段。
+  实测口径（`tests/stage60-variable-defaults.test.ts` 返工① b 七例逐条对照）：
+  两段默认值不同 ⇒ 只认首次（用户段在前）；用户段首次没写 ⇒ 该名**全篇无默认值**
+  （接口不进 `defaults`、两段保留占位符并进 `missing`）；用户段有、系统段裸占位符 ⇒ 系统段也用全篇表；
+  显式值 / 显式空串仍优先于默认值。**「接口报的默认值 ≡ 渲染替换进去的值」是判据**，
+  任何"报一个、填另一个"的写法都是 bug，不是可接受的近似。
 - **默认值只写在正文里**：不落库、不新增迁移、不新增列 ⇒ 复制 / 导出 / 导入 / 云同步天然带上它，
   `variables` 接口形状不变、只加平行的 `defaults` 字段（加法 ⇒ MINOR 版本）。
 - **前后端两份正则必须逐字一致**（`src/services/variables.ts` 的 `PLACEHOLDER` 与 `web/src/pure.ts` 的

@@ -354,3 +354,173 @@ test('AC-122 ㉒：README / docs/api.md / docs/traps.md 都补了默认值说明
   assert.match(traps, /default/, 'docs/traps.md 要补一条（为什么只支持 default 一个过滤器）');
   assert.match(traps, /竖线/, 'docs/traps.md 要说明竖线在 Markdown 表格里要转义');
 });
+
+/* ============================================================
+   G. 返工 ①（2026-09-30）：跨两段的默认值口径 ——
+      **接口报的默认值 ≡ 实际渲染替换进去的值**
+   ============================================================ */
+
+test('返工① a：renderVariables 接受「全篇」默认值作用域，两段共用同一张表', () => {
+  const scope = scanVariables('U={{ m | default(甲) }}', 'S={{ m | default(乙) }}').defaults;
+  assert.deepEqual(scope, { m: '甲' }, '全篇首次出现 ⇒ 甲');
+  assert.equal(renderVariables('U={{ m | default(甲) }}', {}, scope).text, 'U=甲');
+  assert.equal(renderVariables('S={{ m | default(乙) }}', {}, scope).text, 'S=甲', '系统段必须用全篇表，而不是自己那一段');
+  // 不传作用域 ⇒ 仍是「本段」口径：单文本调用方（既有测试）行为不变
+  assert.equal(renderVariables('S={{ m | default(乙) }}', {}).text, 'S=乙');
+});
+
+/**
+ * 逐条对照「接口报的默认值」与「实际渲染替换进去的值」（返工 ① 的要求），双向都查：
+ *  - 报**有**默认值的变量 ⇒ 两段都不得残留占位符（残留 = 报的和填的不一致），且不得进 missing；
+ *  - 报**没有**默认值的变量 ⇒ 必须进 missing，且至少一段仍保留占位符（不能偷偷用了别处的默认值）。
+ * 注：夹具里不放 `\{{…}}` 转义写法，免得"转义后输出的字面量"被误判成残留占位符。
+ */
+function assertReportedDefaultsMatchRender(
+  report: { variables: string[]; defaults: Record<string, string> },
+  values: Record<string, unknown>,
+  rendered: { user_prompt: string; system_prompt: string; missing: string[] },
+): void {
+  for (const name of report.variables) {
+    if (typeof values[name] === 'string') continue; // 显式给值 ⇒ 用值，与默认值无关
+    const fallback = report.defaults[name];
+    const residual = new RegExp(`\\\\?\\{\\{\\s*${name}\\b`);
+    if (fallback !== undefined) {
+      assert.ok(!residual.test(rendered.user_prompt), `用户段仍残留 {{${name}}} —— 接口报了默认值却没替换`);
+      assert.ok(!residual.test(rendered.system_prompt), `系统段仍残留 {{${name}}} —— 接口报了默认值却没替换`);
+      assert.ok(
+        rendered.user_prompt.includes(fallback) || rendered.system_prompt.includes(fallback),
+        `接口报的默认值 ${JSON.stringify(fallback)} 没出现在任何一段的渲染结果里`,
+      );
+      assert.ok(!rendered.missing.includes(name), `有默认值的变量不得进 missing：${name}`);
+    } else {
+      assert.ok(
+        residual.test(rendered.user_prompt) || residual.test(rendered.system_prompt),
+        `${name} 无默认值 ⇒ 必须原样保留占位符`,
+      );
+      assert.ok(rendered.missing.includes(name), `${name} 无默认值且没填 ⇒ 必须进 missing`);
+    }
+  }
+}
+
+test('返工① b：同一变量在两段默认值不同 ⇒ 接口报的默认值与两段实际替换的值逐条一致', async () => {
+  const fx = await makeFixture({}, { withUser: true });
+  try {
+    const cookie = await authed(fx);
+    const CASES: Array<{
+      title: string;
+      user: string;
+      system: string;
+      values: Record<string, unknown>;
+      defaults: Record<string, string>;
+      expectUser: string;
+      expectSystem: string;
+      missing: string[];
+    }> = [
+      {
+        title: '两段默认值不同 ⇒ 只认首次出现（用户段在前）',
+        user: 'U={{ m | default(甲) }}',
+        system: 'S={{ m | default(乙) }}',
+        values: {},
+        defaults: { m: '甲' },
+        expectUser: 'U=甲',
+        expectSystem: 'S=甲',
+        missing: [],
+      },
+      {
+        title: '用户段内出现两次 + 系统段第三次 ⇒ 三处都用用户段首次那个',
+        user: 'U={{ m | default(甲) }} 与 {{ m | default(丙) }}',
+        system: 'S={{ m | default(乙) }}',
+        values: {},
+        defaults: { m: '甲' },
+        expectUser: 'U=甲 与 甲',
+        expectSystem: 'S=甲',
+        missing: [],
+      },
+      {
+        // 「首次出现」是既有口径：首次那处没写默认值 ⇒ 该名全篇无默认值。
+        // 此时接口报"无默认值"，两段也都保留占位符并列入 missing —— 仍然是**一致**的。
+        title: '用户段首次没有默认值 ⇒ 该名全篇无默认值（既有首次出现口径不变）',
+        user: 'U={{ m }}',
+        system: 'S={{ m | default(乙) }}',
+        values: {},
+        defaults: {},
+        expectUser: 'U={{ m }}',
+        expectSystem: 'S={{ m | default(乙) }}',
+        missing: ['m'],
+      },
+      {
+        title: '用户段有默认值、系统段裸占位符 ⇒ 系统段也用全篇表',
+        user: 'U={{ m | default(甲) }}',
+        system: 'S={{ m }}',
+        values: {},
+        defaults: { m: '甲' },
+        expectUser: 'U=甲',
+        expectSystem: 'S=甲',
+        missing: [],
+      },
+      {
+        title: '只在系统段有默认值',
+        user: 'U=纯文本',
+        system: 'S={{ m | default(乙) }}',
+        values: {},
+        defaults: { m: '乙' },
+        expectUser: 'U=纯文本',
+        expectSystem: 'S=乙',
+        missing: [],
+      },
+      {
+        title: '显式值优先于两段的默认值',
+        user: 'U={{ m | default(甲) }}',
+        system: 'S={{ m | default(乙) }}',
+        values: { m: '显式' },
+        defaults: { m: '甲' },
+        expectUser: 'U=显式',
+        expectSystem: 'S=显式',
+        missing: [],
+      },
+      {
+        title: '显式空串 ⇒ 渲染成空（不是回落到默认值）',
+        user: 'U={{ m | default(甲) }}',
+        system: 'S={{ m | default(乙) }}',
+        values: { m: '' },
+        defaults: { m: '甲' },
+        expectUser: 'U=',
+        expectSystem: 'S=',
+        missing: [],
+      },
+    ];
+
+    for (const c of CASES) {
+      const id = await createPrompt(fx, cookie, {
+        title: `返工① ${c.title}`,
+        user_prompt: c.user,
+        system_prompt: c.system,
+      });
+      const reportRes = await fx.app.inject({
+        method: 'GET',
+        url: `/api/prompts/${String(id)}/variables`,
+        headers: { cookie },
+      });
+      assert.equal(reportRes.statusCode, 200, reportRes.body);
+      const report = reportRes.json() as { variables: string[]; defaults: Record<string, string> };
+      assert.deepEqual(report.defaults, c.defaults, `${c.title}：/variables 报的默认值`);
+
+      const res = await fx.app.inject({
+        method: 'POST',
+        url: `/api/prompts/${String(id)}/render`,
+        headers: { cookie },
+        payload: { values: c.values },
+      });
+      assert.equal(res.statusCode, 200, res.body);
+      const rendered = res.json() as { user_prompt: string; system_prompt: string; missing: string[] };
+      assert.equal(rendered.user_prompt, c.expectUser, `${c.title}：用户段`);
+      assert.equal(rendered.system_prompt, c.expectSystem, `${c.title}：系统段`);
+      assert.deepEqual(rendered.missing, c.missing, `${c.title}：missing`);
+      // 逐条对照（不只对单一场景）
+      assertReportedDefaultsMatchRender(report, c.values, rendered);
+    }
+  } finally {
+    await fx.close();
+  }
+});
+

@@ -226,8 +226,13 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     if (prompt === null) throw new NotFoundError();
 
     const values = (request.body as { values?: Record<string, unknown> }).values ?? {};
-    const user = renderVariables(prompt.user_prompt, values);
-    const system = renderVariables(prompt.system_prompt, values);
+    /**
+     * 返工 ①：默认值表是**全篇**的（用户段 + 系统段一起扫），且与上面 `/variables`
+     * 报出去的是同一张表 —— 两段共用，保证"接口报的默认值"与"实际替换进去的值"一致。
+     */
+    const scan = scanVariables(prompt.user_prompt, prompt.system_prompt);
+    const user = renderVariables(prompt.user_prompt, values, scan.defaults);
+    const system = renderVariables(prompt.system_prompt, values, scan.defaults);
     const missing = [...new Set([...user.missing, ...system.missing])];
 
     /**

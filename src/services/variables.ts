@@ -73,11 +73,20 @@ export interface RenderResult {
  * 渲染：提供了字符串值的占位符整体替换为值；没填（键不存在 / 值不是字符串）时，
  * 有默认值 ⇒ 用默认值，没有默认值 ⇒ **原样保留**（含内部空白）并列入 `missing`。
  * 给定空字符串算"已提供"（渲染成空，**不回落默认值**）；转义写法去掉反斜杠、其余原样。
+ *
+ * `defaultsScope`（返工 ①）：一条提示词有**两段**（用户段 + 系统段）时，默认值表必须是
+ * **全篇**的 —— 也就是 `scanVariables(user_prompt, system_prompt).defaults`，与
+ * `GET /api/prompts/:id/variables` 报出去的那张表**同一张**。否则两段各算各的，
+ * 就会出现"接口说默认值是甲、系统段却填了乙"。不传时退化为只看本段（单文本调用方）。
  */
-export function renderVariables(text: string, values: Record<string, unknown>): RenderResult {
+export function renderVariables(
+  text: string,
+  values: Record<string, unknown>,
+  defaultsScope?: Record<string, string>,
+): RenderResult {
   const missing: string[] = [];
   const seen = new Set<string>();
-  const { defaults } = scanVariables(text);
+  const defaults = defaultsScope ?? scanVariables(text).defaults;
 
   const rendered = text.replace(PLACEHOLDER, (whole: string, escape: string, name: string) => {
     if (escape === '\\') return whole.slice(1); // 转义 → 去掉反斜杠，其余原样输出

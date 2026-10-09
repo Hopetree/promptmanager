@@ -60,3 +60,48 @@ test('previewRender 与服务端 /render 逐字符一致（8 组输入，含缺�
     await fx.close();
   }
 });
+
+// 返工 ①（2026-09-30）：系统提示词给**同一个变量**写了不同的默认值时，
+// 服务端用户段必须用「全篇」默认值表（该变量的值 = 用户段首次出现的那个），
+// 而客户端预览只看用户段 —— 两者仍必须逐字符一致。
+// 同时钉住系统段：它也必须用全篇表，不能各自为政。
+const CROSS_SYSTEM = 'S={{语气 | default(另一处)}} / {{重复默认 | default(乙)}} / {{未提供}}';
+
+test('返工①：系统段写了不同默认值时，用户段预览仍与服务端逐字符一致、系统段也用全篇表', async () => {
+  const fx = await makeFixture();
+  try {
+    const cookie = await cookieOf(await login(fx.app));
+    const created = await fx.app.inject({
+      method: 'POST',
+      url: '/api/prompts',
+      headers: { cookie },
+      payload: { title: '跨段默认值一致性夹具', user_prompt: TEXT, system_prompt: CROSS_SYSTEM },
+    });
+    assert.equal(created.statusCode, 201, created.body);
+    const id = (created.json() as { id: number }).id;
+
+    for (const [index, values] of CASES.entries()) {
+      const rendered = await fx.app.inject({
+        method: 'POST',
+        url: `/api/prompts/${String(id)}/render`,
+        headers: { cookie },
+        payload: { values },
+      });
+      assert.equal(rendered.statusCode, 200, rendered.body);
+      const body = rendered.json() as { user_prompt: string; system_prompt: string };
+      assert.equal(previewRender(TEXT, values), body.user_prompt, `第 ${String(index + 1)} 组：用户段预览与服务端不一致`);
+
+      // 系统段的期望值：用全篇表（语气=专业、重复默认=第一），未提供的原样保留
+      const 语气 = typeof values['语气'] === 'string' ? values['语气'] : '专业';
+      const 重复默认 = typeof values['重复默认'] === 'string' ? values['重复默认'] : '第一';
+      const 未提供 = typeof values['未提供'] === 'string' ? values['未提供'] : '{{未提供}}';
+      assert.equal(
+        body.system_prompt,
+        `S=${语气} / ${重复默认} / ${未提供}`,
+        `第 ${String(index + 1)} 组：系统段必须用全篇默认值表`,
+      );
+    }
+  } finally {
+    await fx.close();
+  }
+});
