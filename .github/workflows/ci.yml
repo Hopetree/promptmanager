@@ -10,10 +10,14 @@ on:
     branches: ['**']
   pull_request:
 
-# 同一分支的重复触发（push 后紧接 PR）只留最新一次，省掉并行重复跑。
+# 同一 ref 的重复触发只留最新一次，省掉并行重复跑。
+# ⚠️ 但 **main 上不取消**（2026-10-09 修）：`main` 的每次 push 都是**已发布/待发布**的提交，
+#    取消它会让"发布提交的 ci"显示成 `cancelled` —— 看起来像 CI 没过，实际是被后来的提交取代。
+#    （实证：v1.7.0 指向的 57f5beb 的 ci 就是被随后的 9e91a6a 取消的。）
+#    ⇒ 取消只用于 **PR / 特性分支**（那里"最新一次代表当前状态"成立）；main 上的 run 一律跑完。
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
