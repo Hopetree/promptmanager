@@ -1,7 +1,13 @@
 // 阶段 46 / FR-108（登录页纵向溢出）+ FR-109（README 镜像指引）断言。
 //
+// ⚠️ **2026-09-30 FR-109 反转**（用户要求「关于容器拉取的问题，这个不应该写到里面」）：
+//   原需求要求 README 的部署章节与 FAQ 解释「拉不动怎么办 / 换镜像站 + tag 回规范名」。
+//   现按用户要求**移出 README**（理由：那是用户自己的网络问题，不是本项目的交付内容）。
+//   因此本文件里 AC-110 ⑤ 的三条断言**已反转** —— 改为守护「README 不得再出现镜像站 / 加速站内容」。
+//   仍保留的正面要求：官方镜像地址必须写死在 README 里且可直接复制（见下方两条）。
+//
 // 覆盖：登录根容器**必须**是 `border-box`（否则 `minHeight:100vh` 不含上下 padding ⇒ 恒溢出 96px）、
-// 居中与留白参数未被改动；README 的部署章节与 FAQ 有镜像拉取指引、且不绑定具体镜像站。
+// 居中与留白参数未被改动；README 里有官方镜像完整地址，且**不含**镜像站 / 加速站内容（2026-09-30 反转）。
 // 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 本地验收记录 + ac-stage46-probe.mjs。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -65,43 +71,40 @@ test('AC-110 ①（源码级）：不存在全局把登录页高度写死的其�
     return doc;
   };
 
-test('AC-110 ⑤（文档级）：文档讲清了「镜像拉不通」怎么办，且教了「拉回规范名」', () => {
+test('AC-110 ⑤（文档级，2026-09-30 反转）：README **不得**再讲镜像站 / 加速办法', () => {
   const readme = read('README.md');
-  // 整份文档检索：内容放在哪一节是作者的决定
-  assert.ok(/镜像/.test(readme), '文档必须提到「镜像」');
-  assert.ok(
-    /卡住|很慢|超时|拉不动|失败|连不上|不通/.test(readme),
-    '必须点明「拉取会卡住/超时/失败」这一现象（否则用户以为是自己环境坏了）',
+  // 反转前：要求「讲清拉不通怎么办 + 教 tag 回规范名 + 提镜像站与代理两条路」。
+  // 反转后：这些内容**不属于本项目的交付内容**（那是用户的网络问题），一律不得出现在 README。
+  assert.equal(
+    /镜像站|加速站|加速器/.test(readme),
+    false,
+    'README 不得出现「镜像站 / 加速站 / 加速器」—— FR-109 已反转（2026-09-30 用户要求移出）',
   );
-  assert.ok(/docker tag/.test(readme), '必须给出「tag 回规范名」的做法（换站 + retag 是既有办法）');
-  assert.ok(
-    /镜像站|加速/.test(readme) && /代理|proxy/i.test(readme),
-    '必须同时提到镜像站与代理两条路',
+  assert.equal(
+    /docker tag/.test(readme),
+    false,
+    'README 不得给出「tag 回规范名」的换站办法（同上）',
   );
-  assert.ok(
-    /不写死|不绑定|可用性会变|能用的那个|那一个|都能用|自行选择|挑你/.test(readme),
-    '必须说明「加速站可换、不绑定某一家」',
+  assert.equal(
+    /拉不动|拉取.*(很慢|超时|失败)|Docker Hub.*不通/.test(readme),
+    false,
+    'README 不得出现「拉取很慢 / 超时 / 不通」这类排错叙述（同上）',
   );
-  // 不得把某一具名公开加速站写成唯一方案（站点会过期，绑上去就是负债）
+  // 也不得把某一具名公开加速站写进来（站点会过期，绑上去就是负债）—— 这条反转前后都成立
   const named = /(docker\.1panel|dockerproxy|daocloud|docker\.io\.cn|registry\.cn-hangzhou|mirror\.ccs)/;
   assert.equal(named.test(readme), false, '不得把某个具体加速站写进文档');
 });
 
-test('AC-110 ⑤（文档级）：FAQ 里有一条讲「镜像拉取失败/很慢」且可检索', () => {
+test('AC-110 ⑤（文档级，2026-09-30 反转）：FAQ 里**不得**有「镜像拉取失败/很慢」这类问句', () => {
   const readme = read('README.md');
   // 宽容定位 FAQ；找不到就当整份文档
   const faq = locateSection(readme, ['## 常见问题', '常见问题', 'FAQ', '## 排错', 'Troubleshooting']);
-  // 问句格式不强制，但「拉取/镜像 + 失败/慢」这个话题必须以可检索的问句出现
   const questions = [...faq.matchAll(/^\*\*(.+?)\*\*\s*$/gm)].map((m) => m[1] ?? '');
   const hit = questions.filter((q) => /拉取|镜像/.test(q) && /失败|很慢|超时|拉不动|连不上/.test(q));
-  assert.ok(
-    hit.length >= 1,
-    `FAQ 应至少有一条讲镜像拉取失败/很慢的问句（便于检索），实际问句：${JSON.stringify(questions)}`,
-  );
-  // FAQ 里也要给出可换其它站的说明（不能只在部署章节说一次）
-  assert.ok(
-    /不写死|不绑定|可用性会变|能用的那个|那一个|都能用|自行选择|挑你/.test(faq),
-    'FAQ 答案里也要说明「用你能用的那一个」',
+  assert.equal(
+    hit.length,
+    0,
+    `FAQ 不得再有镜像拉取相关的问句（FR-109 已反转），实际问句：${JSON.stringify(questions)}`,
   );
 });
 
@@ -131,17 +134,18 @@ test('AC-110 ⑤ 返工（文档级）：README 必须写出官方镜像**完整
   }
 });
 
-test('AC-110 ⑤ 返工（文档级）：官方仓库写死、**加速站仍不写死**（两件事不能混）', () => {
+test('AC-110 ⑤ 返工（文档级，2026-09-30 调整）：官方仓库地址写死；镜像站相关内容**全部不得出现**', () => {
   const readme = read('README.md');
   // 官方仓库：允许且要求在文档里固定出现
   assert.ok(readme.includes('hopetree/promptmanager'), '官方仓库地址应固定写在文档里');
-  // 加速站：仍不得绑定任何具名站
+  // 加速站：不得绑定任何具名站
   const named = /(docker\.1panel|dockerproxy|daocloud|docker\.io\.cn|registry\.cn-hangzhou|mirror\.ccs)/;
   assert.equal(named.test(readme), false, '不得把某个具体加速站写进文档（它们会过期）');
-  // 仍须保留「站点可换」的方法性说明（多种说法任一）
-  assert.ok(
-    /不写死|不绑定|可用性会变|能用的那个|那一个|都能用|自行选择|挑你/.test(readme),
-    '仍须说明「加速站用你能用的那一个」',
+  // 反转后：连「站点可换」的方法性说明也不需要了 —— 整块内容已按用户要求移出 README
+  assert.equal(
+    /镜像站|加速站|加速器/.test(readme),
+    false,
+    'README 不得出现镜像站 / 加速站内容（FR-109 已反转）',
   );
   // 升级相关的段落里也要能给读者可照抄的地址（宽容定位：命中就用，没命中不强制）
   const upIdx = readme.search(/^#+.*升级.*$/m);
