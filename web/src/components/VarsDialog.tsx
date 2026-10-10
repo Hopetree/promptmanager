@@ -1,6 +1,6 @@
 import { CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Alert, Button, Checkbox, Flex, Form, Input, Modal, Space, Spin, Tag, Typography, theme } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, ApiError, describeError } from '../api';
 import {
   filledValues,
@@ -10,6 +10,7 @@ import {
   readRememberedVars,
   removeRememberedVars,
   varsDialogTitle,
+  varsFormValues,
   writeRememberedVars,
 } from '../pure';
 import type { Prompt } from '../types';
@@ -48,15 +49,23 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
   /** FR-127：勾选框的本地状态；初值来自服务端字段（`prompt.remember_variables`）。 */
   const [remember, setRemember] = useState(true);
 
+  /** 当前正在加载的提示词 id：晚回来的响应不许覆盖已经切走的那条（AC-123 ⑫ 的竞态）。 */
+  const loadingIdRef = useRef<number | null>(null);
+
   const load = useCallback(async (target: Prompt): Promise<void> => {
+    loadingIdRef.current = target.id;
     setVariables(null);
     setError(null);
+    // FR-127 / AC-123 ⑫：勾选态**同步**按手里这个 prompt 对象置好（不等网络），
+    // 否则服务端为 false 的提示词会先闪一下"已勾上 +（自动记忆）"再跳回去。
+    const wantsMemory = target.remember_variables;
+    setRemember(wantsMemory);
     try {
       const response = await api.variables(target.id);
+      // 期间已经切到别的提示词 / 关掉了弹窗 ⇒ 这次结果作废。
+      if (loadingIdRef.current !== target.id) return;
       // FR-127 / AC-123 ⑧：**不记住就绝不预填**（读都不读），这样"取消勾选后不点复制直接
       // 关闭再打开 ⇒ 还是空的"成立；勾选时保持既有行为。
-      const wantsMemory = target.remember_variables;
-      setRemember(wantsMemory);
       const remembered = wantsMemory ? readRememberedVars(target.id) : {};
       setVariables(response.variables);
       setDefaults(response.defaults);
@@ -64,12 +73,8 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
       // 这样预览会原样显示 `{{项目}}`（与服务端一致），而不是先看到占位符凭空消失。
       const initial = filledValues(response.variables, remembered);
       setValues(initial);
-      // ⚠️ antd 的 `setFieldsValue` **不会清空未提供的字段**：只传 `initial` 时，上一次打开
-      // 留在 Form 里的字会原样显示 —— 看起来就像"被预填了"，与「不记住 ⇒ 打开就是空的」相悖。
-      // 所以把**每个变量**都显式写一遍，没记忆的一律写空串（FR-127 / AC-123 ⑧）。
-      const formValues: Record<string, string> = {};
-      for (const name of response.variables) formValues[name] = initial[name] ?? '';
-      form.setFieldsValue(formValues);
+      // ⚠️ 必须写**每个变量**（没记忆的写空串）——理由与回归测试见 `pure.ts` 的 `varsFormValues`。
+      form.setFieldsValue(varsFormValues(response.variables, initial));
     } catch (caught) {
       if (caught instanceof ApiError && caught.status === 401) {
         setError('会话已失效，请重新登录');
@@ -156,7 +161,12 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
 
         {/* FR-127 / D-59 ④：开关的**第一处入口**（另一处在提示词编辑页），读写同一个服务端字段；
             取消勾选即时生效（不必点「复制结果」）。 */}
-        <Checkbox checked={remember} onChange={(event) => toggleRemember(event.target.checked)} data-testid="pm-vars-remember">
+        <Checkbox
+          checked={remember}
+          disabled={variables === null}
+          onChange={(event) => toggleRemember(event.target.checked)}
+          data-testid="pm-vars-remember"
+        >
           记住这些变量值（下次自动填充）
         </Checkbox>
 

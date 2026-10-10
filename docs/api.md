@@ -73,7 +73,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 
 字段：`title` / `user_prompt` / `system_prompt` / `notes` / `folder_id` / `tags` / `favorite` / `remember_variables`。
 
-`remember_variables`（布尔，默认 `true`）是**每个提示词各自的**「是否记住填过的变量值」开关：`true` 时浏览器会把填值弹窗里填过的值存进 `localStorage`（键 `pm-vars:<id>`）并在下次打开时预填；`false`（**不记住**）时弹窗不预填、点「复制结果」不写入、并把该提示词已存的那份记忆删掉。它只是提示词的属性，**随导出 / 导入 / 远程同步一起往返**；变量值本身**永远只存在浏览器里，不上传服务端**。`POST` 省略 = `true`；`PUT` 省略 = 保持原值。
+`remember_variables`（布尔，默认 `true`）是**每个提示词各自的**「是否记住填过的变量值」开关：`true` 时浏览器会把填值弹窗里填过的值存进 `localStorage`（键 `pm-vars:<id>`）并在下次打开时预填；`false`（**不记住**）时弹窗不预填、点「复制结果」不写入、并把该提示词已存的那份记忆删掉。它只是提示词的属性，**随导出 / 导入 / 远程同步一起往返**；变量值本身**服务端不落库、不持久化**：渲染时它随 `POST /api/prompts/:id/render` 的请求体过一次（进程内用完即弃，不写库、不写日志），长期存放只有浏览器 `localStorage` 一份。`POST` 省略 = `true`；`PUT` 省略 = 保持原值。
 
 ```bash
 curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \

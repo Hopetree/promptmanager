@@ -154,14 +154,16 @@ const STAGE59_ACCOUNTED_DELTA = 5_138;
  */
 const STAGE60_ACCOUNTED_DELTA = 215;
 /**
- * 阶段 61（FR-127 变量记忆可控 / FR-128 填值弹窗一键清空）的**已对账**增量：**实测** +420 B gzip。
+ * 阶段 61（FR-127 变量记忆可控 / FR-128 填值弹窗一键清空）的**已对账**增量：**实测** +452 B gzip。
  * 依据（2026-10-10）：`git stash push -- web/src` 暂存掉本阶段的前端改动，在同一 `node_modules` 下
  * `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,261 B**；`git stash pop` 恢复后重建
- * = **427,681 B** ⇒ 差值 **420 B**。迭代中间态（同一口径实测）：427,654 B / +393 B（首版）→
+ * = **427,713 B** ⇒ 差值 **452 B**。迭代中间态（同一口径实测）：427,654 B / +393 B（首版）→
  * 427,674 B / +413 B（按 AC-123 ⑧ 修掉「不记住时输入框残留上次手打的字」：`VarsDialog.load()`
  * 改为把**每个变量**都显式写一遍表单，而不是只 `setFieldsValue(initial)`）→ 427,681 B / +420 B
  * （`Workspace.tsx` 的 `EMPTY_DRAFT` 补 `remember_variables: true`，让「新建」草稿与服务端默认一致，
- * 否则 `typecheck:web` 报 TS2741）。
+ * 否则 `typecheck:web` 报 TS2741）→ 427,713 B / +452 B（对抗性复核后的三处修复：把逐变量写表单的口径
+ * 提成 `pure.ts` 的 `varsFormValues` 以便机械验证、`VarsDialog.load()` 先同步置勾选态并用
+ * `loadingIdRef` 丢弃过期响应、勾选框加载中 `disabled`）。
  * 构成：`web/src/pure.ts` 的记忆读写助手（`VARS_STORAGE_PREFIX` / `readRememberedVars` /
  * `writeRememberedVars` / `removeRememberedVars` / `varsDialogTitle` / `missingVariables` / `hasAnyFilled`）、
  * `VarsDialog` 的勾选框、「清空」按钮与逐变量写表单、`PromptEditor` 的「记住变量值」开关、`Workspace` 的
@@ -171,7 +173,7 @@ const STAGE60_ACCOUNTED_DELTA = 215;
  * 这笔体积是 FR-127/FR-128 这两个**用户要求的新功能**的代价，故按既有口径
  * （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
  */
-const STAGE61_ACCOUNTED_DELTA = 420;
+const STAGE61_ACCOUNTED_DELTA = 452;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */

@@ -16,6 +16,7 @@ import {
   VARS_STORAGE_PREFIX,
   hasAnyFilled,
   missingVariables,
+  varsFormValues,
   readRememberedVars,
   removeRememberedVars,
   varsDialogTitle,
@@ -403,6 +404,23 @@ test('AC-123 ⑯⑰：missing 计数与「清空」按钮置灰 —— 纯函数
   assert.equal(hasAnyFilled({ a: '', b: '乙' }), true);
 });
 
+test('AC-123 ⑧：打开弹窗要写进表单的值 —— 每个变量都有键（不记住 ⇒ 全是空串，清掉上次残留）', () => {
+  // 回归守卫（对抗性复核 finding）：曾经只写「有记忆的那几个」，而 antd 的 `setFieldsValue`
+  // **不会清空未提供的字段** ⇒ 不记住时输入框里留着上一次手打的字，看起来像"被预填了"。
+  // 组件里的 antd 表单跑不进 node:test，所以口径提成 `pure.ts` 的 `varsFormValues` 在这里机械验证。
+  const all = varsFormValues(['项目', '语气'], {});
+  assert.deepEqual(all, { 项目: '', 语气: '' }, '没有记忆 ⇒ 每个变量都必须显式写空串');
+  assert.equal(Object.keys(all).length, 2, '键数必须等于变量数（不能只写有记忆的那几个）');
+
+  const partial = varsFormValues(['项目', '语气'], { 项目: '甲' });
+  assert.deepEqual(partial, { 项目: '甲', 语气: '' }, '有记忆的用记忆，其余一律写空串');
+  assert.deepEqual(Object.keys(partial).sort(), ['语气', '项目'], '缺一个键就等于留了残留');
+
+  // 记忆里有服务端已经不认识的变量名 ⇒ 不写进表单（表单只认服务端给的变量名单）
+  assert.deepEqual(varsFormValues(['项目'], { 项目: '甲', 已删除: '乙' }), { 项目: '甲' });
+  assert.deepEqual(varsFormValues([], { a: '甲' }), {}, '空变量列表 ⇒ 空表，不炸');
+});
+
 test('AC-123 ⑦⑧⑪⑭⑮⑰⑱：组件源码级 —— 勾选框 / 清空按钮 / 同一字段 / 无二次确认', () => {
   const dialog = readSource('web/src/components/VarsDialog.tsx');
   // ⑦ 勾选框存在，且初值来自服务端字段（默认勾上）
@@ -431,6 +449,7 @@ test('AC-123 ⑦⑧⑪⑭⑮⑰⑱：组件源码级 —— 勾选框 / 清空�
 
   // ⑯ missing 走纯函数（清空后计数立刻变准）
   assert.match(dialog, /missingVariables\(/, 'missing 计数走同一个纯函数');
+  assert.match(dialog, /varsFormValues\(/, '⑧ 表单值必须走 varsFormValues（逐变量显式写，清掉上次残留）');
 
   // ⑪ 编辑页有同义开关，读写同一字段
   const editor = readSource('web/src/components/PromptEditor.tsx');

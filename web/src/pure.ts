@@ -422,6 +422,21 @@ export function hasAnyFilled(values: Record<string, string>): boolean {
 }
 
 /**
+ * FR-127 / AC-123 ⑧：把「这次打开弹窗该往表单里写什么」算成一张**完整的**表。
+ *
+ * ⚠️ 必须给**每个变量**都写一个值（没记忆的写空串），不能只写「有记忆的那几个」：
+ * antd 的 `form.setFieldsValue()` **不会清空未提供的字段**，只传有记忆的部分会让上一次打开
+ * 留在 Form 里的字原样显示 —— 用户看到的就是"不记住却还是被预填了"，直接违反 FR-127。
+ *
+ * 提成纯函数是为了让这条口径**能被 node:test 机械验证**（组件里的 antd 表单跑不进 node:test）。
+ */
+export function varsFormValues(variables: string[], initial: Record<string, string>): Record<string, string> {
+  const formValues: Record<string, string> = {};
+  for (const name of variables) formValues[name] = initial[name] ?? '';
+  return formValues;
+}
+
+/**
  * 列表展示顺序（FR-41b / FR-46）：可选「收藏置顶」（客户端，当前页内）+ 「标题」排序
  * （当前页内；接口支持 updated / recent_used / custom）。`custom`（FR-70）**保持服务端顺序**
  * （服务端已按 `sort_order, id` 升序返回），客户端不再重排。分栏中栏、表格、卡片共用这一个纯函数，
