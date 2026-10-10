@@ -80,11 +80,27 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
   -d '{"title":"会话交接模板","user_prompt":"你好 {{姓名}}","tags":["交接"],"favorite":true}' \
   http://127.0.0.1:8767/api/prompts                  # 201，version_no=1
 curl -s -b /tmp/pm-jar -X PUT -H 'Content-Type: application/json' -d '{"notes":"改过的备注"}' \
-  http://127.0.0.1:8767/api/prompts/1                # 200，version_no 递增（自动留档）
+  http://127.0.0.1:8767/api/prompts/1                # 200，notes 是内容字段 ⇒ version_no 递增（自动留档）
+curl -s -b /tmp/pm-jar -X PUT -H 'Content-Type: application/json' -d '{"favorite":true}' \
+  http://127.0.0.1:8767/api/prompts/1                # 200，收藏是非内容字段 ⇒ version_no / updated_at 都不动
 curl -s -b /tmp/pm-jar -X DELETE http://127.0.0.1:8767/api/prompts/1   # 204
 ```
 
-`PUT` 是**可写字段的子集**：只改传入的字段，其余保持不变；**每次 PUT 都产生一个新版本**（不区分值是否真的变了）。
+`PUT` 是**可写字段的子集**：只改传入的字段，其余保持不变。
+
+**版本与 `updated_at` 只在「内容字段」真的变化时才动**（FR-129 / D-60，阶段 62 的行为契约变更）：
+
+- **内容字段 = `title` / `user_prompt` / `system_prompt` / `notes`**（判据不是"重不重要"，而是
+  **版本快照 `prompt_versions` 装得下、且回滚能恢复**）。
+- 判据是「**值真的变了**」，不是「请求里带了这个字段」：传了但值与当前**逐字相同** ⇒ 不产生新版本。
+  `PUT {}` 同理。比较不 trim、不归一化（多一个空格就是"变了"）。
+- **非内容字段**（`folder_id` / `favorite` / `remember_variables` / `tags`）改了 ⇒ **`version_no` 不动、
+  不写版本快照、`updated_at` 也不碰**。批量接口 `POST /api/prompts/bulk` 的 `favorite` / `move` 同理，
+  拖拽排序 `PATCH /api/prompts/order` 本来就只写 `sort_order`。
+- **`updated_at` 从此表示「内容最后变更时间」**，不再表示"这条记录被写过的时间" ⇒ 「按最近更新排序」
+  不会被"点了个收藏"污染。想让某条置顶请用 `favorite`。它不参与任何冲突合并，只被列表排序读。
+- **回滚**（`POST /api/prompts/:id/versions/:n/rollback`）吃同一条判据：恢复到与当前**不同**的内容 ⇒
+  照旧 +1；恢复到**完全相同**的内容 ⇒ 不产生新版本。
 
 ### 3.2 列表 / 检索 / 筛选
 
@@ -150,9 +166,9 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/prompts/1/versions/1/ro
 
 - `diff` 是四段带标记的规范文本（`[title]`/`[user_prompt]`/`[system_prompt]`/`[notes]`）的 unified diff；
   缺参 / 非法 / 越界 → `400`，prompt 或版本不存在 → `404`。
-- **回滚只回滚内容四字段**并生成**新版本**；标签 / 文件夹 / 收藏不在版本快照里。
+- **回滚只回滚内容四字段**并生成**新版本**（**恢复到与当前完全相同的内容则不产生新版本**，FR-129）；标签 / 文件夹 / 收藏不在版本快照里。
 - **版本保留上限：每个 prompt 最多保留最近 10 个版本**（`version_no` 最大的 10 行），超出的**真删**；
-  当前版本永远在保留集合内；裁剪**只删行、不重编号**。触发点是每次产生新版本之后（新建 / 更新 / 回滚 / 导入 / 批量收藏·移动）。
+  当前版本永远在保留集合内；裁剪**只删行、不重编号**。触发点是每次产生新版本之后（新建 / 内容变更 / 回滚到不同内容 / 导入）。
   **不做一次性迁移**：历史遗留的多余版本在下一次产生新版本时被自然裁剪。
   推论：回滚到**已被裁剪掉**的版本会返回 **404**。
 

@@ -270,7 +270,7 @@ test('AC-88 回归：版本列表 / diff / 回滚 / 批量操作 都不产生"�
     const cookie = await authed(fx);
     const id = await createPrompt(fx, cookie, { title: 'AC88 批量写入点', user_prompt: '初始正文' });
 
-    // 批量收藏（FR-77）也是"产生新版本"的写入点 —— 走 12 次批量收藏，仍不得突破 10
+    // FR-129（阶段 62）：批量收藏 / 批量移动都是**非内容变更** ⇒ 既不产生版本也不动版本号
     for (let i = 0; i < 12; i += 1) {
       const res = await fx.app.inject({
         method: 'POST',
@@ -280,20 +280,27 @@ test('AC-88 回归：版本列表 / diff / 回滚 / 批量操作 都不产生"�
       });
       assert.equal(res.statusCode, 200, res.body);
     }
-    assert.equal(versionCount(fx, id), 10, '批量收藏 12 次后仍恰好 10 个版本');
-    assert.equal(currentVersionNo(fx, id), 13, '首版 + 12 次批量 = v13');
+    assert.equal(versionCount(fx, id), 1, 'FR-129：批量收藏 12 次不产生任何版本');
+    assert.equal(currentVersionNo(fx, id), 1, 'FR-129：批量收藏不改版本号');
+
+    // 真正的写入点是**内容变更**：11 次真内容变更 ⇒ 版本号到 12，但仍恰好留 10 个
+    for (let i = 2; i <= 12; i += 1) {
+      await putPrompt(fx, cookie, id, { user_prompt: `正文 v${String(i)}` });
+    }
+    assert.equal(versionCount(fx, id), 10, '12 次内容变更后仍恰好 10 个版本');
+    assert.equal(currentVersionNo(fx, id), 12, '首版 + 11 次内容变更 = v12');
 
     // 版本列表接口只回 ≤10 条，且是升序
     const list = await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}/versions`, headers: { cookie } });
     assert.equal(list.statusCode, 200, list.body);
     const items = (list.json() as { items: { version_no: number }[] }).items;
     assert.equal(items.length, 10);
-    assert.deepEqual(items.map((item) => item.version_no), [4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    assert.deepEqual(items.map((item) => item.version_no), [3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
 
     // diff 仍可用（保留集内两版）
     const diff = await fx.app.inject({
       method: 'GET',
-      url: `/api/prompts/${String(id)}/diff?from=4&to=13`,
+      url: `/api/prompts/${String(id)}/diff?from=3&to=12`,
       headers: { cookie },
     });
     assert.equal(diff.statusCode, 200, diff.body);
@@ -302,7 +309,7 @@ test('AC-88 回归：版本列表 / diff / 回滚 / 批量操作 都不产生"�
     // 越界（已被裁剪的 v1）仍按既有语义 400
     const outOfRange = await fx.app.inject({
       method: 'GET',
-      url: `/api/prompts/${String(id)}/diff?from=1&to=13`,
+      url: `/api/prompts/${String(id)}/diff?from=1&to=12`,
       headers: { cookie },
     });
     assert.equal(outOfRange.statusCode, 400, outOfRange.body);

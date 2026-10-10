@@ -230,8 +230,31 @@ export async function listPrompts(qe: QueryEngine, params: ListPromptsParams): P
 }
 
 /**
- * 更新 prompt（FR-2 / FR-7）：只改传入的字段；**每次 PUT 都产生新版本**
- * （BRIEF §6.1「更新（可写字段的子集）→ 产生新版本」，不区分值是否真的变了）。
+ * FR-129 / D-60 ③：**内容字段** = `prompt_versions` 装得下、且回滚能恢复的那 4 个。
+ *
+ * 只有它们的值**真的变了**（`!==`，不是"请求里带了这个字段"）才产生新版本、才更新 `updated_at`；
+ * 其余可写字段（`folder_id` / `favorite` / `remember_variables` / 标签）改多少遍都不碰版本号
+ * （BRIEF FR-129 ① / D-60 ③：这个边界**固定为 4 个，不新增也不减少**）。
+ */
+export const CONTENT_FIELDS = ['title', 'user_prompt', 'system_prompt', 'notes'] as const;
+
+export type ContentField = (typeof CONTENT_FIELDS)[number];
+
+/** 4 个内容字段里是否有值真的变了（逐字比较，不做 trim / 归一化 —— FR-129 的判据是"值真的变了"）。 */
+export function hasContentChange(
+  existing: Pick<PromptRow, ContentField>,
+  next: Pick<PromptRow, ContentField>,
+): boolean {
+  return CONTENT_FIELDS.some((field) => existing[field] !== next[field]);
+}
+
+/**
+ * 更新 prompt（FR-2 / FR-7 / **FR-129**）：只改传入的字段。
+ *
+ * **FR-129（阶段 62）行为契约变更**：`version_no` / `updated_at` / 版本快照**只在内容字段真的变化时**才动 ——
+ * 收藏 / 移动目录 / 切「记住变量值」/ 改标签这些非内容操作，版本号不动、不写快照、`updated_at` 也不碰
+ * （`updated_at` 从此是「内容最后变更时间」，D-60 ①；「置顶」用 `favorite`，不借 `updated_at`）。
+ * 传了内容字段但值与旧值相同 ⇒ 同样不动（FR-129 ②）。
  * 提供 `tags` 时整体替换标签集合；`folder_id: null` 表示移出文件夹。
  */
 export async function updatePrompt(
@@ -243,38 +266,47 @@ export async function updatePrompt(
   if (existing === undefined) throw new NotFoundError();
 
   const now = nowIso();
-  const next = {
+  const content = {
     title: patch.title ?? existing.title,
     user_prompt: patch.user_prompt ?? existing.user_prompt,
     system_prompt: patch.system_prompt ?? existing.system_prompt,
     notes: patch.notes ?? existing.notes,
+  };
+  // FR-129 ②：判据是"值真的变了"，不是"请求里带了这个字段"
+  const contentChanged = hasContentChange(existing, content);
+  const next = {
+    ...content,
     folder_id: patch.folder_id === undefined ? existing.folder_id : patch.folder_id,
     favorite: patch.favorite === undefined ? existing.favorite : patch.favorite ? 1 : 0,
     remember_variables:
       patch.remember_variables === undefined ? existing.remember_variables : patch.remember_variables ? 1 : 0,
-    version_no: existing.version_no + 1,
-    updated_at: now,
+    // 内容没变 ⇒ 版本号与 updated_at 原样写回（等于不动）；变了才 +1 / 取当前时间
+    version_no: contentChanged ? existing.version_no + 1 : existing.version_no,
+    updated_at: contentChanged ? now : existing.updated_at,
   };
 
   try {
     await qe.transaction().execute(async (trx) => {
       await trx.updateTable('prompts').set(next).where('id', '=', id).execute();
 
-      await trx
-        .insertInto('prompt_versions')
-        .values({
-          prompt_id: id,
-          version_no: next.version_no,
-          title: next.title,
-          user_prompt: next.user_prompt,
-          system_prompt: next.system_prompt,
-          notes: next.notes,
-          created_at: now,
-        })
-        .execute();
+      // FR-129：只有内容真的变了才写版本快照 + 裁剪（非内容操作连快照都不写）
+      if (contentChanged) {
+        await trx
+          .insertInto('prompt_versions')
+          .values({
+            prompt_id: id,
+            version_no: next.version_no,
+            title: next.title,
+            user_prompt: next.user_prompt,
+            system_prompt: next.system_prompt,
+            notes: next.notes,
+            created_at: now,
+          })
+          .execute();
 
-      // FR-86：PUT 每次都产生新版本 ⇒ 每次都要裁剪到最近 10 个
-      await pruneVersions(trx as QueryEngine, id);
+        // FR-86：产生新版本之后统一裁剪到最近 10 个
+        await pruneVersions(trx as QueryEngine, id);
+      }
 
       if (patch.tags !== undefined) {
         await trx.deleteFrom('prompt_tags').where('prompt_id', '=', id).execute();
@@ -353,12 +385,14 @@ async function loadPromptsForIds(qe: QueryEngine, ids: number[]): Promise<Prompt
  * - `favorite`：把选中条目**设为已收藏**（已是收藏的保持；不做"切换"）；
  * - `move`：把选中条目的 `folder_id` 设为 `folder_id`（`null` = 未归类）；目标文件夹必须存在；
  * - `delete`：删除选中条目（版本历史/标签关联由外键级联清理，与单条删除一致）。
- * - `favorite` / `move` 复用**单条 PUT 的语义**（写目标列 + `version_no` 递增 + 留一条版本快照 + 更新 `updated_at`），
- *   保证"同一条 prompt 无论走单条还是批量，字段与版本号变化相同"；未选中的条目**一个字段都不动**。
+ * - `favorite` / `move` 只写**目标列**：`favorite` / `folder_id` 都是**非内容字段**（FR-129 ①）
+ *   ⇒ **不动 `version_no`、不写版本快照、不碰 `updated_at`**（与单条 `PUT` 的新语义一致 —— FR-129 ③）。
+ *   未选中的条目**一个字段都不动**。
  */
 export async function bulkPrompts(qe: QueryEngine, input: BulkPromptsInput): Promise<BulkPromptsResult> {
   const { action, ids } = input;
-  const rows = await loadPromptsForIds(qe, ids);
+  // 只做校验（非空 / 不重复 / 都存在）—— 非内容操作不再需要旧行内容
+  await loadPromptsForIds(qe, ids);
 
   if (action === 'delete') {
     await qe.transaction().execute(async (trx) => {
@@ -383,33 +417,11 @@ export async function bulkPrompts(qe: QueryEngine, input: BulkPromptsInput): Pro
     }
   }
 
-  const now = nowIso();
-  const byId = new Map(rows.map((row) => [row.id, row]));
   await qe.transaction().execute(async (trx) => {
     for (const id of ids) {
-      const row = byId.get(id);
-      if (row === undefined) continue;
-      const next = {
-        ...(action === 'favorite' ? { favorite: 1 } : { folder_id: input.folder_id ?? null }),
-        version_no: row.version_no + 1,
-        updated_at: now,
-      };
+      // FR-129：收藏 / 移动都是非内容操作 ⇒ 只改目标列，版本号 / updated_at / 版本快照一概不动。
+      const next = action === 'favorite' ? { favorite: 1 } : { folder_id: input.folder_id ?? null };
       await trx.updateTable('prompts').set(next).where('id', '=', id).execute();
-      await trx
-        .insertInto('prompt_versions')
-        .values({
-          prompt_id: id,
-          version_no: next.version_no,
-          title: row.title,
-          user_prompt: row.user_prompt,
-          system_prompt: row.system_prompt,
-          notes: row.notes,
-          created_at: now,
-        })
-        .execute();
-      // FR-86：批量收藏/移动**也**会产生新版本（与单条 PUT 同语义），所以同样是"产生新版本之后"的写入点，
-      // 必须一起裁剪 —— 否则"最多 10 个"这条数据层不变式会被批量操作打破（BRIEF 列了四处，这里是第五处）。
-      await pruneVersions(trx as QueryEngine, id);
     }
   });
 

@@ -86,7 +86,7 @@ test('AC-5②：PUT 改 notes → 200 且 version_no=2，其余字段不变；�
     });
     assert.equal(updated.statusCode, 200, updated.body);
     const body = updated.json() as Record<string, unknown>;
-    assert.equal(body.version_no, 2, 'PUT 必须产生新版本');
+    assert.equal(body.version_no, 2, 'FR-129：改 notes 是内容变更 ⇒ 必须产生新版本');
     assert.equal(body.notes, '改过的备注');
     assert.equal(body.title, SUBMITTED.title);
     assert.equal(body.user_prompt, SUBMITTED.user_prompt);
@@ -113,7 +113,7 @@ test('AC-5②：PUT 改 notes → 200 且 version_no=2，其余字段不变；�
   }
 });
 
-test('PUT 的语义：提供 tags 时整体替换；folder_id/favorite 可改；未提供字段不动', async () => {
+test('PUT 的语义：提供 tags 时整体替换；folder_id/favorite 可改；未提供字段不动；非内容变更不产生新版本（FR-129）', async () => {
   const fx = await makeFixture();
   try {
     const cookie = await authed(fx);
@@ -143,7 +143,9 @@ test('PUT 的语义：提供 tags 时整体替换；folder_id/favorite 可改；
     assert.equal(body.favorite, true);
     assert.equal(body.title, '原文', '未提供的字段保持不变');
     assert.equal(body.notes, '原备注');
-    assert.equal(body.version_no, 2);
+    // FR-129（阶段 62）：tags / folder_id / favorite 都是**非内容字段** ⇒ 版本号与 updated_at 都不动
+    assert.equal(body.version_no, 1, 'FR-129：非内容变更不得产生新版本');
+    assert.equal(body.updated_at, created.updated_at, 'FR-129：非内容变更不得改 updated_at');
   } finally {
     await fx.close();
   }

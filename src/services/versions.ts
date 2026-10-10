@@ -3,7 +3,7 @@ import type { QueryEngine } from '../db/index.js';
 import { pruneVersions, selectVersion, selectVersions, type PromptVersionRow } from '../db/prompt-versions.js';
 import { InvalidBodyError, NotFoundError } from '../errors.js';
 import { nowIso } from './auth.js';
-import { getPrompt, type PromptObject } from './prompts.js';
+import { getPrompt, hasContentChange, type PromptObject } from './prompts.js';
 
 /** 契约里的版本摘要（BRIEF §6.1：version_no / created_at / title）。 */
 export interface VersionSummary {
@@ -72,10 +72,14 @@ export async function diffVersions(
 }
 
 /**
- * 回滚到第 n 版（FR-7）：**恢复内容并生成新版本**。
+ * 回滚到第 n 版（FR-7 / **FR-129 ⑥**）：**恢复内容并生成新版本**。
  * FR-86 起每次产生新版本后统一裁剪到最近 10 个（见 `pruneVersions`），所以"历史"是**有上限**的：
  * 回滚到一个已被裁剪掉的版本 → `selectVersion` 拿不到 → **404**（既有语义不变）。
  * 只回滚内容四字段（title/user_prompt/system_prompt/notes）——版本快照里没有标签/文件夹/收藏。
+ *
+ * **FR-129（阶段 62）**：回滚也要按"值真的变了"判定 ——
+ * 恢复到与当前**完全相同**的内容（例如当前就是那一版）⇒ **不产生新版本**、`updated_at` 也不动；
+ * 恢复到**不同**内容 ⇒ 照旧 +1 并写新快照（D-60 ④ 判据对回滚同样适用）。
  */
 export async function rollbackToVersion(
   qe: QueryEngine,
@@ -89,35 +93,43 @@ export async function rollbackToVersion(
 
   const current = await qe
     .selectFrom('prompts')
-    .select('version_no')
+    .select(['version_no', 'updated_at', 'title', 'user_prompt', 'system_prompt', 'notes'])
     .where('id', '=', promptId)
     .executeTakeFirstOrThrow();
-  const nextVersionNo = current.version_no + 1;
+
+  const restored = {
+    title: snapshot.title,
+    user_prompt: snapshot.user_prompt,
+    system_prompt: snapshot.system_prompt,
+    notes: snapshot.notes,
+  };
+  // FR-129 ②：判据是"值真的变了"——回到与当前完全相同的内容不产生新版本
+  const contentChanged = hasContentChange(current, restored);
+  const nextVersionNo = contentChanged ? current.version_no + 1 : current.version_no;
   const now = nowIso();
 
   await qe.transaction().execute(async (trx) => {
     await trx
       .updateTable('prompts')
       .set({
-        title: snapshot.title,
-        user_prompt: snapshot.user_prompt,
-        system_prompt: snapshot.system_prompt,
-        notes: snapshot.notes,
+        ...restored,
         version_no: nextVersionNo,
-        updated_at: now,
+        updated_at: contentChanged ? now : current.updated_at,
       })
       .where('id', '=', promptId)
       .execute();
+
+    if (!contentChanged) return;
 
     await trx
       .insertInto('prompt_versions')
       .values({
         prompt_id: promptId,
         version_no: nextVersionNo,
-        title: snapshot.title,
-        user_prompt: snapshot.user_prompt,
-        system_prompt: snapshot.system_prompt,
-        notes: snapshot.notes,
+        title: restored.title,
+        user_prompt: restored.user_prompt,
+        system_prompt: restored.system_prompt,
+        notes: restored.notes,
         created_at: now,
       })
       .execute();

@@ -5,8 +5,9 @@
 //   400  → invalid_body（空 ids / 重复 id / 不存在的 id / 未知 action / move 缺 folder_id / 目标文件夹不存在）
 //   401  → 沿用现有认证闸门
 //
-// 落库口径（实现方选定，PROGRESS 记录理由）：**整批一个事务**；favorite/move 复用单条 PUT 的语义
-// （写目标列 + `version_no` 递增 + 留一条版本快照 + 更新 `updated_at`），delete 走单条删除的级联清理。
+// 落库口径（实现方选定，PROGRESS 记录理由）：**整批一个事务**；favorite/move 只写目标列 ——
+// `favorite` / `folder_id` 都是**非内容字段**（FR-129 ① / 阶段 62）⇒ **不动 `version_no`、不写版本快照、
+// 不碰 `updated_at`**；delete 走单条删除的级联清理。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
@@ -193,6 +194,7 @@ test('AC-78 ⑧：批量操作不改动未选中的条目（同源一致：单�
     const a = await newPrompt(fx, cookie, 'A');
     const b = await newPrompt(fx, cookie, 'B');
     const before = await getPrompt(fx, cookie, b);
+    const beforeA = await getPrompt(fx, cookie, a);
 
     const res = await bulk(fx, cookie, { action: 'favorite', ids: [a] });
     assert.equal(res.statusCode, 200, res.body);
@@ -202,10 +204,11 @@ test('AC-78 ⑧：批量操作不改动未选中的条目（同源一致：单�
     assert.equal(after.version_no, before.version_no, '未选中条目不得产生新版本');
     assert.equal(after.favorite, before.favorite);
 
-    // 选中条目：与单条 PUT 语义一致（版本递增 + updated_at 变化）
+    // 选中条目：FR-129（阶段 62）起，收藏是**非内容变更** ⇒ 版本号与 updated_at 同样不动
     const selected = await getPrompt(fx, cookie, a);
-    assert.equal(selected.favorite, true);
-    assert.ok(selected.version_no >= 2, '批量收藏与单条 PUT 一样留一条版本');
+    assert.equal(selected.favorite, true, '收藏必须真的生效');
+    assert.equal(selected.version_no, beforeA.version_no, 'FR-129：批量收藏不产生新版本');
+    assert.equal(selected.updated_at, beforeA.updated_at, 'FR-129：批量收藏不碰 updated_at');
   } finally {
     await fx.close();
   }
