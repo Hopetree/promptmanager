@@ -70,7 +70,7 @@ test('AC-105 ①：迁移到 v5；api_tokens 有 scope、usage_events 有 token_
     ).run('a'.repeat(64));
 
     const result = runMigrations(db);
-    assert.equal(result.version, 7, '迁移必须到当前版本（阶段 59 起是 v7；本用例只关心 005 的应用）');
+    assert.equal(result.version, 8, '迁移必须到当前版本（阶段 61 起是 v8；本用例只关心 005 的应用）');
     assert.ok(result.applied.includes('005_token-scope.sql'));
     const columns = (db.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>).map((r) => r.name);
     assert.ok(columns.includes('scope'), 'api_tokens 必须有 scope 列');

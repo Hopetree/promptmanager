@@ -49,6 +49,12 @@ export interface PromptsTable {
   notes: string;
   folder_id: number | null;
   favorite: number; // 0/1
+  /**
+   * FR-127 / D-59：是否记住这个提示词的变量值（1 = 记住，0 = 不记住）。列上有
+   * `NOT NULL DEFAULT 1`（迁移 008），故插入可省略 ⇒ 默认「记住」，存量行为一字不变。
+   * 注意：**变量值本身仍只存浏览器 localStorage**（`pm-vars:<id>`），本列只控制"要不要记"。
+   */
+  remember_variables: number; // 0/1
   version_no: number;
   /**
    * FR-70 / D-28：自定义排序位。列上有 `NOT NULL DEFAULT 0`（迁移 003），故插入可省略

@@ -74,6 +74,8 @@ const writableFields = {
     items: { type: 'string', minLength: 1, maxLength: 64 },
   },
   favorite: { type: 'boolean' },
+  /** FR-127 / D-59：是否记住这个提示词的变量值（默认 true）。 */
+  remember_variables: { type: 'boolean' },
 } as const;
 
 const createPromptSchema = {

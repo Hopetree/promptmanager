@@ -9,6 +9,8 @@ export interface Prompt {
   folder_id: number | null;
   tags: string[];
   favorite: boolean;
+  /** FR-127：这个提示词是否记住填过的变量值（默认 true）。开关存在服务端，变量值仍只存 localStorage。 */
+  remember_variables: boolean;
   created_at: string;
   updated_at: string;
   version_no: number;
@@ -32,6 +34,8 @@ export interface PromptWritable {
   folder_id?: number | null;
   tags?: string[];
   favorite?: boolean;
+  /** FR-127：省略 = 保持原值（PUT）/ 默认记住（POST）。 */
+  remember_variables?: boolean;
 }
 
 export interface Folder {

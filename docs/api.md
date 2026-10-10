@@ -71,7 +71,9 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 
 ### 3.1 prompt 增删改查
 
-字段：`title` / `user_prompt` / `system_prompt` / `notes` / `folder_id` / `tags` / `favorite`。
+字段：`title` / `user_prompt` / `system_prompt` / `notes` / `folder_id` / `tags` / `favorite` / `remember_variables`。
+
+`remember_variables`（布尔，默认 `true`）是**每个提示词各自的**「是否记住填过的变量值」开关：`true` 时浏览器会把填值弹窗里填过的值存进 `localStorage`（键 `pm-vars:<id>`）并在下次打开时预填；`false`（**不记住**）时弹窗不预填、点「复制结果」不写入、并把该提示词已存的那份记忆删掉。它只是提示词的属性，**随导出 / 导入 / 远程同步一起往返**；变量值本身**永远只存在浏览器里，不上传服务端**。`POST` 省略 = `true`；`PUT` 省略 = 保持原值。
 
 ```bash
 curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \

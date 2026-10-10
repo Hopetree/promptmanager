@@ -153,6 +153,25 @@ const STAGE59_ACCOUNTED_DELTA = 5_138;
  * 故按既有口径（基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
  */
 const STAGE60_ACCOUNTED_DELTA = 215;
+/**
+ * 阶段 61（FR-127 变量记忆可控 / FR-128 填值弹窗一键清空）的**已对账**增量：**实测** +420 B gzip。
+ * 依据（2026-10-10）：`git stash push -- web/src` 暂存掉本阶段的前端改动，在同一 `node_modules` 下
+ * `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,261 B**；`git stash pop` 恢复后重建
+ * = **427,681 B** ⇒ 差值 **420 B**。迭代中间态（同一口径实测）：427,654 B / +393 B（首版）→
+ * 427,674 B / +413 B（按 AC-123 ⑧ 修掉「不记住时输入框残留上次手打的字」：`VarsDialog.load()`
+ * 改为把**每个变量**都显式写一遍表单，而不是只 `setFieldsValue(initial)`）→ 427,681 B / +420 B
+ * （`Workspace.tsx` 的 `EMPTY_DRAFT` 补 `remember_variables: true`，让「新建」草稿与服务端默认一致，
+ * 否则 `typecheck:web` 报 TS2741）。
+ * 构成：`web/src/pure.ts` 的记忆读写助手（`VARS_STORAGE_PREFIX` / `readRememberedVars` /
+ * `writeRememberedVars` / `removeRememberedVars` / `varsDialogTitle` / `missingVariables` / `hasAnyFilled`）、
+ * `VarsDialog` 的勾选框、「清空」按钮与逐变量写表单、`PromptEditor` 的「记住变量值」开关、`Workspace` 的
+ * `setRememberVariables` 接线、`web/src/types.ts` 的新字段（全部打进主包）。
+ * **无新增依赖、无新增 chunk**（仍 10 个）；未压缩的最大 chunk 仍是 vendor-antd
+ * （470,946 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。
+ * 这笔体积是 FR-127/FR-128 这两个**用户要求的新功能**的代价，故按既有口径
+ * （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
+ */
+const STAGE61_ACCOUNTED_DELTA = 420;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -211,7 +230,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 / 60 + 2026-09-30 依赖补丁）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 / 60 / 61 + 2026-09-30 依赖补丁）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -230,6 +249,7 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE57_ACCOUNTED_DELTA +
     STAGE59_ACCOUNTED_DELTA +
     STAGE60_ACCOUNTED_DELTA +
+    STAGE61_ACCOUNTED_DELTA +
     DEPS_2026_09_30_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });

@@ -113,6 +113,7 @@ test('导出：结构符合 §6.4（字段名、确定性排序、布尔 favorit
         'folder_id',
         'id',
         'notes',
+        'remember_variables',
         'system_prompt',
         'tags',
         'title',

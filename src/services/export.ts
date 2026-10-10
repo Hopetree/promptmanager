@@ -35,6 +35,8 @@ export interface ExportPrompt {
   folder_id: number | null;
   tags: string[];
   favorite: boolean;
+  /** FR-127 / D-59 ①：随导出 / 导入往返（导出必写，导入缺省 = 记住）。 */
+  remember_variables: boolean;
   created_at: string;
   updated_at: string;
   versions: ExportVersion[];
@@ -112,6 +114,7 @@ export async function buildExport(qe: QueryEngine): Promise<ExportFile> {
       folder_id: row.folder_id,
       tags: tagsByPrompt.get(row.id) ?? [],
       favorite: row.favorite === 1,
+      remember_variables: row.remember_variables === 1,
       created_at: row.created_at,
       updated_at: row.updated_at,
       versions: versionsByPrompt.get(row.id) ?? [],

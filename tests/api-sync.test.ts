@@ -781,3 +781,61 @@ test('AC-121 F⑪：运行时 —— 不点同步按钮则零出网（普通操�
     await stub.close();
   }
 });
+
+test('AC-123 ⑤：remember_variables 随远程同步走 —— 上传「不记住」→ 清库 → 从云端恢复，值一致', async () => {
+  const stub = await startStub();
+  const fx = await makeStubFixture(stub);
+  try {
+    const cookie = await authed(fx);
+    assert.equal((await putConfig(fx, cookie)).statusCode, 200);
+
+    const created = (
+      await fx.app.inject({
+        method: 'POST',
+        url: '/api/prompts',
+        headers: { cookie },
+        payload: { title: '同步开关夹具', user_prompt: '{{a}}', remember_variables: false },
+      })
+    ).json() as { id: number; remember_variables: boolean };
+    assert.equal(created.remember_variables, false, '夹具前提：这条是「不记住」');
+
+    assert.equal(
+      (await fx.app.inject({ method: 'POST', url: '/api/sync/push', headers: { cookie }, payload: {} })).statusCode,
+      200,
+    );
+    // 桩侧看到的快照里必须带该字段（否则字段根本没上传）
+    const onCloud = JSON.parse(stub.files.get(CLOUD_PATH)!.content.toString('utf8')) as {
+      prompts: { title: string; remember_variables?: boolean }[];
+    };
+    const cloudPrompt = onCloud.prompts.find((p) => p.title === '同步开关夹具');
+    assert.ok(cloudPrompt !== undefined, '云端应有这条 prompt');
+    assert.equal(cloudPrompt.remember_variables, false, '云端快照里该字段必须是 false');
+
+    // 清库（复用既有导入接口的 replace，空数据）
+    const wipe = await fx.app.inject({
+      method: 'POST',
+      url: '/api/import',
+      headers: { cookie },
+      payload: { mode: 'replace', data: { app: 'promptmanager', schema_version: 1, folders: [], tags: [], prompts: [] } },
+    });
+    assert.equal(wipe.statusCode, 200, wipe.body);
+
+    const pulled = await fx.app.inject({
+      method: 'POST',
+      url: '/api/sync/pull',
+      headers: { cookie },
+      payload: { mode: 'merge' },
+    });
+    assert.equal(pulled.statusCode, 200, pulled.body);
+
+    const list = (await fx.app.inject({ method: 'GET', url: '/api/prompts', headers: { cookie } })).json() as {
+      items: { id: number; title: string; remember_variables: boolean }[];
+    };
+    const restored = list.items.find((p) => p.title === '同步开关夹具');
+    assert.ok(restored !== undefined, 'pull 应把这条恢复回来');
+    assert.equal(restored.remember_variables, false, 'AC-123 ⑤：恢复后仍是「不记住」');
+  } finally {
+    await fx.close();
+    await stub.close();
+  }
+});

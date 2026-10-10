@@ -41,6 +41,8 @@ const EMPTY_DRAFT: Prompt = {
   folder_id: null,
   tags: [],
   favorite: false,
+  // 新草稿默认「记住变量值」= 服务端默认（FR-127；`POST` 省略该字段时也是 true）
+  remember_variables: true,
   created_at: '',
   updated_at: '',
   version_no: 0,
@@ -413,6 +415,41 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       }
     },
     [message, notify],
+  );
+
+  /**
+   * FR-127 / D-59 ④：填值弹窗里的勾选框改了「是否记住变量值」⇒ 写服务端同一字段，
+   * 并同步所有本地视图（手法与 `toggleFavorite` 一致），这样换浏览器 / 换设备一致、
+   * 且下次从列表重新打开弹窗时用的是新值（AC-123 ⑧⑪）。
+   */
+  const setRememberVariables = useCallback(
+    async (prompt: Prompt, remember: boolean): Promise<void> => {
+      try {
+        const updated = await api.updatePrompt(prompt.id, { remember_variables: remember });
+        setData((prev) =>
+          prev === null
+            ? prev
+            : {
+                ...prev,
+                items: prev.items.map((item) =>
+                  item.id === updated.id ? { ...item, remember_variables: updated.remember_variables } : item,
+                ),
+              },
+        );
+        setSelected((prev) =>
+          prev !== null && prev.id === updated.id ? { ...prev, remember_variables: updated.remember_variables } : prev,
+        );
+        setDetail((prev) =>
+          prev !== null && prev.id === updated.id ? { ...prev, remember_variables: updated.remember_variables } : prev,
+        );
+        setEditing((prev) =>
+          prev !== null && prev.id === updated.id ? { ...prev, remember_variables: updated.remember_variables } : prev,
+        );
+      } catch (error) {
+        notify(error);
+      }
+    },
+    [notify],
   );
 
   /**
@@ -907,6 +944,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             busy={copier.busyId !== null}
             onCancel={copier.closeVars}
             onConfirm={(prompt, values) => void copier.copyRendered(prompt, values)}
+            onRememberChange={(prompt, remember) => void setRememberVariables(prompt, remember)}
           />
         </Suspense>
       )}

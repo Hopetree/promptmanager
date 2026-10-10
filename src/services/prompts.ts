@@ -17,6 +17,8 @@ export interface PromptObject {
   folder_id: number | null;
   tags: string[];
   favorite: boolean;
+  /** FR-127：这个提示词是否记住填过的变量值（默认 true = 记住）。 */
+  remember_variables: boolean;
   created_at: string;
   updated_at: string;
   version_no: number;
@@ -34,6 +36,7 @@ export interface CreatePromptInput {
   folder_id?: number | null;
   tags?: string[];
   favorite?: boolean;
+  remember_variables?: boolean;
 }
 
 export interface UpdatePromptInput {
@@ -44,6 +47,7 @@ export interface UpdatePromptInput {
   folder_id?: number | null;
   tags?: string[];
   favorite?: boolean;
+  remember_variables?: boolean;
 }
 
 export interface ListPromptsParams {
@@ -76,6 +80,7 @@ function toPromptObject(row: PromptRow, tags: string[], usage: UsageStats): Prom
     folder_id: row.folder_id,
     tags,
     favorite: row.favorite === 1,
+    remember_variables: row.remember_variables === 1,
     created_at: row.created_at,
     updated_at: row.updated_at,
     version_no: row.version_no,
@@ -136,6 +141,8 @@ export async function createPrompt(qe: QueryEngine, input: CreatePromptInput): P
     notes: input.notes ?? '',
     folder_id: input.folder_id ?? null,
     favorite: input.favorite === true ? 1 : 0,
+    // FR-127 / D-59 ②：默认「记住」——只有显式传 false 才关掉。
+    remember_variables: input.remember_variables === false ? 0 : 1,
     version_no: 1,
     created_at: now,
     updated_at: now,
@@ -243,6 +250,8 @@ export async function updatePrompt(
     notes: patch.notes ?? existing.notes,
     folder_id: patch.folder_id === undefined ? existing.folder_id : patch.folder_id,
     favorite: patch.favorite === undefined ? existing.favorite : patch.favorite ? 1 : 0,
+    remember_variables:
+      patch.remember_variables === undefined ? existing.remember_variables : patch.remember_variables ? 1 : 0,
     version_no: existing.version_no + 1,
     updated_at: now,
   };

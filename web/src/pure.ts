@@ -331,6 +331,96 @@ export function filledValues(variables: string[], raw: Record<string, unknown>):
   return out;
 }
 
+// ─────────────────── FR-127 / FR-128：变量记忆（localStorage，键 pm-vars:<id>） ───────────────────
+
+/**
+ * 记忆的**存储介质不变**（D-59 ⑦）：变量值仍只存在浏览器 `localStorage`，键 `pm-vars:<id>`；
+ * 本次只加"要不要记"的控制（开关在服务端，见 FR-127）。把这几个函数从组件里提出来，
+ * 是为了让「写入 / 读取 / 删除」能在 node:test 里用内存版存储机械验证，且全站只有一份实现。
+ */
+export const VARS_STORAGE_PREFIX = 'pm-vars:';
+
+/** 只用到这三个方法（浏览器 `Storage` 天然满足；测试传内存版）。 */
+export interface StorageLike {
+  getItem: (key: string) => string | null;
+  setItem: (key: string, value: string) => void;
+  removeItem: (key: string) => void;
+}
+
+export function varsStorageKey(promptId: number): string {
+  return `${VARS_STORAGE_PREFIX}${String(promptId)}`;
+}
+
+/** 取存储：显式传入（测试的内存版）→ 否则浏览器 localStorage；都没有 ⇒ null（静默降级）。 */
+function resolveStorage(storage?: StorageLike): StorageLike | null {
+  if (storage !== undefined) return storage;
+  if (typeof window === 'undefined') return null;
+  return window.localStorage;
+}
+
+export function readRememberedVars(promptId: number, storage?: StorageLike): Record<string, string> {
+  const store = resolveStorage(storage);
+  if (store === null) return {};
+  try {
+    const raw = store.getItem(varsStorageKey(promptId));
+    if (raw === null) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return {};
+    const out: Record<string, string> = {};
+    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value === 'string') out[key] = value;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function writeRememberedVars(promptId: number, values: Record<string, string>, storage?: StorageLike): void {
+  const store = resolveStorage(storage);
+  if (store === null) return;
+  try {
+    store.setItem(varsStorageKey(promptId), JSON.stringify(values));
+  } catch {
+    /* 隐私模式等场景写不进就算了，不影响复制 */
+  }
+}
+
+/** FR-127 / D-59 ⑤：取消勾选（或点「清空」）⇒ 把该提示词已存的记忆**删掉**，避免旧值"诈尸"。 */
+export function removeRememberedVars(promptId: number, storage?: StorageLike): void {
+  const store = resolveStorage(storage);
+  if (store === null) return;
+  try {
+    store.removeItem(varsStorageKey(promptId));
+  } catch {
+    /* 同上：删不掉也不影响复制 */
+  }
+}
+
+/** FR-127：弹窗标题 —— 记住时沿用原文案；**不记住时不含「（自动记忆）」**。 */
+export function varsDialogTitle(remember: boolean): string {
+  return remember ? '请填写变量值（自动记忆）' : '请填写变量值';
+}
+
+/**
+ * 「未填」名单（FR-41e / FR-126 / FR-128 ⑯）：**不在** `values` 里 **且** 没有默认值的变量。
+ * `values` 由 `filledValues` 产出（已剔除空串）⇒ "不在里面" == 未填；有默认值的不算未填。
+ */
+export function missingVariables(
+  variables: string[],
+  values: Record<string, string>,
+  defaults: Record<string, string>,
+): string[] {
+  // 空串与"键不存在"一样算未填：界面上输入框为空 == 没填（服务端只收到 `filledValues` 剔空后的
+  // 值，因此这里把空串也当未填，与服务端 `/render` 的 `missing` 口径一致）。
+  return variables.filter((name) => (values[name] ?? '') === '' && defaults[name] === undefined);
+}
+
+/** FR-128 ⑰：有没有**非空**的已填值（全空 ⇒ 「清空」按钮置灰）。 */
+export function hasAnyFilled(values: Record<string, string>): boolean {
+  return Object.values(values).some((value) => value !== '');
+}
+
 /**
  * 列表展示顺序（FR-41b / FR-46）：可选「收藏置顶」（客户端，当前页内）+ 「标题」排序
  * （当前页内；接口支持 updated / recent_used / custom）。`custom`（FR-70）**保持服务端顺序**

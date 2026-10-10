@@ -43,8 +43,17 @@ test('列表页：接 /api/prompts 的 q/folder_id/tag/favorite/sort 与分页',
   assertSomewhere(/Pagination|pagination/, 'antd 分页');
 });
 
-test('编辑器：标题/用户提示词/系统提示词/备注/文件夹/标签/收藏 七个可写字段齐全', () => {
-  for (const key of ['title', 'user_prompt', 'system_prompt', 'notes', 'folder_id', 'tags', 'favorite']) {
+test('编辑器：标题/用户提示词/系统提示词/备注/文件夹/标签/收藏/记住变量值 八个可写字段齐全', () => {
+  for (const key of [
+    'title',
+    'user_prompt',
+    'system_prompt',
+    'notes',
+    'folder_id',
+    'tags',
+    'favorite',
+    'remember_variables',
+  ]) {
     assert.ok(blob.includes(key), `编辑器缺少字段 ${key}`);
   }
   assertSomewhere(/Input\.TextArea/, 'antd Input.TextArea');

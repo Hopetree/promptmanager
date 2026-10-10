@@ -26,6 +26,8 @@ interface NormalizedPrompt {
   folder_id: number | null;
   tags: string[];
   favorite: boolean;
+  /** FR-127：缺省 = 记住（老导出文件里没有这一项，必须按既有行为处理）。 */
+  remember_variables: boolean;
   created_at: string;
   updated_at: string;
   versions: Array<{
@@ -157,6 +159,13 @@ function parseExportFile(raw: unknown): NormalizedFile {
     const favorite = prompt.favorite === undefined ? false : prompt.favorite;
     if (typeof favorite !== 'boolean') fail([{ path: 'data.prompts[].favorite', message: '必须是布尔值' }]);
 
+    // FR-127 / D-59 ②：**缺省 = 记住**（与 favorite 的缺省 false 相反）——
+    // 老导出文件（阶段 61 之前）没有这一项，导入后必须与"既有行为一字不变"一致。
+    const rememberVariables = prompt.remember_variables === undefined ? true : prompt.remember_variables;
+    if (typeof rememberVariables !== 'boolean') {
+      fail([{ path: 'data.prompts[].remember_variables', message: '必须是布尔值' }]);
+    }
+
     const now = nowIso();
     const versions = asArray(prompt.versions, 'data.prompts[].versions').map((entry) => {
       const version = asObject(entry, 'data.prompts[].versions[]');
@@ -191,6 +200,7 @@ function parseExportFile(raw: unknown): NormalizedFile {
       folder_id: folderId,
       tags: promptTags,
       favorite,
+      remember_variables: rememberVariables,
       created_at: asString(prompt.created_at, 'data.prompts[].created_at', now),
       updated_at: asString(prompt.updated_at, 'data.prompts[].updated_at', now),
       versions,
@@ -290,6 +300,7 @@ async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<Imp
           notes: prompt.notes,
           folder_id: prompt.folder_id,
           favorite: prompt.favorite ? 1 : 0,
+          remember_variables: prompt.remember_variables ? 1 : 0,
           version_no: maxVersionNo(prompt),
           created_at: prompt.created_at,
           updated_at: prompt.updated_at,
@@ -399,6 +410,7 @@ async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<Impor
           notes: prompt.notes,
           folder_id: prompt.folder_id === null ? null : folderIdMap.get(prompt.folder_id) ?? null,
           favorite: prompt.favorite ? 1 : 0,
+          remember_variables: prompt.remember_variables ? 1 : 0,
           version_no: maxVersionNo(prompt),
           created_at: prompt.created_at,
           updated_at: prompt.updated_at,

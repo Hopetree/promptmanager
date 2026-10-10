@@ -269,6 +269,7 @@ test('AC-122 ⑱：零迁移 —— migrations/ 不新增文件、schema 版本�
       '005_token-scope.sql',
       '006_usage-kind.sql',
       '007_sync-config.sql',
+      '008_remember-variables.sql',
     ],
     '阶段 60 零迁移：不得新增迁移文件（后续阶段若新增，同步更新本清单）',
   );
@@ -328,12 +329,12 @@ test('AC-122 ⑳：填值对话框与变量面板把默认值作为占位提示�
     assert.match(text, /placeholder=\{[^}]*defaults/, `${name} 的输入框占位提示要显示默认值`);
   }
 
-  // 「还有 N 个没填」只统计无默认值的变量（VarsDialog 的 missing 计算）
-  assert.match(
-    dialog,
-    /filter\(\(name\) => values\[name\] === undefined && defaults\[name\] === undefined\)/,
-    'VarsDialog 的 missing 必须排除有默认值的变量',
-  );
+  // 「还有 N 个没填」只统计无默认值的变量。阶段 61（FR-128）把这段口径从 VarsDialog 内联
+  // 提成 `missingVariables`（`web/src/pure.ts`），VarsDialog 改为调用它 —— 语义必须不变：
+  // `values[name]` 为空 **且** 没有默认值才算未填。
+  assert.match(dialog, /missingVariables\(/, 'VarsDialog 的 missing 必须走 missingVariables（排除有默认值的变量）');
+  const pure = src('web/src/pure.ts');
+  assert.match(pure, /defaults\[name\] === undefined/, 'missingVariables 必须排除有默认值的变量');
 
   // 前端 api 客户端把 defaults 收进类型（形状不变 + 新增字段）
   const api = src('web/src/api.ts');

@@ -69,6 +69,8 @@ interface EditorForm {
   folder_id: number | null;
   tags: string[];
   favorite: boolean;
+  /** FR-127：是否记住这个提示词的变量值（开关存服务端；变量值本身仍只存 localStorage）。 */
+  remember_variables: boolean;
 }
 
 /**
@@ -121,6 +123,7 @@ export default function PromptEditor({
         folder_id: source.folder_id,
         tags: source.tags,
         favorite: source.favorite,
+        remember_variables: source.remember_variables,
       });
     },
     [form],
@@ -163,6 +166,8 @@ export default function PromptEditor({
       folder_id: values.folder_id ?? null,
       tags: values.tags ?? [],
       favorite: values.favorite ?? false,
+      // FR-127：省略 = 保持原值（PUT）；表单里始终有值，缺省按"记住"处理（与 POST 的默认一致）。
+      remember_variables: values.remember_variables ?? true,
     };
     setSubmitting(true);
     try {
@@ -277,9 +282,20 @@ export default function PromptEditor({
             />
           </Form.Item>
         </Flex>
-        <Form.Item name="favorite" label="收藏（置顶到列表）" valuePropName="checked" style={{ marginBottom: 0 }}>
-          <Switch checkedChildren="已收藏" unCheckedChildren="未收藏" />
-        </Form.Item>
+        <Flex gap={24} wrap style={{ marginBottom: 0 }}>
+          <Form.Item name="favorite" label="收藏（置顶到列表）" valuePropName="checked" style={{ marginBottom: 0 }}>
+            <Switch checkedChildren="已收藏" unCheckedChildren="未收藏" />
+          </Form.Item>
+          {/* FR-127 / D-59 ④：开关的**第二处入口**（第一处在填值弹窗），读写同一个服务端字段。 */}
+          <Form.Item
+            name="remember_variables"
+            label="记住变量值（下次自动填充）"
+            valuePropName="checked"
+            style={{ marginBottom: 0 }}
+          >
+            <Switch data-testid="editor-remember-variables" checkedChildren="记住" unCheckedChildren="不记住" />
+          </Form.Item>
+        </Flex>
       </Form>
     </Card>
   );

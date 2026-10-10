@@ -242,6 +242,7 @@ test('AC-27 ⑥：usage 不参与导入导出（ExportFile 结构不变、往返
         'folder_id',
         'id',
         'notes',
+        'remember_variables',
         'system_prompt',
         'tags',
         'title',
