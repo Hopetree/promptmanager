@@ -174,6 +174,25 @@ const STAGE60_ACCOUNTED_DELTA = 215;
  * （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
  */
 const STAGE61_ACCOUNTED_DELTA = 452;
+/**
+ * 阶段 62（FR-129 版本号只记「内容变更」）的**已对账**增量：**实测** +132 B gzip。
+ * 依据（2026-10-10，返工 ①）：`git stash push -- web/src` 暂存掉返工的前端改动，在同一 `node_modules` 下
+ * `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,713 B**（= 阶段 61 的落点）；
+ * `git stash pop` 恢复后重建 = **427,845 B** ⇒ 差值 **132 B**。
+ * 构成：`web/src/pure.ts` 新增纯函数 `rollbackNotice(target, before, after)` 与 `RollbackNotice`
+ * 类型、`web/src/components/VersionPanel.tsx` 的 `rollback()` 改为接住 `api.rollback` 的返回值并
+ * 按 `updated.version_no` 分支（`message.info` / `message.success`）、两处 Popconfirm 描述改为
+ * 「内容与当前不同时会生成一个新版本」、表格视图 Alert 改为「回滚到不同内容时会生成新版本」
+ * （全部打进主包）。
+ * ⚠️ 阶段 62 的**主改动在服务端**（`src/services/prompts.ts` / `versions.ts`），不进前端 bundle；
+ * 这 132 B 只来自返工 ① 的文案修复 —— 起因是独立对抗性复核发现：回滚到「内容与当前相同」的版本时
+ * 服务端不产生新版本（AC-124 ⑭），而旧文案仍无条件宣称「已生成新版本」/「回滚会生成新版本」。
+ * **无新增依赖、无新增 chunk**（仍 10 个）；未压缩的最大 chunk 仍是 vendor-antd
+ * （470,946 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。
+ * 这笔体积是「让提示与真实行为一致」的必要代价，故按既有口径
+ * （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
+ */
+const STAGE62_ACCOUNTED_DELTA = 132;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -252,6 +271,7 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE59_ACCOUNTED_DELTA +
     STAGE60_ACCOUNTED_DELTA +
     STAGE61_ACCOUNTED_DELTA +
+    STAGE62_ACCOUNTED_DELTA +
     DEPS_2026_09_30_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });

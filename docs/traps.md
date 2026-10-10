@@ -281,7 +281,13 @@ BRIEF，所以只记录、不修：
   **`prompt_versions` 装得下、且回滚能恢复**：`title` / `user_prompt` / `system_prompt` / `notes` 在
   快照表里 ✅、回滚会写回 ✅；`folder_id` / `favorite` / `sort_order` / `remember_variables` / 标签
   不在快照里 ❌ ⇒ 一律不算。往快照表加列 = 改数据模型契约，要连带改 BRIEF、回滚、导入导出。
-- **实现落点**（三处，缺一处就漏）：`src/services/prompts.ts` 的 `updatePrompt`（单条 `PUT`）、
-  `bulkPrompts`（批量收藏 / 移动）、`src/services/versions.ts` 的 `rollbackToVersion`（回滚）。
-  `reorderPrompts`（拖拽排序）本来就只写 `sort_order`，是"早就对了"的那一处，保持不动。
-  判定逻辑提成了 `hasContentChange` / `CONTENT_FIELDS`（`src/services/prompts.ts`），三处共用。
+- **实现落点**（**两个**判据调用点 + 一处"恒不产生版本"）：`src/services/prompts.ts` 的 `updatePrompt`
+  （单条 `PUT`）与 `src/services/versions.ts` 的 `rollbackToVersion`（回滚）**共用**同一个判据
+  `hasContentChange` / `CONTENT_FIELDS`（定义在 `src/services/prompts.ts`）。
+  `bulkPrompts`（批量收藏 / 移动）**不调用判据** —— 它压根不写 `version_no` / `updated_at` / 版本快照，
+  **恒不产生版本**；`reorderPrompts`（拖拽排序）本来就只写 `sort_order`，是"早就对了"的那一处，保持不动。
+  ⚠️ 将来若给 `bulkPrompts` 加"能写内容字段"的批量动作，必须**补上判据调用**，别以为它已经过了判据。
+- ⚠️ **回滚的提示文案必须按返回值分支**：回滚到与当前内容相同的那一版时**不产生新版本**，此时若还提示
+  "已生成新版本"（旧文案），用户会以为回滚失败或以为多了一版而反复操作。落点是 `web/src/pure.ts` 的
+  `rollbackNotice(targetVersionNo, beforeVersionNo, afterVersionNo)`，由
+  `web/src/components/VersionPanel.tsx` 的 `rollback()` 按 `updated.version_no` 调用。

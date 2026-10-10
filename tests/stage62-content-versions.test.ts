@@ -641,3 +641,101 @@ test('AC-124 ㉑：docs/versioning.md 与 CHANGELOG 记明这是行为契约变�
   assert.match(changelog, /MINOR/, 'CHANGELOG 必须标为 MINOR（行为契约变更）');
   assert.match(changelog, /版本号|version_no/, 'CHANGELOG 必须点名版本号语义的变化');
 });
+
+// ---------------------------------------------------------------------------
+// 返工 ①（2026-10-10，独立对抗性复核 finding 1）
+//
+// 复核结论：回滚到「内容与当前相同」的版本时服务端**不产生新版本**（AC-124 ⑭），但
+// `VersionPanel` 的确认弹窗与成功提示**无条件**宣称"会生成一个新版本 / 已生成新版本"
+// ⇒ 用户看到提示变了却什么都没变，会以为回滚失败或以为多了一版而反复操作。
+//
+// 修法：文案提成纯函数 `rollbackNotice(target, before, after)`，由组件按服务端返回的
+// `version_no` 分支调用。**纯函数是为了能被这里机械验证** —— 组件里的 `message.xxx(...)`
+// 没法直接断言，只断言源码字符串是"假绿"（阶段 61 复核 finding 2 的教训）。
+// ---------------------------------------------------------------------------
+
+test('返工① a：rollbackNotice 只在 version_no 真的前进时才说「已生成新版本」', async () => {
+  const { rollbackNotice } = await import('../web/src/pure.ts');
+
+  // 内容没变 ⇒ 服务端不产生新版本（before === after）⇒ 必须是 info 且**不许**出现"已生成新版本"
+  const same = rollbackNotice(1, 1, 1);
+  assert.equal(same.kind, 'info', '内容与当前相同时必须用 message.info，不能用 success');
+  assert.equal(same.text, '已回滚到 v1（内容与当前相同，未生成新版本）');
+  assert.doesNotMatch(same.text, /已生成新版本/, '不许再宣称"已生成新版本"');
+  assert.match(same.text, /未生成新版本/);
+
+  // 一般形态：点的是旧版本、当前是 v6 ⇒ 回滚后变 v7（内容不同）
+  const changed = rollbackNotice(3, 6, 7);
+  assert.equal(changed.kind, 'success');
+  assert.equal(changed.text, '已回滚到 v3（已生成新版本）');
+
+  // 边界：只有一版时点回滚（target === before === after）
+  assert.equal(rollbackNotice(1, 1, 1).kind, 'info');
+
+  // 反向断言：after 只要和 before 不同就必须是 success（哪怕只是 +1）
+  assert.equal(rollbackNotice(2, 4, 5).kind, 'success');
+});
+
+test('返工① b：VersionPanel 按服务端返回值分支，弹窗不再无条件宣称会生成新版本', () => {
+  const src = readFileSync(path.join(PROJECT_ROOT, 'web/src/components/VersionPanel.tsx'), 'utf8');
+  assert.match(src, /rollbackNotice\(/, 'VersionPanel 必须调用 rollbackNotice 而不是写死文案');
+  assert.match(src, /const updated = await api\.rollback\(/, '必须接住回滚接口的返回值');
+  assert.match(src, /updated\.version_no/, '必须用服务端返回的 version_no 做分支');
+  assert.doesNotMatch(
+    src,
+    /description="会生成一个新版本/,
+    '弹窗描述不许再无条件宣称"会生成一个新版本"',
+  );
+  assert.match(src, /内容与当前不同时会生成一个新版本/, '弹窗描述必须写明"内容不同时"才生成新版本');
+  assert.equal(
+    src.match(/内容与当前不同时会生成一个新版本/g)?.length,
+    2,
+    '表格行与详情页两个回滚入口都要改到',
+  );
+  // 同类残留：表格视图顶部那条 Alert 原来写「回滚会生成新版本」（没有"不同内容"限定），
+  // 与 FR-129 的真实行为不符 —— 用户看到的每一处回滚说明都必须带上"内容不同"这个条件。
+  assert.doesNotMatch(
+    src,
+    /回滚会生成新版本/,
+    '表格视图的 Alert 也不许再无条件宣称"回滚会生成新版本"',
+  );
+  assert.match(
+    src,
+    /回滚到不同内容时会生成新版本/,
+    'Alert 必须写成"回滚到不同内容时会生成新版本"',
+  );
+});
+
+test('返工① c：接口层实证 —— 回滚到与当前相同的版本不产生新版本，回滚到不同内容才 +1', async () => {
+  const fx = await makeFixture();
+  try {
+    const cookie = await authed(fx);
+    const id = await createPrompt(fx, cookie);
+    await put(fx, cookie, id, { user_prompt: '正文 v2' });
+    assert.equal((await get(fx, cookie, id)).version_no, 2);
+
+    // 回滚到 v2（内容与当前完全相同）⇒ 200、版本号不动、版本行不增
+    const same = await fx.app.inject({
+      method: 'POST',
+      url: `/api/prompts/${String(id)}/versions/2/rollback`,
+      headers: { cookie },
+    });
+    assert.equal(same.statusCode, 200, same.body);
+    assert.equal((same.json() as { version_no: number }).version_no, 2, '内容相同 ⇒ 不产生新版本');
+    assert.equal(versionRows(fx, id).length, 2, '版本行数也不许增加');
+
+    // 回滚到 v1（内容不同）⇒ +1，且提示该说"已生成新版本"
+    const changed = await fx.app.inject({
+      method: 'POST',
+      url: `/api/prompts/${String(id)}/versions/1/rollback`,
+      headers: { cookie },
+    });
+    assert.equal(changed.statusCode, 200, changed.body);
+    const after = (changed.json() as { version_no: number }).version_no;
+    assert.equal(after, 3);
+    const { rollbackNotice } = await import('../web/src/pure.ts');
+    assert.equal(rollbackNotice(1, 2, after).kind, 'success');
+  } finally {
+    await fx.close();
+  }
+});

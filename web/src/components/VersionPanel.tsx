@@ -18,7 +18,7 @@ import {
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, ApiError, describeError } from '../api';
-import { formatDateTime } from '../pure';
+import { formatDateTime, rollbackNotice } from '../pure';
 import type { VersionSummary } from '../types';
 import DiffView from './DiffView';
 import { EmptyState, LoadingState } from './States';
@@ -28,7 +28,7 @@ interface VersionPanelProps {
   promptId: number | null;
   /** 变化即重新拉版本列表（保存 / 回滚之后由编辑器 +1） */
   refreshKey: number;
-  /** 回滚会生成新版本 → 通知外层刷新列表与编辑器内容 */
+  /** 回滚到「内容与当前不同」的版本才会生成新版本 → 通知外层刷新列表与编辑器内容 */
   onRollbackDone: () => void;
   onUnauthorized: () => void;
 }
@@ -57,7 +57,7 @@ function writeNote(promptId: number, versionNo: number, value: string): void {
 
 /**
  * 版本历史（FR-7 + FR-41e 第 6 条）：**表格 / 对比版本 / 详情** 三个视图 + 可选**变更备注**。
- * 保留原有能力：版本列表、两版本 unified diff、回滚（生成新版本；FR-86 起最多保留最近 10 个版本）。
+ * 保留原有能力：版本列表、两版本 unified diff、回滚（内容不同时生成新版本；FR-86 起最多保留最近 10 个版本）。
  * 视图切换用 antd `Segmented`（不是 `Tabs`——AC-31 ⑥ 要求编辑器面 `.ant-tabs-tab` = 0）。
  */
 export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onUnauthorized }: VersionPanelProps) {
@@ -144,8 +144,16 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
   const rollback = async (versionNo: number): Promise<void> => {
     if (promptId === null) return;
     try {
-      await api.rollback(promptId, versionNo);
-      message.success(`已回滚到 v${String(versionNo)}（已生成新版本）`);
+      /**
+       * FR-129：回滚**不一定**产生新版本（回滚到与当前内容完全相同的那一版 ⇒ 不产生）。
+       * 所以提示必须按**服务端返回的** `version_no` 分支 —— 见 `pure.ts` 的 `rollbackNotice`。
+       * `versions` 按 `version_no` 升序返回（见本文件上方注释），最后一版就是回滚前的当前版本。
+       */
+      const before = versions[versions.length - 1]?.version_no ?? refreshKey;
+      const updated = await api.rollback(promptId, versionNo);
+      const notice = rollbackNotice(versionNo, before, updated.version_no);
+      if (notice.kind === 'info') message.info(notice.text);
+      else message.success(notice.text);
       onRollbackDone();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -226,7 +234,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
           </Button>
           <Popconfirm
             title={`回滚到 v${String(version.version_no)}？`}
-            description="会生成一个新版本；最多保留最近 10 个版本。"
+            description="内容与当前不同时会生成一个新版本；最多保留最近 10 个版本。"
             onConfirm={() => void rollback(version.version_no)}
           >
             <Button
@@ -334,7 +342,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
             {detailNo !== null && (
               <Popconfirm
                 title={`回滚到 v${String(detailNo)}？`}
-                description="会生成一个新版本；最多保留最近 10 个版本。"
+                description="内容与当前不同时会生成一个新版本；最多保留最近 10 个版本。"
                 onConfirm={() => void rollback(detailNo)}
               >
                 <Button size="small" danger icon={<HistoryOutlined />}>
@@ -410,7 +418,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
           <Alert
             type="info"
             showIcon
-            message="每次保存自动留档；回滚会生成新版本。最多保留最近 10 个版本，更早的会自动清理。"
+            message="每次保存自动留档；回滚到不同内容时会生成新版本。最多保留最近 10 个版本，更早的会自动清理。"
           />
           <Table<VersionSummary>
             rowKey="version_no"

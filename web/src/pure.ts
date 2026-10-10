@@ -528,3 +528,37 @@ export function maskToken(plaintext: string): string {
   if (chars.length < TOKEN_MASK_PREFIX + TOKEN_MASK_SUFFIX + 2) return '…';
   return `${chars.slice(0, TOKEN_MASK_PREFIX).join('')}...${chars.slice(-TOKEN_MASK_SUFFIX).join('')}`;
 }
+
+/** 回滚完成后的提示：`kind` 决定用 `message.info` 还是 `message.success`。 */
+export interface RollbackNotice {
+  kind: 'success' | 'info';
+  text: string;
+}
+
+/**
+ * 回滚结果提示（FR-129 / D-60）。
+ *
+ * ⚠️ 回滚**不一定**产生新版本：回滚到「内容与当前完全相同」的那一版（最典型的是只有 v1 时点回滚，
+ * 或手动改回原样后再回滚）时，服务端**不产生新版本、不更新 `updated_at`**（判据见
+ * `src/services/prompts.ts` 的 `hasContentChange`）。所以提示必须**按服务端返回的 `version_no` 分支** ——
+ * 否则用户会看到"已生成新版本"却什么都没变，以为回滚失败、或以为多了一版而反复操作。
+ *
+ * 提成纯函数是为了能被 `node:test` 机械验证（组件里的 `message.xxx(...)` 无法直接断言）。
+ *
+ * @param targetVersionNo 用户点的那个版本号（提示里回显它，代表"内容回到哪一版"）
+ * @param beforeVersionNo 回滚**前**这条提示词的 `version_no`
+ * @param afterVersionNo  回滚**后**服务端返回的 `version_no`
+ */
+export function rollbackNotice(
+  targetVersionNo: number,
+  beforeVersionNo: number,
+  afterVersionNo: number,
+): RollbackNotice {
+  if (afterVersionNo === beforeVersionNo) {
+    return {
+      kind: 'info',
+      text: `已回滚到 v${String(targetVersionNo)}（内容与当前相同，未生成新版本）`,
+    };
+  }
+  return { kind: 'success', text: `已回滚到 v${String(targetVersionNo)}（已生成新版本）` };
+}
