@@ -2,7 +2,7 @@ import type { QueryEngine } from '../db/index.js';
 import { pruneVersions } from '../db/prompt-versions.js';
 import { searchPrompts } from '../db/prompt-queries.js';
 import type { PromptRow } from '../db/schema.js';
-import { InvalidBodyError, NotFoundError, isConstraintError } from '../errors.js';
+import { constraintKind, InvalidBodyError, NotFoundError, isConstraintError } from '../errors.js';
 import { nowIso } from './auth.js';
 import { descendantFolderIds } from './folders.js';
 import { usageStatsOf, type UsageStats } from './usage.js';
@@ -262,31 +262,40 @@ export async function updatePrompt(
   id: number,
   patch: UpdatePromptInput,
 ): Promise<PromptObject> {
-  const existing = await qe.selectFrom('prompts').selectAll().where('id', '=', id).executeTakeFirst();
-  if (existing === undefined) throw new NotFoundError();
-
   const now = nowIso();
-  const content = {
-    title: patch.title ?? existing.title,
-    user_prompt: patch.user_prompt ?? existing.user_prompt,
-    system_prompt: patch.system_prompt ?? existing.system_prompt,
-    notes: patch.notes ?? existing.notes,
-  };
-  // FR-129 ②：判据是"值真的变了"，不是"请求里带了这个字段"
-  const contentChanged = hasContentChange(existing, content);
-  const next = {
-    ...content,
-    folder_id: patch.folder_id === undefined ? existing.folder_id : patch.folder_id,
-    favorite: patch.favorite === undefined ? existing.favorite : patch.favorite ? 1 : 0,
-    remember_variables:
-      patch.remember_variables === undefined ? existing.remember_variables : patch.remember_variables ? 1 : 0,
-    // 内容没变 ⇒ 版本号与 updated_at 原样写回（等于不动）；变了才 +1 / 取当前时间
-    version_no: contentChanged ? existing.version_no + 1 : existing.version_no,
-    updated_at: contentChanged ? now : existing.updated_at,
-  };
 
   try {
     await qe.transaction().execute(async (trx) => {
+      /**
+       * FR-135 ①：`existing` 必须在**事务内**读。
+       *
+       * 它在事务外读时，`version_no` 是拿事务外的快照算的 ⇒ 两个并发 PUT 都算出同一个
+       * `existing.version_no + 1`，后写的那条会撞 `UNIQUE(prompt_id, version_no)`
+       * （SQLite 的写锁只保证写入串行，不保证"读-算-写"整体串行）⇒ 用户的这次编辑白丢。
+       * 收进同一个事务后，读与写共享同一把锁：要么串行成功、要么给出可理解的错误。
+       */
+      const existing = await trx.selectFrom('prompts').selectAll().where('id', '=', id).executeTakeFirst();
+      if (existing === undefined) throw new NotFoundError();
+
+      const content = {
+        title: patch.title ?? existing.title,
+        user_prompt: patch.user_prompt ?? existing.user_prompt,
+        system_prompt: patch.system_prompt ?? existing.system_prompt,
+        notes: patch.notes ?? existing.notes,
+      };
+      // FR-129 ②：判据是"值真的变了"，不是"请求里带了这个字段"
+      const contentChanged = hasContentChange(existing, content);
+      const next = {
+        ...content,
+        folder_id: patch.folder_id === undefined ? existing.folder_id : patch.folder_id,
+        favorite: patch.favorite === undefined ? existing.favorite : patch.favorite ? 1 : 0,
+        remember_variables:
+          patch.remember_variables === undefined ? existing.remember_variables : patch.remember_variables ? 1 : 0,
+        // 内容没变 ⇒ 版本号与 updated_at 原样写回（等于不动）；变了才 +1 / 取当前时间
+        version_no: contentChanged ? existing.version_no + 1 : existing.version_no,
+        updated_at: contentChanged ? now : existing.updated_at,
+      };
+
       await trx.updateTable('prompts').set(next).where('id', '=', id).execute();
 
       // FR-129：只有内容真的变了才写版本快照 + 裁剪（非内容操作连快照都不写）
@@ -322,7 +331,22 @@ export async function updatePrompt(
     });
   } catch (error) {
     if (isConstraintError(error)) {
-      throw new InvalidBodyError([{ path: 'body', message: 'folder_id 引用了不存在的文件夹' }]);
+      /**
+       * FR-135 ②：按**类型**分派，不再一律甩"folder_id 引用了不存在的文件夹"。
+       * 原来那种写法下，并发撞唯一约束的用户会照着 folder 提示去查一个根本不存在的问题，
+       * 而这次编辑已经丢了 —— 报错必须指向真实原因。
+       */
+      const kind = constraintKind(error);
+      if (kind === 'foreign_key') {
+        throw new InvalidBodyError([{ path: 'body', message: 'folder_id 引用了不存在的文件夹' }]);
+      }
+      if (kind === 'unique') {
+        throw new InvalidBodyError([
+          { path: 'body', message: '这条提示词正被另一个写入占用（版本号冲突），请重试' },
+        ]);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new InvalidBodyError([{ path: 'body', message: `数据约束冲突：${message}` }]);
     }
     throw error;
   }

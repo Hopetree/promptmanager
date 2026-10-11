@@ -312,7 +312,8 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # �
 
 ⇒ **所有对外计数（`GET /api/prompts/:id`、列表、`GET /api/usage/summary`）都只统计 `kind in ('copy','mcp')`**，
 且**同一口径**（否则会出现"页面显示 N 次、统计说 M 次"）。**列表与搜索不记任何记录**。
-写 usage **不产生版本、不改 `updated_at`**；**usage 不参与导入导出**。
+写 usage **不产生版本、不改 `updated_at`**；**usage 不参与导入导出**（但 `replace` 导入清库前会在本地
+留一份取用历史备份，见 §3.11 的 `usage_history`）。
 
 > 迁移 `006_usage-kind.sql` 给 `usage_events` 加了 `kind`（缺省 `copy`），**存量记录一律置 `copy`** ——
 > 历史不重算、老数字不变（历史里混着一些"打开"记录属既成事实，无法回溯区分）。
@@ -335,9 +336,26 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 - 导出形状：`{app, schema_version:1, exported_at, folders, tags, prompts}`（prompt 内嵌 `versions`）；
   folders/tags/prompts 按 id 升序、versions 按 `version_no` 升序、tags 数组按名称升序，`exported_at` 是唯一非确定字段；
   **不含账号 / 会话**（只有内容）。
+- **`sort_order` 随文件往返**（FR-132）：prompt 条目带 `sort_order`（与 folders 的 `sort_order` 同名不同表），
+  导入后按文件里的值落库 ⇒ 拖好的顺序在"导出 → 导入"与"从云端恢复"之后**仍然在**。
+  **缺这一项的老文件照样能导入**（缺省 `0`，不报错）；类型不对（`"7"` / `1.5`）⇒
+  `400 invalid_import` + `data.prompts[].sort_order 必须是整数`。
 - 导入会校验 `app` / `schema_version`，并**拒绝缺 `title` 或 `user_prompt` 的 prompt 条目**；
   任何不合法 → `400 invalid_import` 且**不动任何数据**（校验全在事务之前），**单事务原子写入**。
 - `replace`：清空内容表后按文件重建并**保留文件里的 id**；`merge`：不清库，同名同父文件夹与同名标签复用，prompt 一律新建并分配新 id。
+- **响应里的 `usage_history`**（FR-134）—— `replace` 会 `DELETE FROM prompts`，而 `usage_events.prompt_id` 是
+  `ON DELETE CASCADE` ⇒ **取用历史被连带清空**（导出文件不含 usage，"从云端恢复"永远拿不回来）。
+  清空是**有意的取舍**（恢复 = 重建数据），但**不许静默**，所以响应如实回报：
+
+  | 字段 | 类型 | 含义 |
+  | --- | --- | --- |
+  | `action` | `'cleared' \| 'kept'` | `cleared` = replace 清空了取用历史；`kept` = merge 原样保留 |
+  | `count` | `number` | `cleared` = 被清掉的条数；`kept` = 现有条数 |
+  | `backup` | `string \| null` | 清空前留下的备份**绝对路径**；没有记录可留时为 `null` |
+
+  备份落在 `<DATA_DIR>/pre-replace-usage-<时间戳>.json`（**0600**，保留最近 3 份，与
+  `pre-restore-*.json` 同目录），内容是 `{app, created_at, reason, count, rows}`。
+  ⚠️ 它**不进导出文件、不上传云端** —— 只作本地救命存档。`POST /api/sync/pull` 的响应同样带这个字段。
 - 单次导入请求体上限 **32MB**。
 - ⚠️ **契约值 `app` 恒为小写 `promptmanager`** —— 改它会让已有导出文件全部导入失败。
 - ⚠️ 若导出文件里某个 prompt 的版本**多于 10 个**，导入后只留最近 10 个（版本保留上限优先）⇒ "再导出"会比原文件少掉最旧的几版。

@@ -562,3 +562,25 @@ export function rollbackNotice(
   }
   return { kind: 'success', text: `已回滚到 v${String(targetVersionNo)}（已生成新版本）` };
 }
+
+/**
+ * FR-134：把「这次导入 / 恢复把取用历史怎么了」说成**一句人话** —— 导入弹窗与云端恢复弹窗共用。
+ *
+ * 关键词是「不静默」（D-62 ③）：`replace` 会 `DELETE FROM prompts` ⇒ `usage_events` 被
+ * `ON DELETE CASCADE` 连带清空。清空可以是有意的取舍，但必须①说清去向与条数②给得出备份落点。
+ * 所以这里**不吞掉** `backup`：有存档就把路径一并报出来（用户才知道去哪儿捞）。
+ */
+export function usageHistoryNotice(history: {
+  action: 'cleared' | 'kept';
+  count: number;
+  backup: string | null;
+}): string {
+  if (history.action === 'kept') {
+    return `取用历史：原样保留 ${String(history.count)} 条`;
+  }
+  if (history.count === 0) {
+    return '取用历史：本来就没有记录';
+  }
+  const backup = history.backup === null ? '' : `；清空前已留档：${history.backup}`;
+  return `取用历史：已清空 ${String(history.count)} 条（replace 会重建数据）${backup}`;
+}

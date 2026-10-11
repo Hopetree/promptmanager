@@ -199,12 +199,17 @@ test('AC-115 ⑥⑦（源码级）：三处聚合与两个记账点的口径一�
   assert.ok(/export const COUNTED_KINDS: readonly UsageKind\[\] = \['copy', 'mcp'\]/.test(usage), '计入集合必须是 copy+mcp');
   // recordUsage 的 kind 缺省 copy（漏传不会把"取用"记成不计数）
   assert.ok(/kind: UsageKind = 'copy'/.test(usage), "recordUsage 的 kind 缺省必须是 'copy'");
-  // 三处聚合都过滤
-  const filters = [...usage.matchAll(/coalesce\(.*?\) in \('copy', 'mcp'\)/g)].length;
-  assert.ok(filters >= 3, `usage.ts 里至少三处聚合（stats/summary 的 total·channels·by_token·top）要过滤，实际 ${String(filters)}`);
+  /**
+   * FR-133（阶段 64）：口径收敛到**一个工厂** `countedKindsSql()`，由 `COUNTED_KINDS` 生成。
+   * 这里不再数"手写字面量有几处"（那正是被消灭的形态），改数"调工厂几处" —— 语义不变：
+   * stats / summary 的 total·channels·by_token·top 都必须过滤，且必须是**同一口径**。
+   */
+  const filters = [...usage.matchAll(/countedKindsSql\(/g)].length;
+  assert.ok(filters >= 4, `usage.ts 里至少要有一处定义 + 三处聚合调用（total·channels·by_token·top），实际 ${String(filters)}`);
+  assert.ok(/COUNTED_KINDS\.map\(/.test(usage), '工厂的过滤值必须来自 COUNTED_KINDS（否则常量还是死声明）');
 
   const queries = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'db', 'prompt-queries.ts'), 'utf8'));
-  assert.ok(/coalesce\(kind, 'copy'\) in \('copy', 'mcp'\)/.test(queries), '列表 JOIN 也必须同一口径');
+  assert.ok(/countedKindsSql\(\)/.test(queries), '列表 JOIN 也必须同一口径');
 
   const routes = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'routes', 'prompts.ts'), 'utf8'));
   assert.ok(/recordUsage\(app\.qe, id, principal\.channel, principal\.tokenId \?\? null, 'view'\)/.test(routes), "打开详情必须记 kind='view'");

@@ -67,3 +67,25 @@ export function isConstraintError(error: unknown): boolean {
   const message = String((error as { message?: unknown } | null)?.message ?? '');
   return code.startsWith('SQLITE_CONSTRAINT') || /constraint failed/i.test(message);
 }
+
+/** FR-135 ②：约束错误的**类型** —— 唯一约束与外键要分开报，否则用户永远查不到真正的原因。 */
+export type ConstraintKind = 'unique' | 'foreign_key' | 'other';
+
+/**
+ * 细分 better-sqlite3 的约束错误（FR-135 ②）：
+ * - `unique`：`UNIQUE constraint failed: …`（如并发写同一条 prompt 撞 `UNIQUE(prompt_id, version_no)`）；
+ * - `foreign_key`：`FOREIGN KEY constraint failed`（如 `folder_id` 指向不存在的文件夹）；
+ * - `other`：其余约束（CHECK / NOT NULL / TRIGGER …）——不冒充任何一种已知原因。
+ *
+ * 判据同时看 `code`（`SQLITE_CONSTRAINT_UNIQUE` / `_FOREIGNKEY`）与 message，
+ * 因为 better-sqlite3 两个都给，而不同版本上 message 文案更稳定。
+ */
+export function constraintKind(error: unknown): ConstraintKind {
+  const code = String((error as { code?: unknown } | null)?.code ?? '');
+  const message = String((error as { message?: unknown } | null)?.message ?? '');
+  if (code.endsWith('_UNIQUE') || code.endsWith('_PRIMARYKEY') || /UNIQUE constraint failed|PRIMARY KEY constraint failed/i.test(message)) {
+    return 'unique';
+  }
+  if (code.endsWith('_FOREIGNKEY') || /FOREIGN KEY constraint failed/i.test(message)) return 'foreign_key';
+  return 'other';
+}

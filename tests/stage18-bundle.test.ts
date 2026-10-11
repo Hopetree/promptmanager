@@ -193,6 +193,22 @@ const STAGE61_ACCOUNTED_DELTA = 452;
  * （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
  */
 const STAGE62_ACCOUNTED_DELTA = 132;
+/**
+ * 阶段 64（FR-132 / FR-134）的实测增量：**166 B**。
+ *
+ * 口径同前（`git stash push -- web/src` → 同一 node_modules 下 `npm run build:web` → 量
+ * `dist/web/assets` 的 js+css 总 gzip → `git stash pop` 重建）：
+ * 开工前 = **427,724 B**（= 阶段 62 的落点 427,845 − 阶段 63 前端重构收回的 121 B），
+ * 改完 = **427,890 B** ⇒ 差值 **166 B**。
+ * 构成：`web/src/pure.ts` 新增 `usageHistoryNotice()`（把「取用历史被清空了多少条、备份在哪」说成人话，
+ * 导入弹窗与云端恢复弹窗共用）、`web/src/types.ts` 新增 `UsageHistoryReport` 并把 `usage_history`
+ * 加进 `ImportResult` / `SyncPullResult`、`ImportExportModal.tsx` 与 `SyncModal.tsx` 两处文案接线。
+ * ⚠️ 本阶段的**主改动在服务端**（导出 / 导入 / 取用口径 / 事务边界），不进前端 bundle；
+ * 这 166 B 只来自"不静默"这条要求必须在界面上也说到。**无新增依赖、无新增 chunk**（仍 10 个）；
+ * 未压缩的最大 chunk 仍是 vendor-antd（470,946 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。
+ * 按既有口径（基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
+ */
+const STAGE64_ACCOUNTED_DELTA = 166;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -272,6 +288,7 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE60_ACCOUNTED_DELTA +
     STAGE61_ACCOUNTED_DELTA +
     STAGE62_ACCOUNTED_DELTA +
+    STAGE64_ACCOUNTED_DELTA +
     DEPS_2026_09_30_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });

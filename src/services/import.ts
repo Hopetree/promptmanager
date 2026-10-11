@@ -3,6 +3,7 @@ import { pruneVersions } from '../db/prompt-versions.js';
 import { InvalidImportError, isConstraintError } from '../errors.js';
 import { nowIso } from './auth.js';
 import { EXPORT_APP, SUPPORTED_SCHEMA_VERSION } from './export.js';
+import { countUsageEvents, readUsageEvents, writeUsageBackup } from './usage-backup.js';
 
 export type ImportMode = 'replace' | 'merge';
 
@@ -12,7 +13,42 @@ export interface ImportCounts {
   prompts: number;
 }
 
+/**
+ * FR-134：replace 导入对**取用历史**做了什么 —— 必须如实回报，不许静默。
+ *
+ * `action`：
+ * - `'cleared'`：replace 会 `DELETE FROM prompts` ⇒ `usage_events` 被 `ON DELETE CASCADE` 连带清空
+ *   （`count` = 被清掉的条数）；
+ * - `'kept'`：merge 不清库 ⇒ 取用历史原样保留（`count` = 现有条数）。
+ *
+ * `backup`：清空前留下的备份文件**绝对路径**；没有东西可留（本来就没有事件）时为 `null`。
+ * 备份只落本地 `DATA_DIR`，**不进导出文件、不上传云端**。
+ */
+export interface UsageHistoryReport {
+  action: 'cleared' | 'kept';
+  count: number;
+  backup: string | null;
+}
+
 export interface ImportResult {
+  mode: ImportMode;
+  imported: ImportCounts;
+  /** FR-134：取用历史的去向（见 {@link UsageHistoryReport}）。 */
+  usage_history: UsageHistoryReport;
+}
+
+/**
+ * `importData` 的选项。
+ *
+ * `usageBackupDir` **必填**：replace 清空前要在这里留一份取用历史（FR-134）。
+ * 故意不给默认值 —— 漏传就等于静默丢历史，那正是本阶段要消灭的行为（D-62 ③）。
+ */
+export interface ImportOptions {
+  usageBackupDir: string;
+}
+
+/** 两个内部导入函数的产物：`importData` 在外面补上 `usage_history`（FR-134）。 */
+interface ImportOutcome {
   mode: ImportMode;
   imported: ImportCounts;
 }
@@ -24,6 +60,8 @@ interface NormalizedPrompt {
   system_prompt: string;
   notes: string;
   folder_id: number | null;
+  /** FR-132：缺省 0（阶段 64 之前的导出文件里没有这一项）。 */
+  sort_order: number;
   tags: string[];
   favorite: boolean;
   /** FR-127：缺省 = 记住（老导出文件里没有这一项，必须按既有行为处理）。 */
@@ -156,6 +194,13 @@ function parseExportFile(raw: unknown): NormalizedFile {
       a.localeCompare(b),
     );
 
+    // FR-132：老导出文件（阶段 64 之前）没有这一项 ⇒ 缺省 0，与 folders 的 sort_order 同一口径。
+    // 「缺字段 ⇒ 缺省 0」而不是报错，是为了让既有备份文件继续可导入（D-62 ⑥）。
+    const sortOrder = prompt.sort_order === undefined ? 0 : prompt.sort_order;
+    if (typeof sortOrder !== 'number' || !Number.isInteger(sortOrder)) {
+      fail([{ path: 'data.prompts[].sort_order', message: '必须是整数' }]);
+    }
+
     const favorite = prompt.favorite === undefined ? false : prompt.favorite;
     if (typeof favorite !== 'boolean') fail([{ path: 'data.prompts[].favorite', message: '必须是布尔值' }]);
 
@@ -198,6 +243,7 @@ function parseExportFile(raw: unknown): NormalizedFile {
       system_prompt: asString(prompt.system_prompt, 'data.prompts[].system_prompt', ''),
       notes: asString(prompt.notes, 'data.prompts[].notes', ''),
       folder_id: folderId,
+      sort_order: sortOrder,
       tags: promptTags,
       favorite,
       remember_variables: rememberVariables,
@@ -241,7 +287,7 @@ function maxVersionNo(prompt: NormalizedPrompt): number {
 }
 
 /** replace：清空内容表后按文件重建，保留文件里的 id（AC-10 的往返一致性依赖这一点）。 */
-async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<ImportResult> {
+async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<ImportOutcome> {
   const now = nowIso();
   let autoCreatedTags = 0;
 
@@ -299,6 +345,7 @@ async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<Imp
           system_prompt: prompt.system_prompt,
           notes: prompt.notes,
           folder_id: prompt.folder_id,
+          sort_order: prompt.sort_order,
           favorite: prompt.favorite ? 1 : 0,
           remember_variables: prompt.remember_variables ? 1 : 0,
           version_no: maxVersionNo(prompt),
@@ -350,7 +397,7 @@ async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<Imp
 }
 
 /** merge：不清库；同名（同父）folder / 同名 tag 复用；prompt 一律新建并分配新 id。 */
-async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<ImportResult> {
+async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<ImportOutcome> {
   const now = nowIso();
   let createdFolders = 0;
   let createdTags = 0;
@@ -409,6 +456,7 @@ async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<Impor
           system_prompt: prompt.system_prompt,
           notes: prompt.notes,
           folder_id: prompt.folder_id === null ? null : folderIdMap.get(prompt.folder_id) ?? null,
+          sort_order: prompt.sort_order,
           favorite: prompt.favorite ? 1 : 0,
           remember_variables: prompt.remember_variables ? 1 : 0,
           version_no: maxVersionNo(prompt),
@@ -464,14 +512,39 @@ async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<Impor
  * 导入（BRIEF §6.4 / AC-10 / AC-11）：校验 → 单事务写入（replace 清空重建 / merge 合并且 prompt 新建）。
  * 校验失败或写入中途失败 → 400 invalid_import，事务回滚，**库保持原样**。
  */
-export async function importData(qe: QueryEngine, mode: unknown, raw: unknown): Promise<ImportResult> {
+export async function importData(
+  qe: QueryEngine,
+  mode: unknown,
+  raw: unknown,
+  options: ImportOptions,
+): Promise<ImportResult> {
   if (mode !== 'replace' && mode !== 'merge') {
     fail([{ path: 'mode', message: `mode 必须是 "replace" 或 "merge"，实际 ${JSON.stringify(mode)}` }]);
   }
   const file = parseExportFile(raw);
 
+  /**
+   * FR-134：replace 会在事务里 `DELETE FROM prompts` ⇒ `usage_events` 级联清空。
+   * 清空**之前**先把取用历史读出来（读在事务外、写备份也在事务外：
+   * 备份是"救命存档"，即使后面的导入失败回滚了，这份存档留着也无害）。
+   * merge 不清库 ⇒ 只需要数一下现有条数，如实回报「保留 N 条」。
+   */
+  const usageRows = mode === 'replace' ? await readUsageEvents(qe) : null;
+
   try {
-    return mode === 'replace' ? await replaceImport(qe, file) : await mergeImport(qe, file);
+    if (mode === 'replace') {
+      const backup =
+        usageRows !== null && usageRows.length > 0 ? await writeUsageBackup(options.usageBackupDir, usageRows) : null;
+      const result = await replaceImport(qe, file);
+      return {
+        ...result,
+        usage_history: { action: 'cleared', count: usageRows?.length ?? 0, backup },
+      };
+    }
+
+    const kept = await countUsageEvents(qe);
+    const result = await mergeImport(qe, file);
+    return { ...result, usage_history: { action: 'kept', count: kept, backup: null } };
   } catch (error) {
     if (error instanceof InvalidImportError) throw error;
     if (isConstraintError(error)) {

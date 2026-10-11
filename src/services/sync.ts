@@ -70,6 +70,8 @@ export interface SyncPushResult {
 export interface SyncPullResult {
   mode: ImportMode;
   imported: ImportResult['imported'];
+  /** FR-134：取用历史的去向（replace 会级联清空，必须如实回报；见 `UsageHistoryReport`）。 */
+  usage_history: ImportResult['usage_history'];
   remote_sha: string;
   /** `replace` 前的本地快照文件名（`merge` 时为 null）；AC-121 D⑧ 会检查它确实存在。 */
   snapshot: string | null;
@@ -302,10 +304,11 @@ export async function pullSnapshot(
     // 执行前**自动**写本地快照（不用用户点，也不因确认框而省略）。
     snapshot = await writePreRestoreSnapshot(deps, await buildExport(deps.qe));
   }
-  const result = await importData(deps.qe, options.mode, data);
+  const result = await importData(deps.qe, options.mode, data, { usageBackupDir: deps.config.dataDir });
   return {
     mode: options.mode,
     imported: result.imported,
+    usage_history: result.usage_history,
     remote_sha: remote.sha,
     snapshot,
     snapshot_kept: PRE_RESTORE_KEEP,

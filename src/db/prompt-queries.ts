@@ -2,6 +2,7 @@ import { sql, type RawBuilder, type SqlBool } from 'kysely';
 import type { QueryEngine } from './index.js';
 import type { PromptRow } from './schema.js';
 import { ftsMatchExpression, isFtsQuery, likePattern, normalizeQuery, SEARCH_COLUMNS } from './search.js';
+import { countedKindsSql } from '../services/usage.js';
 
 /**
  * 列表排序：默认按更新时间；`recent_used` 按最近使用（从未用过排最后）；
@@ -90,7 +91,7 @@ export async function searchPrompts(qe: QueryEngine, params: PromptSearchParams)
       eb.fn.countAll<number>().as('use_count'),
       eb.fn.max('used_at').as('last_used_at'),
     ])
-    .where(sql<SqlBool>`coalesce(kind, 'copy') in ('copy', 'mcp')`)
+    .where(countedKindsSql())
     .groupBy('prompt_id')
     .as('u');
 

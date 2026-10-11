@@ -171,7 +171,7 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   registerFolderRoutes(app);
   registerTagRoutes(app);
   registerRenderRoutes(app);
-  registerExportRoutes(app);
+  registerExportRoutes(app, config);
   registerSyncRoutes(app, config); // FR-125：远程数据同步（仅会话可用，不做自动上传）
   registerTokenRoutes(app, config);
   registerUsageRoutes(app);

@@ -102,9 +102,18 @@ export interface CreatedToken extends TokenSummary {
   token: string;
 }
 
+/** FR-134：replace 导入对取用历史做了什么（`cleared` = 被级联清空，`kept` = merge 原样保留）。 */
+export interface UsageHistoryReport {
+  action: 'cleared' | 'kept';
+  count: number;
+  /** 清空前留下的备份文件绝对路径（没有东西可留时为 null）。 */
+  backup: string | null;
+}
+
 export interface ImportResult {
   mode: 'replace' | 'merge';
   imported: { folders: number; tags: number; prompts: number };
+  usage_history: UsageHistoryReport;
 }
 
 export interface ExportFile {
@@ -177,6 +186,8 @@ export interface SyncPushResult {
 export interface SyncPullResult {
   mode: 'merge' | 'replace';
   imported: { folders: number; tags: number; prompts: number };
+  /** FR-134：取用历史的去向（replace 会级联清空，必须如实回报）。 */
+  usage_history: UsageHistoryReport;
   remote_sha: string;
   /** `replace` 前自动写的本地快照文件名（`merge` 时为 null）。 */
   snapshot: string | null;

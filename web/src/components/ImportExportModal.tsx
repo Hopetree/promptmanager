@@ -16,7 +16,13 @@ import {
 import type { UploadFile } from 'antd';
 import { useState } from 'react';
 import { api, ApiError, describeError } from '../api';
-import { analyzeImportFile, formatImportDetails, REPLACE_WARNING, type ImportAnalysis } from '../pure';
+import {
+  analyzeImportFile,
+  formatImportDetails,
+  REPLACE_WARNING,
+  usageHistoryNotice,
+  type ImportAnalysis,
+} from '../pure';
 import type { ImportResult } from '../types';
 
 interface ImportExportModalProps {
@@ -95,7 +101,7 @@ export default function ImportExportModal({ open, onClose, onImported }: ImportE
       setResult(imported);
       setImportErrors([]);
       message.success(
-        `导入完成：prompt ${String(imported.imported.prompts)} 条 / 文件夹 ${String(imported.imported.folders)} 个 / 标签 ${String(imported.imported.tags)} 个`,
+        `导入完成：prompt ${String(imported.imported.prompts)} 条 / 文件夹 ${String(imported.imported.folders)} 个 / 标签 ${String(imported.imported.tags)} 个；${usageHistoryNotice(imported.usage_history)}`,
       );
       onImported();
     } catch (error) {
@@ -281,7 +287,7 @@ export default function ImportExportModal({ open, onClose, onImported }: ImportE
               type="success"
               showIcon
               message={`导入完成（${result.mode}）`}
-              description={`prompt ${String(result.imported.prompts)} 条 / 文件夹 ${String(result.imported.folders)} 个 / 标签 ${String(result.imported.tags)} 个`}
+              description={`prompt ${String(result.imported.prompts)} 条 / 文件夹 ${String(result.imported.folders)} 个 / 标签 ${String(result.imported.tags)} 个；${usageHistoryNotice(result.usage_history)}`}
             />
           </>
         )}

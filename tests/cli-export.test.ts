@@ -70,7 +70,7 @@ test('CLI export：与 POST /api/import 兼容（把 CLI 文件导回库）', as
     const file = JSON.parse(readFileSync(out, 'utf8')) as unknown;
 
     const target = prepareDatabase(loadConfig({ DATA_DIR: dir2 }));
-    const result = await importData(target.qe, 'replace', file);
+    const result = await importData(target.qe, 'replace', file, { usageBackupDir: dir2 });
     assert.equal(result.imported.prompts, 1);
     const roundTrip = await buildExport(target.qe);
     assert.equal(roundTrip.prompts[0]?.title, '往返夹具');

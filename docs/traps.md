@@ -23,6 +23,7 @@
 - [13. 变量默认值只认 `default`](#13-变量默认值只认-default)
 - [14. 变量记忆开关放服务端，变量值仍留本地](#14-变量记忆开关放服务端变量值仍留本地)
 - [15. 「版本号只记内容变更」的三个坑](#15-版本号只记内容变更的三个坑阶段-62--fr-129)
+- [16. 排序与取用历史在导入 / 云同步里的两个坑](#16-排序与取用历史在导入--云同步里的两个坑阶段-64--fr-132--fr-134)
 
 ---
 
@@ -291,3 +292,44 @@ BRIEF，所以只记录、不修：
   "已生成新版本"（旧文案），用户会以为回滚失败或以为多了一版而反复操作。落点是 `web/src/pure.ts` 的
   `rollbackNotice(targetVersionNo, beforeVersionNo, afterVersionNo)`，由
   `web/src/components/VersionPanel.tsx` 的 `rollback()` 按 `updated.version_no` 调用。
+
+---
+
+## 16. 排序与取用历史在导入 / 云同步里的两个坑（阶段 64 / FR-132 · FR-134）
+
+### 16.1 导出文件里漏掉 `prompts.sort_order` ⇒ 拖好的顺序静默归零
+
+- **坑的形态**：导出文件自称"全量快照"、云同步把它当"异地副本"协议，但 `ExportPrompt` 里
+  **没有 prompt 的 `sort_order`**（export/import 里出现的 `sort_order` 全是 **folder** 的）。
+  于是"导出 → 导入"或"从云端恢复"之后，所有 prompt 的 `sort_order` 落回列缺省值 `0`
+  —— 用户拖出来的顺序**全没了**，不报错、不提示，而且这是**数据损坏**而不是展示问题
+  （`0` 会被当成"真的排在第 0 位"写进库）。
+- **为什么必须带上**（D-62 ①）：拖拽是**有意的用户动作**，顺序是用户产出的数据；
+  `sort_order` 本来就在表里（`migrations/003_prompt-sort-order.sql`），带上它**只是加一个字段**，
+  不改存储方式、不改槽位算法、不需要迁移。
+- **做法**：`ExportPrompt` / `NormalizedPrompt` 各加 `sort_order: number`，`buildExport` 的映射
+  与 import 的两处插入（replace / merge）都带上它；**缺字段 ⇒ 缺省 0、不报错**
+  （阶段 64 之前的备份文件必须还能导入，D-62 ⑥）；类型不对（`"7"` / `1.5`）⇒
+  `400 invalid_import` + `data.prompts[].sort_order 必须是整数`。
+- ⚠️ **槽位算法不受影响**：`reorderPrompts`（`PATCH /api/prompts/order`）读的是"这组 id 当前占据的
+  `sort_order` 槽位"，导入进来的 `50 / 100` 会被原样当成槽位集合，再拖一次仍按槽位语义重排
+  —— 别把导入值"归一化成 1..N"，那会抹平用户已有的顺序。
+
+### 16.2 `replace` 导入会**级联清空**取用历史（`usage_events`）
+
+- **坑的形态**：`usage_events.prompt_id` 是 `ON DELETE CASCADE`（`migrations/002_tokens-and-usage.sql`），
+  而 `replace` 导入在事务里 `DELETE FROM prompts` ⇒ **本地全部取用次数与"最近使用"被连带清零**；
+  导出文件只有交付数据（5 张表，**不含 usage**）⇒ "从云端恢复"等于永久丢掉取用历史，
+  而且**一声不响**。用户会以为"恢复之后统计还在"，实际从零开始。
+- ⚠️ **关键词是「不静默」，不是「不许清空」**（D-62 ③）：恢复本质上就是重建数据，
+  清空可以是有意的取舍 —— 但**不许既清空又不告诉用户，也不许连一份都留不下**。
+- **做法**：`importData` 在清库**之前**把 `usage_events` 全量读出来，
+  replace 且确有记录时写一份 `<DATA_DIR>/pre-replace-usage-<时间戳>.json`（**0600**，保留最近 3 份，
+  与 `pre-restore-*.json` 同目录），响应里如实回报：
+  `usage_history: {action: 'cleared', count: N, backup: '<绝对路径>'}`；
+  merge 不清库 ⇒ `{action: 'kept', count: N, backup: null}`；本来没有记录 ⇒ `count: 0` 且
+  **不编造备份**（`backup: null`）。界面 toast 由 `web/src/pure.ts` 的 `usageHistoryNotice()` 统一措辞。
+- ⚠️ **这份备份不进导出文件、不上传云端**（D-62 ⑥）：那会把"快照 = 交付数据"的语义搅浑
+  （导入别家实例的备份会把别人的取用痕迹灌进本地）。它只是本地的一次救命存档。
+- ⚠️ **`usageBackupDir` 是必填参数**（`ImportOptions`，故意不给默认值）：漏传就等于静默丢历史，
+  那正是这条要消灭的行为。新增 `importData` 调用方时必须一起传 `DATA_DIR`。

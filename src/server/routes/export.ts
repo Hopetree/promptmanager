@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import type { AppConfig } from '../../config.js';
 import { buildExport } from '../../services/export.js';
 import { importData } from '../../services/import.js';
 
@@ -14,8 +15,12 @@ const importBodySchema = {
 /** 导入是"备份恢复"，可能一次塞进整库：单请求体上限放宽到 32MB（Fastify 默认 1MB）。 */
 const IMPORT_BODY_LIMIT = 32 * 1024 * 1024;
 
-/** FR-10：全量导出 / 导入（两种模式 + 校验 + 原子性）。 */
-export function registerExportRoutes(app: FastifyInstance): void {
+/**
+ * FR-10：全量导出 / 导入（两种模式 + 校验 + 原子性）。
+ *
+ * 接 `config` 只为一件事：FR-134 要求 replace 清空前把取用历史留一份到 `DATA_DIR`。
+ */
+export function registerExportRoutes(app: FastifyInstance, config: AppConfig): void {
   app.get('/api/export', async () => buildExport(app.qe));
 
   app.post(
@@ -23,7 +28,7 @@ export function registerExportRoutes(app: FastifyInstance): void {
     { bodyLimit: IMPORT_BODY_LIMIT, schema: { body: importBodySchema } },
     async (request) => {
       const body = request.body as { mode?: unknown; data?: unknown };
-      return importData(app.qe, body.mode, body.data);
+      return importData(app.qe, body.mode, body.data, { usageBackupDir: config.dataDir });
     },
   );
 }

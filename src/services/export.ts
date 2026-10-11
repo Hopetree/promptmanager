@@ -33,6 +33,8 @@ export interface ExportPrompt {
   system_prompt: string;
   notes: string;
   folder_id: number | null;
+  /** FR-132：拖拽出来的顺序随导出 / 导入往返（老文件没有这一项 ⇒ 导入缺省 0）。 */
+  sort_order: number;
   tags: string[];
   favorite: boolean;
   /** FR-127 / D-59 ①：随导出 / 导入往返（导出必写，导入缺省 = 记住）。 */
@@ -112,6 +114,7 @@ export async function buildExport(qe: QueryEngine): Promise<ExportFile> {
       system_prompt: row.system_prompt,
       notes: row.notes,
       folder_id: row.folder_id,
+      sort_order: row.sort_order,
       tags: tagsByPrompt.get(row.id) ?? [],
       favorite: row.favorite === 1,
       remember_variables: row.remember_variables === 1,

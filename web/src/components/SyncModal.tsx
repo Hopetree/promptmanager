@@ -3,6 +3,7 @@ import { Alert, App as AntdApp, Button, Card, Descriptions, Flex, Form, Input, M
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, describeError } from '../api';
 import type { SyncConfigView, SyncPushResult, SyncTestResult } from '../types';
+import { usageHistoryNotice } from '../pure';
 
 interface SyncModalProps {
   open: boolean;
@@ -185,7 +186,7 @@ export default function SyncModal({ open, onClose, onPulled }: SyncModalProps) {
     try {
       const result = await api.syncPull(mode, confirmed);
       message.success(
-        `已从云端恢复（${result.mode}）：prompt ${String(result.imported.prompts)} 条 / 文件夹 ${String(result.imported.folders)} 个 / 标签 ${String(result.imported.tags)} 个`,
+        `已从云端恢复（${result.mode}）：prompt ${String(result.imported.prompts)} 条 / 文件夹 ${String(result.imported.folders)} 个 / 标签 ${String(result.imported.tags)} 个；${usageHistoryNotice(result.usage_history)}`,
       );
       if (result.snapshot !== null) {
         message.info(`替换前已自动写本地快照：${result.snapshot}（最多保留 ${String(result.snapshot_kept)} 份）`);

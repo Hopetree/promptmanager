@@ -1,4 +1,4 @@
-import { sql, type SqlBool } from 'kysely';
+import { sql, type RawBuilder, type SqlBool } from 'kysely';
 import type { QueryEngine } from '../db/index.js';
 import { nowIso } from './auth.js';
 
@@ -20,6 +20,23 @@ export type UsageKind = 'view' | 'copy' | 'mcp';
  * by_token / top）都必须用**同一套口径**，否则会出现"页面显示 3 次、统计说 5 次"的自相矛盾。
  */
 export const COUNTED_KINDS: readonly UsageKind[] = ['copy', 'mcp'];
+
+/**
+ * FR-133：**计入取用的过滤片段工厂** —— 口径的**唯一来源**。
+ *
+ * 以前这个过滤是四处**手写**的 SQL 字面量（`usageStatsFor` / `usageSummary` 的 total·channels·by_token /
+ * summary 的 top / 列表 JOIN 的 usage 子查询），改口径要同时改四处、漏一处就静默不一致
+ * （列表页「取用 N 次」与统计页对不上）。现在四处都调这一个函数，`COUNTED_KINDS` 是它的输入
+ * ⇒ 改口径只改上面那个常量一处。
+ *
+ * `alias` 是表别名（top 那条聚合用 `e`）；`COALESCE` 仍保留：历史行的 `kind` 可能是 NULL，
+ * 服务层把 NULL 视作 `copy`（与迁移 006 的回填口径一致）。
+ */
+export function countedKindsSql(alias?: string): RawBuilder<SqlBool> {
+  const column = alias === undefined ? sql.raw('kind') : sql.raw(`${alias}.kind`);
+  const kinds = sql.raw(COUNTED_KINDS.map((kind) => `'${kind}'`).join(', '));
+  return sql<SqlBool>`coalesce(${column}, 'copy') in (${kinds})`;
+}
 
 /** 库里 `kind` 可能为 NULL（历史行/手工插入）⇒ 与服务层口径一致地当作 `copy`。 */
 export function normalizeKind(raw: unknown): UsageKind {
@@ -95,7 +112,7 @@ export async function usageStatsFor(qe: QueryEngine, promptIds: number[]): Promi
      * `COALESCE` 是给"历史行 kind 为 NULL"兜底：迁移 006 已把存量行回填成 'copy'，
      * 但手工插入的行仍可能是 NULL ⇒ 与服务层"NULL 视作 copy"的口径保持一致。
      */
-    .where(sql<SqlBool>`coalesce(kind, 'copy') in ('copy', 'mcp')`)
+    .where(countedKindsSql())
     .groupBy('prompt_id')
     .execute();
 
@@ -120,7 +137,7 @@ export async function usageSummary(qe: QueryEngine, days: number): Promise<Usage
 
   // FR-114：summary 与 use_count **同一口径** —— 只统计"真的取用"（copy/mcp），
   // 否则会出现"页面显示 N 次、统计说 M 次"的自相矛盾。
-  const counted = sql<SqlBool>`coalesce(kind, 'copy') in ('copy', 'mcp')`;
+  const counted = countedKindsSql();
 
   const totals = await qe
     .selectFrom('usage_events')
@@ -147,7 +164,7 @@ export async function usageSummary(qe: QueryEngine, days: number): Promise<Usage
       eb.fn.max('e.used_at').as('last_used_at'),
     ])
     .where('e.used_at', '>=', since)
-    .where(sql<SqlBool>`coalesce(e.kind, 'copy') in ('copy', 'mcp')`)
+    .where(countedKindsSql('e'))
     .groupBy(['e.prompt_id', 'p.title'])
     .orderBy(sql`count(*)`, 'desc')
     .orderBy(sql`max(e.used_at)`, 'desc')
