@@ -132,7 +132,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
 | `migrations/` | `001_init.sql` ... `008_remember-variables.sql` (**8 files**, applied in order; see section 6). |
-| `tests/` | `node:test` cases (89 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
+| `tests/` | `node:test` cases (90 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans**: `api.md` (HTTP/CLI/MCP reference), `development.md` (build/test/structure), `traps.md` (why the code looks like this), `dependencies.md` (deps + licenses + audits), `versioning.md` (release rules), `search-zh.md` (search measurements), `README.md` (what this directory is), `shots/` (**one** set of key page shots, 8 PNGs). **No process state.** See section 5.1. |
 | Root files | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.nvmrc` / `.npmrc`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/*.yml`. **No requirements/progress/acceptance files** - those are local (section 13). |
@@ -214,7 +214,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (89 files, **606** cases at the last update). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (90 files, **614** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
@@ -223,9 +223,11 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
   or port 8767**.
 - **CLI subprocesses** always go through `runCliProcess()`; do not `spawn` them yourself - see pitfall 4.
 - Part of the frontend coverage is **source-level assertions** (`tests/stage*.test.ts` read text/structure
-  from `web/src/**`). There is **no jsdom component rendering** in the suite (`grep -rn "createRoot|react-dom|renderToString" tests/` -> 0 hits); the only jsdom use is server-side Markdown rendering
-  (pitfall 6). Neither needs a real browser; real-browser verification is a manual/acceptance step,
-  described in section 8.
+  from `web/src/**`), and since stage 65 there is a **render-level set** under `tests/render/` that mounts
+  real components with jsdom + `react-dom/client` against a fake `fetch` (`tools/tsx-loader.mjs` supplies
+  the `.tsx` loader, `tsconfig.render-tests.json` type-checks it). The server-side Markdown rendering uses
+  jsdom too (pitfall 6). Neither needs a real browser; real-browser verification is a manual/acceptance
+  step, described in section 8.
 - **If you see `✖ <file> 'test failed'` with no assertion detail, do not start editing business code.**
   That shape almost always means **the file's process was killed by a signal**, not that an assertion failed.
   When `bash tools/ci-check.sh` fails it prints the full diagnostics (`signal`, `Error:`, last log lines).

@@ -45,11 +45,15 @@ test('AC-104 ⑥（源码级）：刷新信号只在版本变化时变 —— �
 
 test('AC-104 ①（源码级）：保存回详情这条链路把"保存接口返回的对象"带进详情（version_no 因此会变）', () => {
   const onSaved = workspace.slice(workspace.indexOf('onSaved={(prompt) => {'), workspace.indexOf('onDeleted={() => {'));
-  assert.ok(/setEditing\(prompt\)/.test(onSaved), 'onSaved 必须用保存接口返回的 prompt 更新 editing');
+  // 阶段 65（FR-137）：onSaved 把服务端回包写进唯一数据源，再用 id 指向它 ⇒ 列表 / 右栏 / 详情同源。
+  assert.ok(
+    /mergePrompts\(prompt\)/.test(onSaved) && /setEditingId\(prompt\.id\)/.test(onSaved),
+    'onSaved 必须用保存接口返回的 prompt 更新 editing',
+  );
   assert.ok(/refresh\(\)/.test(onSaved), 'onSaved 仍须刷新列表/文件夹/标签');
   // backToDetail 把 editing 交给 selected ⇒ 详情面拿到新的 version_no ⇒ 上面的 key 变化 ⇒ 版本面板重拉
   const back = workspace.slice(workspace.indexOf('const backToDetail'), workspace.indexOf('const backToDetail') + 600);
-  assert.ok(/setSelected\(editing\)|setDetail\(target\)/.test(back), 'backToDetail 必须把 editing/target 交给详情面（移动端走 detail）');
+  assert.ok(/setSelectedId\(target\.id\)|setDetailId\(target\.id\)/.test(back), 'backToDetail 必须把 editing/target 交给详情面（移动端走 detail）');
 });
 
 test('AC-104 ③（源码级）：详情头部显示的版本号来自同一个 prompt.version_no（与版本列表同源，不会一个新一个旧）', () => {

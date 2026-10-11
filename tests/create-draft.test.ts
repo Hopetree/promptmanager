@@ -63,7 +63,13 @@ test('AC-43：取消 / 关闭（Esc）只丢弃草稿，不产生服务端记录
   const start = workspace.indexOf('const closeEditor = useCallback');
   const end = workspace.indexOf('const openEditor = useCallback');
   const closeSource = workspace.slice(start, end);
-  assert.ok(closeSource.includes('setIsNew(false)') && closeSource.includes('setEditing(null)'), '关闭要清空草稿');
+  // 阶段 65（FR-137）：草稿从 `editing` 里拆出来成了独立 state ⇒ 关闭要清 draft 与 editingId 两个 id 态。
+  assert.ok(
+    closeSource.includes('setIsNew(false)')
+      && closeSource.includes('setDraft(null)')
+      && closeSource.includes('setEditingId(null)'),
+    '关闭要清空草稿',
+  );
   assert.equal(closeSource.includes('api.'), false, '关闭草稿不得发 API 请求');
   assert.ok(/event\.key === 'Escape'/.test(workspace), 'Esc 必须能关闭编辑器');
 });

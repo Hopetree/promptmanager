@@ -26,7 +26,7 @@ import {
   theme,
 } from 'antd';
 import type { ReactNode } from 'react';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../api';
 import { buildFolderTree, formatDateTime } from '../pure';
 import type { Folder, Prompt, PromptWritable, Tag as PromptTag } from '../types';
@@ -127,9 +127,26 @@ export default function PromptEditor({
     [form],
   );
 
+  /**
+   * FR-136 ①：表单**只在「换了一条 prompt」时**重填。
+   *
+   * 以前这里依赖的是 `prompt` 这个**对象引用**，而上层每次 `setEditing({...})` 都会换一个新对象
+   * （收藏、移动目录、切「记住变量值」、保存回包都会换）—— 于是在编辑器里改了半页正文、
+   * 随手点一下收藏，整张表单就被静默重置回服务端内容，未保存的编辑直接丢，还没有任何提示。
+   *
+   * 判据改成**稳定标识**：同一条（`id` 相同）的属性变化不重填；
+   * 新建草稿（`isNew`，id 恒为 0）则按对象身份判 —— 每开一张新草稿都是一个新对象，应当重填。
+   * 真要从服务端重取（回滚后）走下面的 `reloadFromServer()`，它自己 `fill(fresh)`，不依赖这个 effect。
+   */
+  const lastFilled = useRef<Prompt | null>(null);
   useEffect(() => {
+    const previous = lastFilled.current;
+    const sameExistingPrompt = previous !== null && !isNew && previous.id === prompt.id;
+    const sameDraft = previous !== null && isNew && previous === prompt;
+    if (sameExistingPrompt || sameDraft) return;
+    lastFilled.current = prompt;
     fill(prompt);
-  }, [fill, prompt]);
+  }, [fill, isNew, prompt]);
 
   /** 回滚后重新取服务端内容（回滚不改 prompt.id，所以要显式重取）。 */
   const reloadFromServer = useCallback(async (): Promise<void> => {
@@ -270,7 +287,7 @@ export default function PromptEditor({
         </Flex>
         <Flex gap={24} wrap style={{ marginBottom: 0 }}>
           <Form.Item name="favorite" label="收藏（置顶到列表）" valuePropName="checked" style={{ marginBottom: 0 }}>
-            <Switch checkedChildren="已收藏" unCheckedChildren="未收藏" />
+            <Switch data-testid="editor-favorite" checkedChildren="已收藏" unCheckedChildren="未收藏" />
           </Form.Item>
           {/* FR-127 / D-59 ④：开关的**第二处入口**（第一处在填值弹窗），读写同一个服务端字段。 */}
           <Form.Item
@@ -351,7 +368,19 @@ export default function PromptEditor({
               )}
             </Flex>
             <Flex align="center" gap={8} wrap>
-              {!isNew && <FavoriteStar prompt={prompt} testid={`pm-fav-editor-${String(prompt.id)}`} onToggle={onToggleFavorite} />}
+              {!isNew && (
+                <FavoriteStar
+                  prompt={prompt}
+                  testid={`pm-fav-editor-${String(prompt.id)}`}
+                  onToggle={(target) => {
+                    // FR-136 ① 的代价：同一条 prompt 不再整体重填表单（否则会丢未保存的编辑），
+                    // 但「收藏」在表单里**也有一份**（保存时 `favorite: values.favorite` 会写回服务端）
+                    // ⇒ 星标与开关必须单独同步，否则点完星标再保存会把收藏状态改回去。
+                    form.setFieldsValue({ favorite: !target.favorite });
+                    onToggleFavorite(target);
+                  }}
+                />
+              )}
               <Typography.Title level={4} style={{ margin: 0, fontSize: 17, letterSpacing: '-0.015em' }}>
                 {isNew ? '新建 prompt' : prompt.title === '' ? '(无标题)' : prompt.title}
               </Typography.Title>

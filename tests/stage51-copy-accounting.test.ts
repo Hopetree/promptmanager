@@ -170,7 +170,11 @@ test('AC-116 ⑨⑩（源码级）：新端点不动表结构；前端只在"复
   const copy = strip(read('web/src/use-copy.ts'));
   assert.ok(/if \(ok\) await api\.recordCopy\(prompt\.id\)/.test(copy), '无变量分支必须在复制成功后调 recordCopy');
   assert.equal(/api\.getPrompt\(/.test(copy), false, '不得用 GET /:id 兼职记账（那是 view 语义）');
-  assert.ok(/hasVariables\(prompt\.user_prompt, prompt\.system_prompt\)[\s\S]{0,80}setVarsPrompt\(prompt\)/.test(copy), '含变量分支只开弹窗、不记账');
+  // FR-137 收敛后这里只存 id（弹窗对象由 Workspace 的单一数据源派生）—— 意图不变：只开弹窗、不记账
+  assert.ok(/hasVariables\(prompt\.user_prompt, prompt\.system_prompt\)[\s\S]{0,80}setVarsPromptId\(prompt\.id\)/.test(copy), '含变量分支只开弹窗');
+  const varsBranch = /if \(hasVariables\(prompt\.user_prompt, prompt\.system_prompt\)\) \{[\s\S]*?\n      \}/.exec(copy)?.[0] ?? '';
+  assert.notEqual(varsBranch, '', '必须能定位含变量分支');
+  assert.equal(/recordCopy|api\.render/.test(varsBranch), false, '含变量分支只开弹窗、不记账');
   // 顺序：先写剪贴板再记账（剪贴板需要用户激活，不能被网络请求拖过期）
   assert.ok(/const ok = await copyText\(prompt\.user_prompt, '提示词'\);\s*\n\s*if \(ok\) await api\.recordCopy/.test(copy), '必须先复制成功再记账');
   // api 层

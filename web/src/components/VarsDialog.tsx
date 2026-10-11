@@ -80,8 +80,23 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
     }
   }, [form]);
 
+  /**
+   * FR-137：只在**换了一条 prompt** 时加载（判 `id`，不看对象引用）。
+   *
+   * 现在弹窗拿到的对象是从 `Workspace` 的单一数据源派生的 —— 同一条 prompt 被改动
+   * （勾选框写服务端、收藏、改元数据）时对象会换身份。若这里依赖对象引用，
+   * 每次都会重新 `load()` ⇒ 把用户**已经填了一半的变量值**冲掉。
+   * 判据与编辑器表单同一条（FR-136 ①）：同一条的属性变化不得重置用户输入。
+   */
+  const loadedIdRef = useRef<number | null>(null);
   useEffect(() => {
-    if (prompt !== null) void load(prompt);
+    if (prompt === null) {
+      loadedIdRef.current = null;
+      return;
+    }
+    if (loadedIdRef.current === prompt.id) return;
+    loadedIdRef.current = prompt.id;
+    void load(prompt);
   }, [load, prompt]);
 
   if (prompt === null) return null;

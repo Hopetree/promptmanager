@@ -209,6 +209,26 @@ const STAGE62_ACCOUNTED_DELTA = 132;
  * 按既有口径（基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。
  */
 const STAGE64_ACCOUNTED_DELTA = 166;
+/**
+ * 阶段 65「前端状态收敛 + 两个用户可见缺陷」（FR-136 / FR-137）的前端增量。
+ *
+ * 构成：`Workspace.tsx` 把 6 处 prompt 副本收敛成单一数据源（`Map<number, Prompt>` + `listIds` + 派生
+ * `selected`/`detail`/`editing` + `mergePrompts`/`dropPrompts`），删掉 4 套手写 merge；`use-copy.ts` 只存
+ * `varsPromptId`；`PromptEditor.tsx` 加 `lastFilled` 稳定标识；`VarsDialog.tsx` 加 `loadedIdRef`；
+ * 另加一个测试定位用 testid（`pm-editor-list-item-<id>`）。**净增 184 B**。
+ *
+ * 口径（与既有阶段一致）：`git stash push -- web/src` ⇒ `npm run build:web` ⇒ js+css 合计 gzip
+ * = 427,890 B（基线）；收敛后同一口径 = 428,057 B ⇒ 差值 **167 B**。
+ * 收尾时又发现并修掉一个**同类缺陷**（渲染级 B7 + 真浏览器实证）：点编辑器里的星标后，表单里的
+ * 「收藏」开关不再跟着变（FR-136 ① 不再整体重填表单的代价），而保存时 `favorite` 正是从表单里读的
+ * ⇒ 点完星标再保存会把收藏状态改回去。修法是点星标时**只**同步这一个字段
+ * （`form.setFieldsValue({ favorite: !target.favorite })`），并给该开关加 testid `editor-favorite`
+ * ⇒ 同一口径再测 = **428,074 B**，故本阶段按 **184 B** 记账（167 + 17）。
+ * **无新增依赖、无新增 chunk**
+ * （仍 10 个），未压缩的最大 chunk 仍是 vendor-antd（470,946 B ≤ 500KB，AC-61 ① 不变），
+ * 入口 chunk 仍 ≤100KB（AC-61 ②）。按既有口径逐阶段记账，**不是**放宽预算。
+ */
+const STAGE65_ACCOUNTED_DELTA = 184;
 /** AC-61 ①：未压缩的 chunk 上限（Vite 告警阈值口径 500 kB） */
 const MAX_CHUNK_BYTES = 500_000;
 /** AC-61 ②：首屏入口 chunk 预算（未压缩） */
@@ -267,7 +287,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 / 60 / 61 + 2026-09-30 依赖补丁）', () => {
+test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对账增量：阶段 18 / 22 / 27 / 29 / 31 / 36 / 37 / 43 / 48 / 52 / 55 / 56 / 57 / 59 / 60 / 61 / 62 / 64 / 65 + 2026-09-30 依赖补丁）', () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const budget =
     BASELINE_TOTAL_GZIP +
@@ -289,6 +309,7 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
     STAGE61_ACCOUNTED_DELTA +
     STAGE62_ACCOUNTED_DELTA +
     STAGE64_ACCOUNTED_DELTA +
+    STAGE65_ACCOUNTED_DELTA +
     DEPS_2026_09_30_ACCOUNTED_DELTA;
   assert.ok(total <= budget, `总 gzip = ${String(total)} B，超过预算 ${String(budget)} B（基线 ${String(BASELINE_TOTAL_GZIP)} B）`);
 });

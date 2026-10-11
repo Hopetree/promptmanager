@@ -54,8 +54,10 @@ test('AC-74 ②：表格拖拽走同一个 onReorder（同一 PATCH 接口、同
 
 test('AC-74 ③：乐观更新（本地立即生效 + 失败回滚），不再无脑 refresh', () => {
   const handler = workspace.slice(workspace.indexOf('const reorderPrompts = useCallback'), workspace.indexOf('const reorderFolders = useCallback'));
-  assert.ok(/setData\(\{ \.\.\.snapshot, items: reordered \}\)/.test(handler), '本地立即生效新顺序');
-  assert.ok(/setData\(snapshot\)/.test(handler), '失败必须回滚');
+  // 阶段 65（FR-137）：列表顺序从 `data.items` 收敛成 `listIds`（唯一数据源是 `prompts` 这个 Map）。
+  assert.ok(/setListIds\(ids\)/.test(handler), '本地立即生效新顺序');
+  assert.ok(/const snapshot = listIds/.test(handler), '快照必须取自 listIds');
+  assert.ok(/setListIds\(snapshot\)/.test(handler), '失败必须回滚');
   assert.equal(/refresh\(\)/.test(handler), false, '不得再调用 refresh()（那会整列表重新请求 + loading 闪烁）');
   assert.ok(/await api\.reorderPrompts\(ids\)/.test(handler), '后端静默提交');
 });

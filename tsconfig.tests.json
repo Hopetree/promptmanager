@@ -10,5 +10,8 @@
   "include": [
     "tests/**/*.ts",
     "web/src/pure.ts"
+  ],
+  "exclude": [
+    "tests/render/**"
   ]
 }

@@ -19,7 +19,6 @@ export interface PromptCopier {
   closeVars: () => void;
   busyId: number | null;
 }
-
 /**
  * 「一键复制」的共用逻辑（FR-41a / **FR-113 修正**）：
  * - **无变量条目** → 直接复制**调用方传进来的** `prompt.user_prompt`（数据本来就在手里），
@@ -35,10 +34,14 @@ export interface PromptCopier {
  *
  * 两条路径**各自恰好记 1 条**：无变量 = `copy` 端点记 1 条；含变量 = `render` 记 1 条
  * （弹窗阶段只 `GET …/variables`，**不记账**）。这样既不会 +2（FR-113），也不会 +0（FR-115）。
+ *
+ * FR-137：这里**只存 `varsPromptId`**，弹窗拿到的对象由调用方从单一数据源（`Workspace` 的
+ * `Map<id, Prompt>`）派生 —— 于是"填值弹窗"不再是第 5 份 prompt 副本，
+ * 收藏 / 改元数据后弹窗看到的也是同一份最新数据。
  */
-export function usePromptCopy(): PromptCopier {
+export function usePromptCopy(resolvePrompt: (id: number) => Prompt | null): PromptCopier {
   const { message } = AntdApp.useApp();
-  const [varsPrompt, setVarsPrompt] = useState<Prompt | null>(null);
+  const [varsPromptId, setVarsPromptId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const handleError = useCallback(
@@ -61,7 +64,7 @@ export function usePromptCopy(): PromptCopier {
   const copyPrompt = useCallback(
     async (prompt: Prompt): Promise<void> => {
       if (hasVariables(prompt.user_prompt, prompt.system_prompt)) {
-        setVarsPrompt(prompt);
+        setVarsPromptId(prompt.id);
         return;
       }
       setBusyId(prompt.id);
@@ -93,7 +96,7 @@ export function usePromptCopy(): PromptCopier {
       try {
         const rendered = await api.render(prompt.id, values); // 记一次 session 取用（FR-19）
         await copyText(rendered.user_prompt, '渲染结果');
-        setVarsPrompt(null);
+        setVarsPromptId(null);
       } catch (error) {
         handleError(error);
       } finally {
@@ -107,8 +110,8 @@ export function usePromptCopy(): PromptCopier {
     copyText,
     copyPrompt,
     copyRendered,
-    varsPrompt,
-    closeVars: () => setVarsPrompt(null),
+    varsPrompt: varsPromptId === null ? null : resolvePrompt(varsPromptId),
+    closeVars: () => setVarsPromptId(null),
     busyId,
   };
 }

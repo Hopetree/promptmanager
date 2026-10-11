@@ -110,22 +110,31 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     page: 1,
     pageSize: PAGE_SIZE,
   });
-  const [data, setData] = useState<PromptListResponse | null>(null);
+  /**
+   * FR-137：**单一数据源** —— 同一份 prompt 只存在这一处（`Map<id, Prompt>`）；
+   * 列表响应只留「这一页有哪几条 / 一共几条」（`listIds` + `total`），要显示的对象一律
+   * 从 `prompts` 按 id 派生（见下面的 `selected` / `detail` / `editing`），写回只有 `mergePrompts()` 一个入口。
+   */
+  const [prompts, setPrompts] = useState<Map<number, Prompt>>(() => new Map());
+  /** `null` = 还没加载过（`UseView` 据此显示骨架） */
+  const [listIds, setListIds] = useState<number[] | null>(null);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const [editing, setEditing] = useState<Prompt | null>(null);
+  /** 编辑器里那条（只存 id；`draft` 优先 —— 未保存草稿还没进服务端） */
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<Prompt | null>(null);
   /** true = 编辑器里是**未保存草稿**（FR-45） */
   const [isNew, setIsNew] = useState(false);
   /** 进入编辑态的来源（FR-55：详情 → 返回详情；列表 / 新建 → 返回列表） */
   const [editorOrigin, setEditorOrigin] = useState<'detail' | 'list' | 'new'>('list');
-  /** 分栏视图右栏当前选中（FR-46；桌面端内联显示） */
-  const [selected, setSelected] = useState<Prompt | null>(null);
-  /** 详情弹层（卡片/表格双击、移动端点条目） */
-  const [detail, setDetail] = useState<Prompt | null>(null);
+  /** 分栏右栏（FR-46）/ 详情弹层当前选中 —— **只存 id**，对象从 `prompts` 派生 */
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   /** FR-62：编辑器全屏（状态放在这里，Esc 与外壳隐藏才能统一处理） */
   const [editorFullscreen, setEditorFullscreen] = useState(false);
@@ -139,7 +148,35 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   /** FR-67：修改密码弹窗 */
   const [passwordOpen, setPasswordOpen] = useState(false);
 
-  const copier = usePromptCopy();
+  /** FR-137：**唯一写入口** —— 把最新对象合并进单一数据源（同 id 覆盖、位置不变）。 */
+  const mergePrompts = useCallback((incoming: Prompt | Prompt[]): void => {
+    const list = Array.isArray(incoming) ? incoming : [incoming];
+    setPrompts((previous) => new Map([...previous, ...list.map((prompt) => [prompt.id, prompt] as const)]));
+  }, []);
+
+  /** 本地立即移除（批量删除后不必等重新拉列表）。 */
+  const dropPrompts = useCallback((ids: number[]): void => {
+    setPrompts((previous) => new Map([...previous].filter(([id]) => !ids.includes(id))));
+    setListIds((previous) => (previous === null ? previous : previous.filter((id) => !ids.includes(id))));
+  }, []);
+
+  /** 四个展示位**全部派生**自 `prompts` —— 没有第二份对象可以不同步。 */
+  const selected = selectedId === null ? null : prompts.get(selectedId) ?? null;
+  const detail = detailId === null ? null : prompts.get(detailId) ?? null;
+  const editing = draft ?? (editingId === null ? null : prompts.get(editingId) ?? null);
+
+  // 填值弹窗按 id 反查 ⇒ 它不再是第 5 份副本（FR-137）
+  const copier = usePromptCopy((id) => prompts.get(id) ?? null);
+
+  /** 交给 `UseView` 的列表响应：`items` 每次渲染都从单一数据源投影出来。 */
+  const data = useMemo<PromptListResponse | null>(() => {
+    if (listIds === null) return null;
+    const items = listIds.flatMap((id) => {
+      const prompt = prompts.get(id);
+      return prompt === undefined ? [] : [prompt];
+    });
+    return { total, limit: filters.pageSize, offset: (filters.page - 1) * filters.pageSize, items };
+  }, [filters.page, filters.pageSize, listIds, prompts, total]);
 
   const notify = useCallback(
     (error: unknown): void => {
@@ -160,14 +197,16 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         limit: filters.pageSize,
         offset: (filters.page - 1) * filters.pageSize,
       });
-      setData(result);
+      mergePrompts(result.items);
+      setListIds(result.items.map((prompt) => prompt.id));
+      setTotal(result.total);
       setListError(null);
     } catch (error) {
       setListError(describeError(error));
     } finally {
       setLoading(false);
     }
-  }, [filters]);
+  }, [filters, mergePrompts]);
 
   const loadFolders = useCallback(async (): Promise<void> => {
     try {
@@ -252,13 +291,10 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
    */
   const reorderPrompts = useCallback(
     async (ids: number[]): Promise<void> => {
-      const snapshot = data;
-      const byId = new Map((snapshot?.items ?? []).map((prompt) => [prompt.id, prompt]));
-      const reordered = ids.map((id) => byId.get(id)).filter((prompt): prompt is Prompt => prompt !== undefined);
+      const snapshot = listIds;
       // 乐观更新：当前页所有条目都在 ids 里时才本地重排（否则顺序不完整，交给服务端回包）
-      if (snapshot !== null && reordered.length === ids.length && reordered.length === snapshot.items.length) {
-        setData({ ...snapshot, items: reordered });
-      }
+      const samePage = snapshot !== null && ids.length === snapshot.length && snapshot.every((id) => ids.includes(id));
+      if (samePage) setListIds(ids);
       if (pinFavorites) setPinFavorites(false);
       if (useSort !== 'custom') {
         setUseSort('custom');
@@ -268,11 +304,11 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       try {
         await api.reorderPrompts(ids);
       } catch (error) {
-        if (snapshot !== null) setData(snapshot); // 回滚
+        if (snapshot !== null) setListIds(snapshot); // 回滚
         notify(error);
       }
     },
-    [applyFilters, data, message, notify, pinFavorites, useSort],
+    [applyFilters, listIds, message, notify, pinFavorites, useSort],
   );
 
   /** FR-70：同一父级下的文件夹重排（跨父级由服务端拒成 400）。 */
@@ -319,7 +355,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   const closeEditor = useCallback((): void => {
     // 草稿直接丢弃：**不碰服务端**（FR-45）
     setIsNew(false);
-    setEditing(null);
+    setDraft(null);
+    setEditingId(null);
     setEditorOpen(false);
     setEditorFullscreen(false);
     setView('list');
@@ -330,7 +367,9 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       try {
         // 走 GET /api/prompts/:id：按 FR-19 记一次 session 取用，并拿到最新 use_count
         const prompt = await api.getPrompt(id);
-        setEditing(prompt);
+        mergePrompts(prompt);
+        setDraft(null);
+        setEditingId(prompt.id);
         setIsNew(false);
         setEditorOrigin(origin);
         if (isMobile) setEditorOpen(true);
@@ -339,7 +378,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         notify(error);
       }
     },
-    [isMobile, notify],
+    [isMobile, mergePrompts, notify],
   );
 
   /** FR-55：从编辑器回到"详情"（分栏右栏 / 详情弹层），而不是回列表。 */
@@ -349,8 +388,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     setEditorFullscreen(false);
     setView('list');
     if (target === null || target.id === 0) return;
-    if (isMobile) setDetail(target);
-    else setSelected(target);
+    if (isMobile) setDetailId(target.id);
+    else setSelectedId(target.id);
   }, [editing, isMobile]);
 
   const openDetail = useCallback(
@@ -358,23 +397,25 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       try {
         // 打开详情 = FR-19 的一次 session 取用
         const fresh = await api.getPrompt(prompt.id);
-        if (!isMobile && viewMode === 'split') setSelected(fresh);
-        else setDetail(fresh);
+        mergePrompts(fresh);
+        if (!isMobile && viewMode === 'split') setSelectedId(fresh.id);
+        else setDetailId(fresh.id);
       } catch (error) {
         notify(error);
       }
     },
-    [isMobile, notify, viewMode],
+    [isMobile, mergePrompts, notify, viewMode],
   );
 
   /** FR-51：点 logo = 回主页 —— 视图回分栏、清搜索与全部筛选、取消选中、回到列表顶部。 */
   const goHome = useCallback((): void => {
     setViewMode('split');
     setFilters({ q: '', folderId: null, tag: null, favorite: false, sort: 'updated', page: 1, pageSize: PAGE_SIZE });
-    setSelected(null);
-    setDetail(null);
+    setSelectedId(null);
+    setDetailId(null);
     setIsNew(false);
-    setEditing(null);
+    setDraft(null);
+    setEditingId(null);
     setEditorOpen(false);
     setEditorFullscreen(false);
     setView('list');
@@ -389,19 +430,13 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       try {
         const updated = await api.updatePrompt(prompt.id, { favorite: next });
         message.success(next ? '已收藏' : '已取消收藏');
-        setData((prev) =>
-          prev === null
-            ? prev
-            : { ...prev, items: prev.items.map((item) => (item.id === updated.id ? { ...item, favorite: updated.favorite } : item)) },
-        );
-        setSelected((prev) => (prev !== null && prev.id === updated.id ? { ...prev, favorite: updated.favorite } : prev));
-        setDetail((prev) => (prev !== null && prev.id === updated.id ? { ...prev, favorite: updated.favorite } : prev));
-        setEditing((prev) => (prev !== null && prev.id === updated.id ? { ...prev, favorite: updated.favorite } : prev));
+        // FR-137：只写单一数据源 —— 列表 / 分栏右栏 / 详情 / 编辑器全部派生，无需再逐个 merge
+        mergePrompts(updated);
       } catch (error) {
         notify(error);
       }
     },
-    [message, notify],
+    [mergePrompts, message, notify],
   );
 
   /**
@@ -413,30 +448,12 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     async (prompt: Prompt, remember: boolean): Promise<void> => {
       try {
         const updated = await api.updatePrompt(prompt.id, { remember_variables: remember });
-        setData((prev) =>
-          prev === null
-            ? prev
-            : {
-                ...prev,
-                items: prev.items.map((item) =>
-                  item.id === updated.id ? { ...item, remember_variables: updated.remember_variables } : item,
-                ),
-              },
-        );
-        setSelected((prev) =>
-          prev !== null && prev.id === updated.id ? { ...prev, remember_variables: updated.remember_variables } : prev,
-        );
-        setDetail((prev) =>
-          prev !== null && prev.id === updated.id ? { ...prev, remember_variables: updated.remember_variables } : prev,
-        );
-        setEditing((prev) =>
-          prev !== null && prev.id === updated.id ? { ...prev, remember_variables: updated.remember_variables } : prev,
-        );
+        mergePrompts(updated);
       } catch (error) {
         notify(error);
       }
     },
-    [notify],
+    [mergePrompts, notify],
   );
 
   /**
@@ -448,43 +465,13 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       try {
         const updated = await api.updatePrompt(prompt.id, patch);
         message.success(patch.folder_id !== undefined ? '已更新文件夹' : '已更新标签');
-        const merge = (prev: Prompt | null): Prompt | null =>
-          prev !== null && prev.id === updated.id
-            ? {
-                ...prev,
-                folder_id: updated.folder_id,
-                tags: updated.tags,
-                version_no: updated.version_no,
-                updated_at: updated.updated_at,
-              }
-            : prev;
-        setSelected(merge);
-        setDetail(merge);
-        setEditing(merge);
-        setData((prev) =>
-          prev === null
-            ? prev
-            : {
-                ...prev,
-                items: prev.items.map((item) =>
-                  item.id === updated.id
-                    ? {
-                        ...item,
-                        folder_id: updated.folder_id,
-                        tags: updated.tags,
-                        version_no: updated.version_no,
-                        updated_at: updated.updated_at,
-                      }
-                    : item,
-                ),
-              },
-        );
+        mergePrompts(updated);
         refresh();
       } catch (error) {
         notify(error);
       }
     },
-    [message, notify, refresh],
+    [mergePrompts, message, notify, refresh],
   );
 
   /**
@@ -504,10 +491,12 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         message.success(label);
         if (action === 'delete') {
           // 被删条目若正被详情 / 编辑器持有，清掉，避免继续指向已不存在的记录
-          const drop = (prev: Prompt | null): Prompt | null => (prev !== null && ids.includes(prev.id) ? null : prev);
-          setSelected(drop);
-          setDetail(drop);
-          setEditing(drop);
+          dropPrompts(ids);
+          const dropId = (prev: number | null): number | null => (prev !== null && ids.includes(prev) ? null : prev);
+          setSelectedId(dropId);
+          setDetailId(dropId);
+          setEditingId(dropId);
+          setDraft((prev) => (prev !== null && ids.includes(prev.id) ? null : prev));
         }
         refresh();
         return true;
@@ -516,7 +505,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         return false;
       }
     },
-    [message, notify, refresh],
+    [dropPrompts, message, notify, refresh],
   );
 
   /** 分栏中栏的展示顺序（与 UseView 共用 orderPrompts，保证"第一条"一致）。 */
@@ -529,20 +518,21 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   useEffect(() => {
     if (isMobile || viewMode !== 'split') return;
     if (orderedItems.length === 0) {
-      setSelected(null);
+      setSelectedId(null);
       return;
     }
-    if (selected === null || !orderedItems.some((prompt) => prompt.id === selected.id)) {
-      setSelected(orderedItems[0] ?? null);
+    if (selectedId === null || !orderedItems.some((prompt) => prompt.id === selectedId)) {
+      setSelectedId(orderedItems[0]?.id ?? null);
     }
-  }, [isMobile, orderedItems, selected, viewMode]);
+  }, [isMobile, orderedItems, selectedId, viewMode]);
 
   /**
    * `＋新建`：只把**内存草稿**放进编辑器（FR-45）。
    * ⚠️ 这里**不得**调用 `api.createPrompt`——未点「保存」不能有任何服务端记录。
    */
   const createPrompt = useCallback((): void => {
-    setEditing({ ...EMPTY_DRAFT });
+    setDraft({ ...EMPTY_DRAFT });
+    setEditingId(null);
     setIsNew(true);
     setEditorOrigin('new');
     if (isMobile) setEditorOpen(true);
@@ -592,7 +582,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           return;
         }
         if (detail !== null) {
-          setDetail(null);
+          setDetailId(null);
           return;
         }
         if (overlayOpen) return;
@@ -668,7 +658,13 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
               background: prompt.id === editing?.id ? token.controlItemBgActive : undefined,
             }}
           >
-            <Flex vertical gap={2} style={{ width: '100%', minWidth: 0 }}>
+            <Flex
+              vertical
+              gap={2}
+              style={{ width: '100%', minWidth: 0 }}
+              /* 阶段 65（AC-127 B5）：渲染级测试点左栏「另一条」来验证换条目会重填表单 */
+              data-testid={`pm-editor-list-item-${String(prompt.id)}`}
+            >
               <Flex align="center" gap={6}>
                 {prompt.favorite ? (
                   <StarFilled style={{ color: token.colorPrimary, fontSize: 11 }} />
@@ -724,8 +720,11 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           onClose={closeEditor}
           onBackToDetail={backToDetail}
           onSaved={(prompt) => {
+            // FR-136 ②：把服务端回包写进**单一数据源** ⇒ 列表 / 分栏右栏 / 详情立刻是同一份最新数据
             setIsNew(false);
-            setEditing(prompt);
+            setDraft(null);
+            mergePrompts(prompt);
+            setEditingId(prompt.id);
             refresh();
           }}
           onDeleted={() => {
@@ -804,7 +803,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
               void (async () => {
                 try {
                   const fresh = await api.getPrompt(prompt.id);
-                  setSelected(fresh);
+                  mergePrompts(fresh);
                 } catch (error) {
                   notify(error);
                 }
@@ -894,14 +893,14 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         prompt={detail}
         isMobile={isMobile}
         busy={copier.busyId !== null}
-        onClose={() => setDetail(null)}
+        onClose={() => setDetailId(null)}
         onCopy={(prompt) => void copier.copyPrompt(prompt)}
         onDelete={(prompt) => {
-          setDetail(null);
+          setDetailId(null);
           void removePrompt(prompt);
         }}
         onEdit={(prompt) => {
-          setDetail(null);
+          setDetailId(null);
           void openEditor(prompt.id, 'detail');
         }}
         onToggleFavorite={(prompt) => void toggleFavorite(prompt)}
@@ -911,7 +910,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         onReload={(prompt) => {
           void (async () => {
             try {
-              setDetail(await api.getPrompt(prompt.id));
+              mergePrompts(await api.getPrompt(prompt.id));
             } catch (error) {
               notify(error);
             }
