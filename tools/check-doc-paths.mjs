@@ -72,8 +72,10 @@ function targets(root) {
   files.push(...walkMarkdown(path.join(root, 'docs')));
   const testsDir = path.join(root, 'tests');
   if (existsSync(testsDir)) {
-    for (const entry of readdirSync(testsDir)) {
-      if (entry.endsWith('.test.ts')) files.push(path.join(testsDir, entry));
+    for (const entry of readdirSync(testsDir, { withFileTypes: true })) {
+      // 与 walkMarkdown 同一纪律：不跟随符号链接（`tests/` 下的自指链接会让下面的 readFileSync 抛 ELOOP）
+      if (entry.isSymbolicLink()) continue;
+      if (entry.isFile() && entry.name.endsWith('.test.ts')) files.push(path.join(testsDir, entry.name));
     }
   }
   return files;
@@ -112,6 +114,8 @@ function looksLikePath(token) {
   if (/^https?:/.test(token) || token.startsWith('/') || token.startsWith('~') || token.startsWith('#')) return false;
   // 显式相对写法：必须是**文件**（末段带扩展名）或**目录**（以 `/` 收尾），
   // 否则 `./pure`（Vite 的无扩展名模块说明符）这类会被误判成死链。
+  // 已知取舍：由此**无扩展名的相对文件引用不被判定**（例如 `./LICENSE` 缺失时不会报红）。
+  // 今天仓库里没有这种写法；宁可漏报也不能误报 —— 门禁误报会把一份正确的文档判成红的。
   if (isRelativePath(token)) {
     const last = token.split('/').pop() ?? '';
     return token.endsWith('/') || last.includes('.');
@@ -147,7 +151,13 @@ function main() {
     const rel = path.relative(root, abs);
     const relDir = path.dirname(rel);
     const testFile = isTestFile(abs);
-    const lines = readFileSync(abs, 'utf8').split('\n');
+    let text;
+    try {
+      text = readFileSync(abs, 'utf8');
+    } catch {
+      continue; // 读不了（链接环、权限、竞态删除）就不判定：门禁不得因环境问题崩掉
+    }
+    const lines = text.split('\n');
     lines.forEach((line, index) => {
       for (const raw of tokensOfLine(line, testFile)) {
         const token = normalizeToken(raw);

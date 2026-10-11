@@ -285,3 +285,18 @@ test('返工① g：AGENTS.md §13 既说清「`tmp/` 不进历史」，也不�
   assert.match(agents, /\*\*older\*\* snapshot/, '要写清 git 历史里只有「旧快照」，没有当前过程文件');
   assert.doesNotMatch(agents, /not in git history either/, '「这些过程记录整体不在 git 历史里」是与事实不符的说法');
 });
+
+test('返工① h：`tests/` 下的自指符号链接同样不会让检查器崩（不只是 `docs/`）', () => {
+  // 独立复核实测：walkMarkdown 会跳过符号链接，但 tests/*.test.ts 那条读文件路径没有防护，
+  // 于是 `tests/` 下的自指 `.test.ts` 链接会让 readFileSync 抛 ELOOP 并把门禁打成红的（rc=1）。
+  const dir = makeTempRoot({ 'README.md': '# t\n' });
+  try {
+    mkdirSync(path.join(dir, 'tests'), { recursive: true });
+    symlinkSync('loop.test.ts', path.join(dir, 'tests', 'loop.test.ts'));
+    const { status, stdout } = runChecker(dir);
+    assert.equal(status, 0, `检查器不得因 tests/ 下的符号链接崩掉：${stdout}`);
+    assert.match(stdout, /检查 0 条，不存在 0 条/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
