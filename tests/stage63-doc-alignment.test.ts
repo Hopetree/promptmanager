@@ -6,7 +6,7 @@
 // ③ 文档里写死的数字必须等于**现场数出来的数字**（迁移数 / schema 版本 / 测试文件数 / 用例数）——
 //    这一类数字以前就是靠人手抄，抄错了没人发现，所以让它进测试。
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -195,5 +195,93 @@ test('阶段63 ⑬j：AGENTS.md §13 的库外过程态都写成 `tmp/dev-proces
     assert.match(agents, new RegExp(`tmp/dev-process/${rel}`), `§13 必须把 ${rel} 写成库外路径`);
   }
   assert.match(agents, /tmp\/dev-process\/docs\/dev-history\//);
-  assert.match(agents, /these process records are deliberately \*\*not\*\* committed/);
+  assert.match(agents, /nothing you write under `tmp\/` is ever committed/);
+});
+
+// —— ④ 返工 ①（独立对抗性复核整改）：检查器要**按上下文解析相对引用**、
+//     不能把 `#fragment` / 行尾标点 / 无扩展名说明符误判成死链，也不能被符号链接打崩。
+//     每一条都对应复核报告里的一个 finding，判据都是"真仓库绿 + 临时仓库红/绿"。 ————————————
+
+test('返工① a：`./` `../` 按「引用它的文件所在目录」解析 —— 真路径不误报、死链判红', () => {
+  withTempRoot(
+    {
+      'docs/development.md': ['真路径：`../AGENTS.md`、`../deploy/container.md`、`./traps.md`', '死链：`../deploy/gone.md`', ''].join('\n'),
+      'AGENTS.md': '# agents\n',
+      'deploy/container.md': '# container\n',
+      'docs/traps.md': '# traps\n',
+    },
+    (dir) => {
+      const { status, stdout } = runChecker(dir);
+      assert.equal(status, 1, `相对写法的死链必须判红：\n${stdout}`);
+      assert.match(stdout, /❌ 引用了不存在的路径：\.\.\/deploy\/gone\.md {2}<- docs\/development\.md:2/);
+      assert.match(stdout, /不存在 1 条/, '三条真路径不得被误判（否则就是 4 条）');
+    },
+  );
+});
+
+test('返工① b：`#fragment`、行尾标点、`<...>` 包裹都不算死链（正确引用不许被判红）', () => {
+  withTempRoot(
+    {
+      'README.md': ['锚点：`docs/traps.md#12-文档与截图的落点`', '标点：`docs/traps.md，`', '尖括号链接：[说明](<docs/traps.md>)', ''].join('\n'),
+      'docs/traps.md': '# traps\n',
+    },
+    (dir) => {
+      const { status, stdout } = runChecker(dir);
+      assert.equal(status, 0, `这三处都指向真实存在的 docs/traps.md：\n${stdout}`);
+      assert.match(stdout, /不存在 0 条/);
+    },
+  );
+});
+
+test('返工① c：无扩展名的相对**模块说明符**（`./pure`）不是路径声明', () => {
+  withTempRoot(
+    {
+      'tests/sample.test.ts': '// `web/src/api.ts` 里有 `./pure` 这种无扩展名相对导入（Vite 解析）\n',
+      'web/src/api.ts': '// api\n',
+    },
+    (dir) => {
+      const { status, stdout } = runChecker(dir);
+      assert.equal(status, 0, `模块说明符不是"某个文件存在"的断言：\n${stdout}`);
+      assert.match(stdout, /检查 1 条，不存在 0 条/, '只有 `web/src/api.ts` 参与判定');
+    },
+  );
+});
+
+test('返工① d：尖括号链接目标里的死链照样判红（剥掉 `<>` 不等于跳过）', () => {
+  withTempRoot({ 'README.md': '[说明](<docs/gone.md>)\n' }, (dir) => {
+    const { status, stdout } = runChecker(dir);
+    assert.equal(status, 1, `尖括号里的死链必须判红：\n${stdout}`);
+    assert.match(stdout, /❌ 引用了不存在的路径：docs\/gone\.md {2}<- README\.md:1/);
+  });
+});
+
+test('返工① e：`docs/` 下的自指符号链接不会让检查器崩（不跟随链接）', () => {
+  const dir = makeTempRoot({ 'docs/README.md': '# docs\n' });
+  try {
+    symlinkSync('..', path.join(dir, 'docs/sub-loop')); // 指向 docs/ 自己
+    const { status, stdout } = runChecker(dir);
+    assert.equal(status, 0, `检查器不得因符号链接崩掉：\n${stdout}`);
+    assert.match(stdout, /检查 0 条，不存在 0 条/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('返工① f：`docs/development.md` 的迁移行也等于现场实测（不能只改 AGENTS.md）', () => {
+  const dev = readSource('docs/development.md');
+  const last = MIGRATION_FILES[MIGRATION_FILES.length - 1];
+  assert.match(dev, new RegExp(`\\| \`migrations/\` \\| \`001_init\\.sql\` … \`${last}\``), '迁移行的末位必须等于目录里最后一个迁移');
+  assert.match(dev, new RegExp(`（\\*\\*共 ${String(MIGRATION_FILES.length)} 个\\*\\*`), '迁移数必须等于现场实测');
+});
+
+test('返工① g：AGENTS.md §13 既说清「`tmp/` 不进历史」，也不谎称历史里没有旧快照', () => {
+  const agents = readSource('AGENTS.md');
+  assert.match(agents, /git log --all -- tmp\/` is empty/, 'AC-125 ⑧ 要求把「`git log --all -- tmp/` 为空」写进文档');
+  assert.match(
+    agents,
+    /tracked \*\*before the 2026-09-30 slimming\*\*/,
+    '瘦身前根目录的对应文件确实在 git 历史里，必须如实说明（且不得点名已不存在的旧路径，否则检查器会判死链）',
+  );
+  assert.match(agents, /\*\*older\*\* snapshot/, '要写清 git 历史里只有「旧快照」，没有当前过程文件');
+  assert.doesNotMatch(agents, /not in git history either/, '「这些过程记录整体不在 git 历史里」是与事实不符的说法');
 });

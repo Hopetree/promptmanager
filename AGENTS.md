@@ -214,7 +214,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (88 files, **576** cases at the last update). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (88 files, **583** cases at the last update). How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
@@ -379,8 +379,10 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 This repository ships **delivery-state content only**. The project's process artefacts live outside it, on
 the machine where development happens, under `tmp/dev-process/` - mirroring this repo's layout. `tmp/` is
-gitignored and **may be deleted at any time**; these process records are deliberately **not** committed, and
-they are **not** in git history either - once deleted they are gone.
+gitignored and **may be deleted at any time**; nothing you write under `tmp/` is ever committed
+(`git log --all -- tmp/` is empty), so a deletion there is not recoverable from this repository. Some of these
+files *were* tracked **before the 2026-09-30 slimming** (see `CHANGELOG.md`), so git history may hold an
+**older** snapshot of them - it never holds the current process files.
 
 | Path | What it is | When to read it |
 | --- | --- | --- |

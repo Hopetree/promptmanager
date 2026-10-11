@@ -18,7 +18,7 @@
 | `src/mcp/` | MCP 工具面（`server.ts`，三个只读工具） |
 | `src/client/pm-api.ts` | 使用侧 CLI 走的 HTTP 客户端 |
 | `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/pure.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
-| `migrations/` | `001_init.sql` … `007_sync-config.sql`（**共 7 个**；**已应用的不要改**，新增走**下一个编号** —— 当前是 `008_*.sql`，以目录里最大号为准） |
+| `migrations/` | `001_init.sql` … `008_remember-variables.sql`（**共 8 个**；**已应用的不要改**，新增走**下一个编号**，以目录里最大号为准） |
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
 | `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`ui-shots.sh` + `ui-shot.mjs`（界面截图）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh` |
 | `deploy/` | 交付物（**本仓库不部署它们**）：systemd unit / env 模板 / 部署说明 / 反代样例 / 容器说明 |
