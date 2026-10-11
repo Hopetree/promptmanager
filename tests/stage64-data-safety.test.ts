@@ -493,6 +493,49 @@ test('AC-126 ⑪（零条数）：库里没有取用历史时，replace 仍如�
   }
 });
 
+test('AC-126 ⑪（续 3）：replace 失败 ⇒ 不写「清空前留档」，也不挤掉旧备份（返工 ①）', async () => {
+  const fx = await makeFixture();
+  try {
+    const cookie = await authed(fx);
+    const id = await createPrompt(fx, cookie, { title: 'AC126 失败不留档' });
+    const file = await exportFile(fx, cookie);
+    const backupDir = fx.config.dataDir;
+    const listBackups = (): string[] =>
+      readdirSync(backupDir)
+        .filter((name) => name.startsWith('pre-replace-usage-') && name.endsWith('.json'))
+        .sort();
+
+    // 攒满 3 份（replace 保留 prompt id ⇒ 每轮前补一条取用行即可反复触发备份）
+    for (let round = 0; round < 3; round += 1) {
+      insertUsage(fx, id, 'session', 'copy', NOW);
+      await importOk(fx, cookie, 'replace', file);
+    }
+    const filled = listBackups();
+    assert.equal(filled.length, 3, '先攒满 3 份，才看得出「失败导入」是否误触发轮换');
+
+    // 一个必然失败的 replace：同一 prompt 的两条版本撞 UNIQUE(prompt_id, version_no) ⇒ 事务回滚
+    const broken = structuredClone(file);
+    const first = broken.prompts[0];
+    assert.ok(first !== undefined, '导出文件里必须至少有一条 prompt');
+    const version = first.versions[0];
+    assert.ok(version !== undefined, '这条 prompt 至少有一个版本');
+    first.versions.push(structuredClone(version));
+    insertUsage(fx, id, 'session', 'copy', NOW);
+    const before = usageCount(fx);
+    const res = await importFile(fx, cookie, 'replace', broken);
+    assert.equal(res.statusCode, 400, res.body);
+
+    assert.deepEqual(
+      listBackups(),
+      filled,
+      '失败的 replace 没有清库 ⇒ 不得新增「清空前留档」，更不得把一份真实历史备份挤出保留窗口',
+    );
+    assert.equal(usageCount(fx), before, '失败导入整体回滚，取用历史原样');
+  } finally {
+    await fx.close();
+  }
+});
+
 test('AC-126 ⑭：merge 不回归 —— 取用历史保留，回报 action=kept 且条数不变', async () => {
   const fx = await makeFixture();
   try {

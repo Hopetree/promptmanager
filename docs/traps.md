@@ -329,6 +329,11 @@ BRIEF，所以只记录、不修：
   `usage_history: {action: 'cleared', count: N, backup: '<绝对路径>'}`；
   merge 不清库 ⇒ `{action: 'kept', count: N, backup: null}`；本来没有记录 ⇒ `count: 0` 且
   **不编造备份**（`backup: null`）。界面 toast 由 `web/src/pure.ts` 的 `usageHistoryNotice()` 统一措辞。
+- ⚠️ **写备份与裁剪旧备份必须分开**（返工 ①，对抗性复核发现）：`replace` 的写库是**事务**，
+  导入失败会整体回滚 —— 此时**根本没有清库**。若把"只留 3 份"的裁剪塞进写备份里，一次失败的导入会
+  ①新增一份自称「清空前留档」却什么都没清的**误导性文件**，②把一份**真实历史备份挤出保留窗口**。
+  做法：`writeUsageBackup` 只写、`pruneUsageBackups` 只在 replace **成功提交后**调用；
+  失败路径 `removeUsageBackup` 删掉刚写的那份 ⇒ 备份集合与导入前逐字节一致（`AC-126 ⑪（续 3）` 盯着）。
 - ⚠️ **这份备份不进导出文件、不上传云端**（D-62 ⑥）：那会把"快照 = 交付数据"的语义搅浑
   （导入别家实例的备份会把别人的取用痕迹灌进本地）。它只是本地的一次救命存档。
 - ⚠️ **`usageBackupDir` 是必填参数**（`ImportOptions`，故意不给默认值）：漏传就等于静默丢历史，

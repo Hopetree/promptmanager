@@ -355,6 +355,8 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 
   备份落在 `<DATA_DIR>/pre-replace-usage-<时间戳>.json`（**0600**，保留最近 3 份，与
   `pre-restore-*.json` 同目录），内容是 `{app, created_at, reason, count, rows}`。
+  ⚠️ 导入**失败**时（校验不过 / 事务回滚）本次并没有清库 ⇒ **既不写备份、也不轮换旧备份**，
+  备份目录与导入前**完全一致**（不会出现一份自称「清空前留档」却没有清过的文件）。
   ⚠️ 它**不进导出文件、不上传云端** —— 只作本地救命存档。`POST /api/sync/pull` 的响应同样带这个字段。
 - 单次导入请求体上限 **32MB**。
 - ⚠️ **契约值 `app` 恒为小写 `promptmanager`** —— 改它会让已有导出文件全部导入失败。

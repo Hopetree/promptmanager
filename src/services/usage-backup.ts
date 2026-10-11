@@ -18,6 +18,11 @@ import { nowIso } from './auth.js';
  *
  * ⚠️ 这份备份**不进导出文件、不上传云端**（那会把「快照 = 交付数据」的语义搅浑，D-62 ⑥）；
  * 它只是本地的一次救命存档，保留最近 {@link USAGE_BACKUP_KEEP} 份。
+ *
+ * ⚠️ **写与裁剪是两件事**（返工 ①，对抗性复核发现）：`writeUsageBackup` 只写，
+ * `pruneUsageBackups` 只在 replace **成功提交之后**调用。若把裁剪塞进写里，一次
+ * **失败**的 replace（事务回滚、根本没清库）会既留下一份自称「清空前留档」的误导文件，
+ * 又把一份真实历史备份挤出保留窗口 —— 失败路径上 `importData` 会调 {@link removeUsageBackup} 删掉刚写的那份。
  */
 export const USAGE_BACKUP_KEEP = 3;
 
@@ -68,10 +73,13 @@ export async function countUsageEvents(qe: QueryEngine): Promise<number> {
 }
 
 /**
- * 把取用历史写一份到 `dir`，返回**绝对路径**；顺带只保留最近 {@link USAGE_BACKUP_KEEP} 份。
+ * 把取用历史写一份到 `dir`，返回**绝对路径**。
  *
  * 文件名用 `YYYYMMDDTHHMMSSmmmZ` 形式的时间戳（把 ISO 里的 `:` 与 `.` 换掉，Windows 也能用），
  * 这样按名字排序 = 按时间排序，裁剪不必读文件内容。
+ *
+ * **只写、不裁剪** —— 裁剪由 {@link pruneUsageBackups} 在 replace 成功提交后执行
+ * （失败路径不能动旧备份，见文件头注释）。
  */
 export async function writeUsageBackup(dir: string, rows: UsageEventRow[]): Promise<string> {
   await mkdir(dir, { recursive: true });
@@ -89,10 +97,20 @@ export async function writeUsageBackup(dir: string, rows: UsageEventRow[]): Prom
   // 0600：与凭据 / 内容快照同一口径（只有服务进程可读）
   await writeFile(file, `${JSON.stringify(payload, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
 
-  const names = (await readdir(dir)).filter((name) => name.startsWith(USAGE_BACKUP_PREFIX) && name.endsWith('.json')).sort();
-  for (const stale of names.slice(0, Math.max(0, names.length - USAGE_BACKUP_KEEP))) {
+  return file;
+}
+
+/** 删掉刚写的那份备份（replace 失败、事务回滚 ⇒ 本次没有清空任何东西 ⇒ 不留误导性存档）。 */
+export async function removeUsageBackup(file: string): Promise<void> {
+  await rm(file, { force: true });
+}
+
+/** 只保留最近 {@link USAGE_BACKUP_KEEP} 份（按文件名排序 = 按时间排序）；**只在 replace 成功后调用**。 */
+export async function pruneUsageBackups(dir: string, keep: number = USAGE_BACKUP_KEEP): Promise<void> {
+  const names = (await readdir(dir))
+    .filter((name) => name.startsWith(USAGE_BACKUP_PREFIX) && name.endsWith('.json'))
+    .sort();
+  for (const stale of names.slice(0, Math.max(0, names.length - keep))) {
     await rm(path.join(dir, stale), { force: true });
   }
-
-  return file;
 }

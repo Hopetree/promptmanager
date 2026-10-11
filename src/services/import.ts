@@ -3,7 +3,7 @@ import { pruneVersions } from '../db/prompt-versions.js';
 import { InvalidImportError, isConstraintError } from '../errors.js';
 import { nowIso } from './auth.js';
 import { EXPORT_APP, SUPPORTED_SCHEMA_VERSION } from './export.js';
-import { countUsageEvents, readUsageEvents, writeUsageBackup } from './usage-backup.js';
+import { countUsageEvents, pruneUsageBackups, readUsageEvents, removeUsageBackup, writeUsageBackup } from './usage-backup.js';
 
 export type ImportMode = 'replace' | 'merge';
 
@@ -525,9 +525,13 @@ export async function importData(
 
   /**
    * FR-134：replace 会在事务里 `DELETE FROM prompts` ⇒ `usage_events` 级联清空。
-   * 清空**之前**先把取用历史读出来（读在事务外、写备份也在事务外：
-   * 备份是"救命存档"，即使后面的导入失败回滚了，这份存档留着也无害）。
+   * 清空**之前**先把取用历史读出来（读在事务外、写备份也在事务外）。
    * merge 不清库 ⇒ 只需要数一下现有条数，如实回报「保留 N 条」。
+   *
+   * ⚠️ 返工 ①（对抗性复核发现）：写备份与裁剪旧备份必须分开 ——
+   * 导入**失败**时事务回滚、本次根本没有清库，那份"清空前留档"就是误导性的，
+   * 而且它的轮换会把一份真实历史备份挤出保留窗口。所以失败路径删掉刚写的这份
+   * （{@link removeUsageBackup}），只有 replace **成功提交后**才裁剪（{@link pruneUsageBackups}）。
    */
   const usageRows = mode === 'replace' ? await readUsageEvents(qe) : null;
 
@@ -535,7 +539,16 @@ export async function importData(
     if (mode === 'replace') {
       const backup =
         usageRows !== null && usageRows.length > 0 ? await writeUsageBackup(options.usageBackupDir, usageRows) : null;
-      const result = await replaceImport(qe, file);
+      let result: ImportOutcome;
+      try {
+        result = await replaceImport(qe, file);
+      } catch (error) {
+        // 事务回滚 ⇒ 本次没有清空任何东西 ⇒ 刚写的那份是误导性存档，删掉，
+        // 让备份集合与本次导入**前**完全一致（也不让它的轮换挤掉真实历史备份）。
+        if (backup !== null) await removeUsageBackup(backup);
+        throw error;
+      }
+      await pruneUsageBackups(options.usageBackupDir);
       return {
         ...result,
         usage_history: { action: 'cleared', count: usageRows?.length ?? 0, backup },

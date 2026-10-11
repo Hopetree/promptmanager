@@ -214,7 +214,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (89 files, **605** cases at the last update). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (89 files, **606** cases at the last update). How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
