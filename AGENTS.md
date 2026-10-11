@@ -89,7 +89,7 @@ npm test                         # expect: fail 0 (the case count only grows - t
 AC=$(mktemp -d)
 printf '%s\n' 'dev-pw-123456' | DATA_DIR=$AC node bin/pm.mjs user set-password --username admin
 DATA_DIR=$AC PORT=8766 node dist/server/index.js &   # then open http://<this-host-LAN-IP>:8766
-curl -s http://127.0.0.1:8766/healthz                # {"status":"ok","version":"1.5.0"}
+curl -s http://127.0.0.1:8766/healthz                # {"status":"ok","version":"<the version in package.json>"}
 ```
 
 After changing code you **must** run `npm test` and `bash tools/ci-check.sh` before committing (see section 7).
@@ -106,11 +106,11 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 | One test file | `npm run build && node --test tests/health.test.ts` | rc=0; `tests 3` / `pass 3` / `fail 0`. **Build first**: tests import from `../dist/**`, and some cases need `dist/web`. |
 | One test case | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0; `tests 1` / `pass 1` / `fail 0`. |
 | Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). **`typecheck:tests` runs `build:server` first**, because the tests type-check against `../dist/**` (pitfall 11). |
-| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 7 rows green (**deps / lint / build / 2x typecheck / npm test / 500 KB chunk budget** - the build comes *before* the type checks, see pitfall 11). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (6 items)". It reports `... fail 0`, the lint summary, and a max chunk size (see the script output; the 500 KB budget is the gate). |
-| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v7`**. A second run prints the same and also exits 0. |
+| **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 9 steps green (**⓪ doc byte budget / ① deps / ①b lint / ①c deps ledger / ①d doc path references / ② build / ③a+③b typecheck / ④ npm test / ⑤ 500 KB chunk budget** - the build comes *before* the type checks, see pitfall 11). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (N items)", where N is how many rows it ran. It reports `... fail 0`, the lint summary, and a max chunk size (the 500 KB budget is the gate). |
+| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v8`**. A second run prints the same and also exits 0. |
 | Set the admin password | `printf '%s\n' '<strong-password>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0; prints **`ok: user admin password updated`** (password is read from stdin and never echoed). |
 | Start (default 8767) | `npm start` | rc=0; logs `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=...)`. Verified with `PORT=8765`; **8767 is currently occupied by the test environment**. |
-| **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"1.5.0"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
+| **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"<the version in package.json>"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
 | Big fixture (2000 rows) | `DATA_DIR=$AC node tools/seed-prompts.mjs 2000` | rc=0; `ok: seeded 2000 prompts (total=2000, fts_hits=2000) in ... [192 ms]`. |
 | Deployment file syntax | `systemd-analyze verify deploy/promptmanager.service` | rc=0 and **no output**. Note: it cannot catch the "starts, then crashes" trap (pitfall 1). |
 | UI evidence screenshots | `bash tools/ui-shots.sh` | rc=0; `OK ui-shots done`; **self-check mode writes the full 53-shot set to `tmp/ui-shots/shots/` (not committed)**. Use `bash tools/ui-shots.sh --key` to (re)generate the one key set of 8 into `docs/shots/` (see section 5.1). |
@@ -131,8 +131,8 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 | `src/mcp/` | MCP tool surface (`server.ts`, three read-only tools). |
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
-| `migrations/` | `001_init.sql` ... `007_sync-config.sql` (**7 files**; the full list is in section 5). |
-| `tests/` | `node:test` cases (82 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
+| `migrations/` | `001_init.sql` ... `008_remember-variables.sql` (**8 files**, applied in order; see section 6). |
+| `tests/` | `node:test` cases (88 `*.test.ts` files) plus shared fixtures in `helpers.ts`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans**: `api.md` (HTTP/CLI/MCP reference), `development.md` (build/test/structure), `traps.md` (why the code looks like this), `dependencies.md` (deps + licenses + audits), `versioning.md` (release rules), `search-zh.md` (search measurements), `README.md` (what this directory is), `shots/` (**one** set of key page shots, 8 PNGs). **No process state.** See section 5.1. |
 | Root files | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.nvmrc` / `.npmrc`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/*.yml`. **No requirements/progress/acceptance files** - those are local (section 13). |
@@ -190,10 +190,13 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 - **Data directory**: `DATA_DIR` (defaults to `<repo>/data`, created on first run). It holds `pm.db`
   (SQLite, WAL) and `media/`. In production it is `/var/lib/promptmanager` (the unit's `StateDirectory`).
 - **Migrations**: `migrations/NNN_*.sql`, applied in order by `src/db/migrate.ts`, with applied versions
-  recorded in `schema_migrations`. There are 7 files today, hence the output `ok: schema at v7`.
-  **The server also runs migrations on startup**, so every migration must be **idempotent**.
-- **Adding a migration**: create the **next number** = highest in `migrations/` + 1 (**008** as of this writing - check the directory, do not trust this number); **never edit an already-applied file**. Keep it pure
-  SQL and safe to run twice. Verify with `DATA_DIR=$(mktemp -d) npm run migrate` (expect `ok: schema at vN`).
+  recorded in `schema_migrations`. There are **8** files today (`001` … `008`), hence the output
+  `ok: schema at v8`. **The server also runs migrations on startup**, so every migration must be
+  **idempotent**.
+- **Adding a migration**: create the **next number** = highest in `migrations/` + 1 - **always read the
+  directory, never trust a number written in a document**; **never edit an already-applied file**. Keep it
+  pure SQL and safe to run twice. Verify with `DATA_DIR=$(mktemp -d) npm run migrate` (expect
+  `ok: schema at vN`).
 - `schema_version` (the **export file format**, currently 1) is **decoupled** from the project version
   `MAJOR.MINOR.PATCH`. For the rules, tag conventions, and the release procedure, read
   `docs/versioning.md` - **do not restate them here**.
@@ -211,7 +214,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (82 files, **489** cases at the last update). How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (88 files, **576** cases at the last update). How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
@@ -220,8 +223,9 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
   or port 8767**.
 - **CLI subprocesses** always go through `runCliProcess()`; do not `spawn` them yourself - see pitfall 4.
 - Part of the frontend coverage is **source-level assertions** (`tests/stage*.test.ts` read text/structure
-  from `web/src/**`) and **DOM-level assertions** (jsdom renders components). Neither needs a real browser;
-  real-browser verification is a manual/acceptance step, described in section 8.
+  from `web/src/**`). There is **no jsdom component rendering** in the suite (`grep -rn "createRoot|react-dom|renderToString" tests/` -> 0 hits); the only jsdom use is server-side Markdown rendering
+  (pitfall 6). Neither needs a real browser; real-browser verification is a manual/acceptance step,
+  described in section 8.
 - **If you see `✖ <file> 'test failed'` with no assertion detail, do not start editing business code.**
   That shape almost always means **the file's process was killed by a signal**, not that an assertion failed.
   When `bash tools/ci-check.sh` fails it prints the full diagnostics (`signal`, `Error:`, last log lines).
@@ -375,16 +379,17 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 This repository ships **delivery-state content only**. The project's process artefacts live outside it, on
 the machine where development happens, under `tmp/dev-process/` - mirroring this repo's layout. `tmp/` is
-gitignored and **may be deleted at any time** (the history lives in git).
+gitignored and **may be deleted at any time**; these process records are deliberately **not** committed, and
+they are **not** in git history either - once deleted they are gone.
 
-| Path (under `tmp/dev-process/`) | What it is | When to read it |
+| Path | What it is | When to read it |
 | --- | --- | --- |
-| `BRIEF.md` | **The only source of requirements**: FRs, technical constraints, interface contracts, every acceptance criterion, the task table (read-only) | Before starting a task - read the sections for your task |
-| `PROGRESS.md` | Current status table + task index + process log | To learn where the project stands or what comes next |
-| `VERIFY.md` | Acceptance conclusions and rework lists | To learn whether the last task passed |
-| `QUESTIONS.md` | Template for stopping and asking (past Q&A in `docs/dev-history/QUESTIONS-history.md`) | When the spec does not cover something that blocks delivery (section 12) |
-| `docs/dev-history/` | Earlier full process records, design studies, archived shots | When mining historical context |
-| `tools/ac-stage*.sh`, `*-probe.mjs` | Per-task acceptance scripts (real browser / real pixels) | When re-running an old acceptance check |
+| `tmp/dev-process/BRIEF.md` | **The only source of requirements**: FRs, technical constraints, interface contracts, every acceptance criterion, the task table (read-only) | Before starting a task - read the sections for your task |
+| `tmp/dev-process/PROGRESS.md` | Current status table + task index + process log | To learn where the project stands or what comes next |
+| `tmp/dev-process/VERIFY.md` | Acceptance conclusions and rework lists | To learn whether the last task passed |
+| `tmp/dev-process/QUESTIONS.md` | Template for stopping and asking (past Q&A in `tmp/dev-process/docs/dev-history/QUESTIONS-history.md`) | When the spec does not cover something that blocks delivery (section 12) |
+| `tmp/dev-process/docs/dev-history/` | Earlier full process records, design studies, archived shots | When mining historical context |
+| `tmp/dev-process/tools/ac-stage*.sh`, `*-probe.mjs` | Per-task acceptance scripts (real browser / real pixels) | When re-running an old acceptance check |
 
 **These files are never committed.** If you find yourself wanting to add one of them back into the repo,
 don't - put it here instead.

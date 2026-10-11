@@ -38,7 +38,6 @@ interface FolderPanelProps {
   selected: number | null;
   onSelect: (id: number | null) => void;
   onChanged: () => void;
-  onUnauthorized: () => void;
   /** FR-70：**同一父级下**的文件夹拖拽重排（跨父级由服务端拒成 400，前端也不允许） */
   onReorder: (parentId: number | null, ids: number[]) => void;
 }
@@ -63,7 +62,6 @@ export default function FolderPanel({
   selected,
   onSelect,
   onChanged,
-  onUnauthorized,
   onReorder,
 }: FolderPanelProps) {
   const { message } = AntdApp.useApp();
@@ -151,10 +149,6 @@ export default function FolderPanel({
   };
 
   const handle = (error: unknown): void => {
-    if (error instanceof ApiError && error.status === 401) {
-      onUnauthorized();
-      return;
-    }
     message.error(describeError(error));
   };
 

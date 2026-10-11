@@ -3,6 +3,7 @@
  * 一律 `credentials: 'same-origin'`（默认值，这里显式写出以表明意图）；不自建 HTTP 层、不做重试/加解密。
  */
 import { buildPromptListQuery, type PromptListQueryParams } from './pure';
+import { notifySessionExpired } from './session';
 import type {
   CreatedToken,
   ExportFile,
@@ -47,6 +48,17 @@ interface ErrorBody {
   message?: unknown;
 }
 
+/**
+ * 未认证的状态码。**整个前端只在这里出现 401**（FR-130 / AC-125 ②）：
+ * 组件层不再各自判断 401，会话失效统一走 `request()` 的单点通知。
+ */
+const UNAUTHORIZED = 401;
+
+/** 这个错误是不是「未认证」（`api.me()` 的会话探测用；判断本身也留在本模块内）。 */
+function isUnauthorized(error: unknown): boolean {
+  return error instanceof ApiError && error.status === UNAUTHORIZED;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method,
@@ -67,6 +79,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   if (!response.ok) {
+    // FR-130 / AC-125 ①：**401 单点** —— 收到未认证先通知 `App.tsx` 踢回登录页，再照常抛错，
+    // 让调用方走它原有的通用分支（`describeError` 把 `unauthorized` 说成「会话已失效，请重新登录」）。
+    // 这里**不弹提示**：调用方的通用分支已经会弹，再弹一次就是双重 toast。
+    if (response.status === UNAUTHORIZED) notifySessionExpired();
     const errorBody = (json ?? {}) as ErrorBody;
     const code = typeof errorBody.error === 'string' ? errorBody.error : undefined;
     throw new ApiError(
@@ -86,7 +102,7 @@ export const api = {
     try {
       return await request<{ username: string }>('GET', '/api/me');
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) return null;
+      if (isUnauthorized(error)) return null;
       throw error;
     }
   },
@@ -219,7 +235,11 @@ export const api = {
     request<SyncPullResult>('POST', '/api/sync/pull', { mode, confirm }),
 };
 
-/** 统一的用户可读错误文案（401 单独判，用于把用户踢回登录页）。 */
+/**
+ * 统一的用户可读错误文案。
+ * FR-130 起**不再判 401**（会话失效的单点判断在 `request()` 里），这里只把服务端的错误码翻成人话 ——
+ * `unauthorized` 那条就是用户掉登录态时看到的那句，各调用点的通用分支负责显示它。
+ */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === 'rate_limited') return '尝试过于频繁，请稍后再试（登录失败次数超过阈值）';

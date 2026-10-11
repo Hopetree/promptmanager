@@ -27,7 +27,7 @@ import {
 } from 'antd';
 import type { ReactNode } from 'react';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import { buildFolderTree, formatDateTime } from '../pure';
 import type { Folder, Prompt, PromptWritable, Tag as PromptTag } from '../types';
 import { LazyMarkdownPreview, LazyVariablePanel, LazyVersionPanel } from '../lazy';
@@ -54,7 +54,6 @@ interface PromptEditorProps {
   onDeleted: (id: number) => void;
   /** 复制一段文本（编辑器内直接复制，不必先打开变量面板） */
   onCopyText: (text: string, label: string) => void;
-  onUnauthorized: () => void;
   /** FR-62：全屏态（状态由 Workspace 持有，便于 Esc 与外壳隐藏统一处理） */
   fullscreen: boolean;
   /** FR-62：切换全屏（同一个按钮进出） */
@@ -92,7 +91,6 @@ export default function PromptEditor({
   onSaved,
   onDeleted,
   onCopyText,
-  onUnauthorized,
   fullscreen,
   onToggleFullscreen,
 }: PromptEditorProps) {
@@ -141,13 +139,9 @@ export default function PromptEditor({
       onSaved(fresh);
       setVersionRefreshKey((key) => key + 1);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     }
-  }, [fill, message, onSaved, onUnauthorized, prompt.id]);
+  }, [fill, message, onSaved, prompt.id]);
 
   const save = async (): Promise<void> => {
     // FR-45：新建是"内存草稿 → 点保存才创建"；这里才第一次碰服务端
@@ -176,10 +170,6 @@ export default function PromptEditor({
       setVersionRefreshKey((key) => key + 1);
       message.success(`已保存（v${String(updated.version_no)}）`);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     } finally {
       setSubmitting(false);
@@ -192,10 +182,6 @@ export default function PromptEditor({
       message.success('已删除');
       onDeleted(prompt.id);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     }
   };
@@ -423,7 +409,7 @@ export default function PromptEditor({
           <div data-testid="pm-panel-variables">
             <Card size="small" title="变量填值" styles={{ body: { padding: 12 } }}>
               <Suspense fallback={<LazyFallback label="正在加载变量…" />}>
-                <LazyVariablePanel promptId={isNew ? null : prompt.id} onUnauthorized={onUnauthorized} />
+                <LazyVariablePanel promptId={isNew ? null : prompt.id} />
               </Suspense>
             </Card>
           </div>
@@ -442,7 +428,6 @@ export default function PromptEditor({
                   promptId={isNew ? null : prompt.id}
                   refreshKey={versionRefreshKey}
                   onRollbackDone={() => void reloadFromServer()}
-                  onUnauthorized={onUnauthorized}
                 />
               </Suspense>
             </Card>

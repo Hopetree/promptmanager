@@ -2,7 +2,7 @@ import { BarChartOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, Descriptions, Drawer, Flex, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import { formatDateTime } from '../pure';
 import type { UsageSummary } from '../types';
 import { EmptyState, ErrorState, LoadingState } from './States';
@@ -10,11 +10,10 @@ import { EmptyState, ErrorState, LoadingState } from './States';
 interface UsageDrawerProps {
   open: boolean;
   onClose: () => void;
-  onUnauthorized: () => void;
 }
 
 /** 使用记录（FR-19）：`GET /api/usage/summary?days=N` —— 回答"这个库到底有没有被用出去"。 */
-export default function UsageDrawer({ open, onClose, onUnauthorized }: UsageDrawerProps) {
+export default function UsageDrawer({ open, onClose }: UsageDrawerProps) {
   const [days, setDays] = useState(30);
   const [summary, setSummary] = useState<UsageSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -26,15 +25,11 @@ export default function UsageDrawer({ open, onClose, onUnauthorized }: UsageDraw
       setSummary(await api.usageSummary(days));
       setError(null);
     } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
-        onUnauthorized();
-        return;
-      }
       setError(describeError(caught));
     } finally {
       setLoading(false);
     }
-  }, [days, onUnauthorized]);
+  }, [days]);
 
   useEffect(() => {
     if (open) void load();

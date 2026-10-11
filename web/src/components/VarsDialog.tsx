@@ -1,7 +1,7 @@
 import { CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Alert, Button, Checkbox, Flex, Form, Input, Modal, Space, Spin, Tag, Typography, theme } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import {
   filledValues,
   hasAnyFilled,
@@ -76,10 +76,6 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
       // ⚠️ 必须写**每个变量**（没记忆的写空串）——理由与回归测试见 `pure.ts` 的 `varsFormValues`。
       form.setFieldsValue(varsFormValues(response.variables, initial));
     } catch (caught) {
-      if (caught instanceof ApiError && caught.status === 401) {
-        setError('会话已失效，请重新登录');
-        return;
-      }
       setError(describeError(caught));
     }
   }, [form]);
@@ -124,7 +120,7 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
     <Modal
       open
       onCancel={onCancel}
-      /* FR-81：宽、高各加大 ≥15%（改前实测 640×398 → 760×≥477；基线见 tools/ac-stage27.sh 的 AC82_BASELINE_*）。
+      /* FR-81：宽、高各加大 ≥15%（改前实测 640×398 → 760×≥477；基线见**库外** tmp/dev-process/tools/ac-stage27.sh 的 AC82_BASELINE_*）。
          所有触发位置（分栏 / 表格 / 卡片 / 编辑器）共用这一个组件，改一处即全生效。 */
       width={760}
       /* FR-127 / AC-123 ⑫：不记住时标题**不含**「（自动记忆）」。 */

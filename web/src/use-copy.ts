@@ -1,6 +1,6 @@
 import { App as AntdApp } from 'antd';
 import { useCallback, useState } from 'react';
-import { api, ApiError, describeError } from './api';
+import { api, describeError } from './api';
 import { writeClipboard } from './clipboard';
 import { hasVariables } from './pure';
 import type { Prompt } from './types';
@@ -36,20 +36,16 @@ export interface PromptCopier {
  * 两条路径**各自恰好记 1 条**：无变量 = `copy` 端点记 1 条；含变量 = `render` 记 1 条
  * （弹窗阶段只 `GET …/variables`，**不记账**）。这样既不会 +2（FR-113），也不会 +0（FR-115）。
  */
-export function usePromptCopy(onUnauthorized: () => void): PromptCopier {
+export function usePromptCopy(): PromptCopier {
   const { message } = AntdApp.useApp();
   const [varsPrompt, setVarsPrompt] = useState<Prompt | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
 
   const handleError = useCallback(
     (error: unknown): void => {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     },
-    [message, onUnauthorized],
+    [message],
   );
 
   const copyText = useCallback(

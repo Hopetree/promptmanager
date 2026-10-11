@@ -1,7 +1,7 @@
 // 阶段 41 / FR-102（BRIEF v52 §4 + §8 AC-104）**编辑保存后返回详情，版本历史即时更新**断言。
 //
 // 这是**前端状态刷新**问题 ⇒ 真正的证据是**真浏览器**里"改 → 保存 → 返回详情 → 不刷新页面"的数字对照，
-// 在 本地验收记录 + ac-stage41-probe.mjs 里跑（AC-104 ①–⑥）。本文件只钉住**源码级契约**：
+// 在 库外验收记录 + 库外探针脚本 里跑（AC-104 ①–⑥）。本文件只钉住**源码级契约**：
 // 刷新信号必须是 `prompt.version_no`（而不是"只在回滚时自增的内部 state"），且不得变成"每次渲染都拉"。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -37,8 +37,10 @@ test('AC-104 ⑥（源码级）：刷新信号只在版本变化时变 —— �
   for (const unrelated of ['field', 'sourceMode', 'plain', 'fullscreen', 'versionKey']) {
     assert.equal(expr.includes(unrelated), false, `refreshKey 不得掺入无关 UI 状态：${unrelated}`);
   }
-  // VersionPanel 的 effect 仍只以 refreshKey 为触发条件（不得变成每渲染都拉）
-  assert.ok(/\[loadDiff, message, onUnauthorized, promptId, refreshKey\]/.test(panel), 'VersionPanel 的加载 effect 依赖必须仍是 refreshKey（不是每次都跑）');
+  // VersionPanel 的 effect 仍只以 refreshKey 为触发条件（不得变成每渲染都拉）。
+  // 阶段 63（FR-130）起 401 收敛到 `web/src/api.ts` 的 `request()`，`onUnauthorized` 这条 prop 链
+  // 已整条删除 ⇒ 依赖数组只剩这四项；refreshKey 仍是其中唯一的"版本信号"。
+  assert.ok(/\[loadDiff, message, promptId, refreshKey\]/.test(panel), 'VersionPanel 的加载 effect 依赖必须仍是 refreshKey（不是每次都跑）');
 });
 
 test('AC-104 ①（源码级）：保存回详情这条链路把"保存接口返回的对象"带进详情（version_no 因此会变）', () => {

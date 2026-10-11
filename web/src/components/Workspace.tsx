@@ -2,7 +2,7 @@ import { App as AntdApp, Button, Card, Drawer, Flex, Grid, Input, Layout, List, 
 import { ArrowLeftOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import type { CSSProperties } from 'react';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import { defaultViewMode, formatListDateTime, orderPrompts } from '../pure';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag } from '../types';
 import type { ThemeMode } from '../theme-mode';
@@ -139,22 +139,13 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   /** FR-67：修改密码弹窗 */
   const [passwordOpen, setPasswordOpen] = useState(false);
 
-  const handleUnauthorized = useCallback((): void => {
-    message.warning('会话已失效，请重新登录');
-    onSignedOut();
-  }, [message, onSignedOut]);
-
-  const copier = usePromptCopy(handleUnauthorized);
+  const copier = usePromptCopy();
 
   const notify = useCallback(
     (error: unknown): void => {
-      if (error instanceof ApiError && error.status === 401) {
-        handleUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     },
-    [handleUnauthorized, message],
+    [message],
   );
 
   const loadList = useCallback(async (): Promise<void> => {
@@ -172,15 +163,11 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       setData(result);
       setListError(null);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        handleUnauthorized();
-        return;
-      }
       setListError(describeError(error));
     } finally {
       setLoading(false);
     }
-  }, [filters, handleUnauthorized]);
+  }, [filters]);
 
   const loadFolders = useCallback(async (): Promise<void> => {
     try {
@@ -714,7 +701,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       onSelectFolder={(id) => applyFilters({ folderId: id })}
       onSelectTag={(name) => applyFilters({ tag: name })}
       onChanged={refresh}
-      onUnauthorized={handleUnauthorized}
       onReorderFolders={(parentId, ids) => void reorderFolders(parentId, ids)}
     />
   );
@@ -747,7 +733,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             refresh();
           }}
           onCopyText={(text, label) => void copier.copyText(text, label)}
-          onUnauthorized={handleUnauthorized}
           fullscreen={editorFullscreen}
           onToggleFullscreen={() => setEditorFullscreen((value) => !value)}
         />
@@ -826,7 +811,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
                 refresh();
               })();
             }}
-            onUnauthorized={handleUnauthorized}
           />
         </Layout.Content>
       </Layout>
@@ -883,7 +867,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       )}
       {usageOpen && (
         <Suspense fallback={null}>
-          <LazyUsageDrawer open onClose={() => setUsageOpen(false)} onUnauthorized={handleUnauthorized} />
+          <LazyUsageDrawer open onClose={() => setUsageOpen(false)} />
         </Suspense>
       )}
       {tokensOpen && (
@@ -892,7 +876,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           <LazyTokenDrawer
             open
             onClose={() => setTokensOpen(false)}
-            onUnauthorized={handleUnauthorized}
             isMobile={isMobile}
           />
         </Suspense>
@@ -935,7 +918,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             refresh();
           })();
         }}
-        onUnauthorized={handleUnauthorized}
       />
       {copier.varsPrompt !== null && (
         <Suspense fallback={null}>

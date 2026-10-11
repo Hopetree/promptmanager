@@ -140,9 +140,9 @@
 
 - **把过程态全部移出仓库**（2026-09-30）。移出的内容**没有删除**，而是搬到**本地** `tmp/dev-process/`
   （镜像本仓库布局；`tmp/` 已 gitignore、可随时整体删除；移出前的完整内容仍在 git 历史里）：
-  - 需求合同 `BRIEF.md`、进度日志 `PROGRESS.md`、验收记录 `VERIFY.md`、提问模板 `QUESTIONS.md`；
-  - `docs/dev-history/`（早期过程记录 + 设计打样归档）、`docs/brief-changelog.md`、`docs/ui-verification-report.md`；
-  - `tools/` 下 **101 个**一次性验收脚本（`ac-stage*.sh` / `*-probe.mjs`）与 `design-compare.mjs`。
+  - 需求合同 `tmp/dev-process/BRIEF.md`、进度日志 `tmp/dev-process/PROGRESS.md`、验收记录 `tmp/dev-process/VERIFY.md`、提问模板 `tmp/dev-process/QUESTIONS.md`；
+  - `tmp/dev-process/docs/dev-history/`（早期过程记录 + 设计打样归档）、`tmp/dev-process/docs/brief-changelog.md`、`tmp/dev-process/docs/ui-verification-report.md`；
+  - `tmp/dev-process/tools/` 下 **101 个**一次性验收脚本（`ac-stage*.sh` / `*-probe.mjs`）与 `design-compare.mjs`。
   - **`tools/` 现在只剩可复用工具**（质量门禁、界面截图、夹具、检索 PoC、MCP 冒烟、开发数据重置），
     因此 `npm run lint` 的范围从「排除 `tools/`」变成**全仓**（`oxlint .`；169 个文件 **0 告警**）。
 - **`AGENTS.md` 瘦身 21%**（43332 → **34082 B**，指令预算占用 **70.6% → 52%**）：
@@ -206,7 +206,7 @@
 
   - **`SECURITY.md`**：私密报告渠道（**GitHub Security Advisories**，不开公开 issue）、支持版本、响应节奏、**范围界定**（哪些算本项目的问题、哪些请自行处理），以及一节「**已知的安全设计**」—— 把 argon2id、令牌只存 sha256、同步令牌 AES-256-GCM、仅会话端点等**有意为之**的设计讲清楚，避免被当成漏洞报上来。
   - **`CONTRIBUTING.md`**：环境要求（Node ≥24 + `engine-strict`）、**质量门**（`rm -rf dist && bash tools/ci-check.sh`）、五条硬规矩（**不改已应用的迁移**、迁移必须幂等、依赖只减不增、`docs/` 只放最终状态、改接口要同步 `api.md`）、commit 规范、PR 与 issue 各要带什么。
-  - `README.md`：**加 4 个徽章**（CI / License / Docker Pulls / Node）、**内嵌 3 张截图**（分栏 / 卡片 / 暗色，其余 5 张仍在 `docs/shots/`）、文档索引补 `CONTRIBUTING` / `SECURITY` / `docs/README`、新增「**参与**」段。
+  - `README.md`：**加 4 个徽章**（CI / License / Docker Pulls / Node）、**内嵌 3 张截图**（分栏 / 卡片 / 暗色，其余 5 张仍在 `docs/shots/`）、文档索引补 `CONTRIBUTING` / `SECURITY` / `docs/README.md`、新增「**参与**」段。
 
 ### 文档（Documentation）
 
@@ -513,12 +513,12 @@ tag `v1.4.0`（阶段 53–56）。
 ### 内部
 
 - 新增 10 例单测（CI 步骤顺序 5 例 + 登录页 5 例）；`npm test` **319 → 329**。
-- 逐条 AC 与实测输出见 `docs/dev-history/PROGRESS.md` 的阶段 32 小节与根目录 `VERIFY.md`。
+- 逐条 AC 与实测输出见**库外**过程记录：`tmp/dev-process/PROGRESS.md` 的阶段 32 小节与 `tmp/dev-process/VERIFY.md`。
 
 ## [1.0.0] — 2026-09-21
 
 **首个正式版**：一个进程、一个端口、一个 SQLite 文件，自带浏览器管理后台 + 对外 API + agent（MCP）取用面。
-以下按能力类型归并（不含逐阶段流水账；逐条 AC 与实测输出见 `docs/dev-history/PROGRESS.md`）。
+以下按能力类型归并（不含逐阶段流水账；逐条 AC 与实测输出见**库外** `tmp/dev-process/PROGRESS.md`）。
 
 ### 新增（Added）· 核心
 
@@ -559,10 +559,10 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，52 个测试文件 / **285 个用例**（含接口、迁移、前端源码级断言）。
-- **验收自检**：`tools/ac-stage*.sh` 逐阶段可复跑（AC-1 … AC-76，含真鼠标与真实像素断言）。
-- **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**：类型检查 → 全量测试 →
-  构建 → 体积预算 ≤500KB）。
+- **测试**：`node:test`，88 个测试文件 / **576 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
+- **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
+  含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。
 - **依赖治理**：全部 pin 精确版本 + 登记 `docs/dependencies.md`（协议 + OSV 逐包查询）。
 
 [未发布]: https://example.invalid/promptmanager/compare/v1.0.0...HEAD

@@ -6,6 +6,7 @@
 #   ① 依赖就绪（`node_modules` 存在；CI 里由 workflow 先 `npm ci`）
 #   ①b 静态检查（`npm run lint` = oxlint）
 #   ①c 依赖台账一致性（`docs/dependencies.md` 必须与实际版本相符）
+#   ①d 文档路径引用（文档 / 测试注释里引用的仓库内路径必须存在；库外 `tmp/` 与通配写法豁免）
 #   ② 构建（`npm run build`）
 #   ③ 类型检查（`npm run typecheck:web` + `npm run typecheck:tests`）
 #   ④ 全量测试（`npm test`，自带构建与类型检查）
@@ -108,6 +109,16 @@ record "①b npm run lint" $? "$(grep -oE 'Found [0-9]+ warnings? and [0-9]+ err
 line "①c 依赖台账一致性"
 node tools/check-deps-ledger.mjs >"$LOG_DIR/deps-ledger.log" 2>&1
 record "①c 依赖台账一致性" $? "$(tail -1 "$LOG_DIR/deps-ledger.log")"
+
+# ---------------------------------------------------------------- ①d 文档路径引用
+# 为什么：`AGENTS.md` 是 AI 代理唯一会读的指令文件，`CHANGELOG.md` / `docs/**` 是交付文档，
+# `tests/*.test.ts` 的注释是"这条用例的证据在哪"的指路牌 —— 三者都出现过**指向已删除文件**的引用
+# （2026-09-30 仓库瘦身把 `docs/dev-history/` 与一次性验收脚本移出仓库后，引用没跟着改，靠人记不住）。
+# 判据：文档与测试注释里引用的**仓库内**路径必须存在；库外（`tmp/` 等）与含 `*` 的通配写法豁免，
+# 解析按「相对仓库根」再按「相对包根 `web/`」两级（细节与反例见脚本头注释）。
+line "①d 文档路径引用"
+node tools/check-doc-paths.mjs >"$LOG_DIR/doc-paths.log" 2>&1
+record "①d 文档路径引用" $? "$(tail -1 "$LOG_DIR/doc-paths.log")"
 
 # ---------------------------------------------------------------- ② 构建
 # 必须在 ③ 之前：tests 的类型检查依赖 ../dist/**（见文件头"为什么必须先构建"）。

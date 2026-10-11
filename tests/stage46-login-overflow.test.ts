@@ -8,7 +8,7 @@
 //
 // 覆盖：登录根容器**必须**是 `border-box`（否则 `minHeight:100vh` 不含上下 padding ⇒ 恒溢出 96px）、
 // 居中与留白参数未被改动；README 里有官方镜像完整地址，且**不含**镜像站 / 加速站内容（2026-09-30 反转）。
-// 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 本地验收记录 + ac-stage46-probe.mjs。
+// 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 库外验收记录 + 库外探针脚本。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -157,7 +157,9 @@ test('AC-110 ⑤ 返工（文档级，2026-09-30 调整）：官方仓库地址�
 
 test('AC-110 ⑥⑦（文档级）：不引用不存在的脚本；不引导用户改 Dockerfile / compose / CI', () => {
   const readme = read('README.md');
-  assert.equal(readme.includes('ac-stage9.sh'), false, '沿用既有口径：不得引用不存在的脚本');
+  // 库外一次性验收脚本已随仓库瘦身移出仓库（AGENTS.md §13）。README 不得引用它们。
+  // 这里用**形状**匹配（而非某个具体文件名），所以本文件自身也不含那个已不存在的脚本名（AC-125 ⑬c）。
+  assert.equal(/ac-?stage/i.test(readme), false, '沿用既有口径：不得引用不存在的脚本');
   // ⑦ 本次是"文档指引"而非"换镜像源" ⇒ 不应让用户去改这些文件
   assert.equal(/改\s*Dockerfile/.test(readme), false, '不得引导用户改 Dockerfile');
   assert.equal(/DAEMON_JSON|registry-mirrors/.test(readme), false, '不得引导改 docker daemon 的 registry-mirrors（那是另一种方案，本批不做）');

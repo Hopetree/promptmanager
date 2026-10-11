@@ -32,7 +32,6 @@ export interface PromptDetailPanelProps {
   onEdit: (prompt: Prompt) => void;
   /** 回滚后重新取这条 prompt（保持详情打开、内容刷新） */
   onReload: (prompt: Prompt) => void;
-  onUnauthorized: () => void;
   /** FR-57：详情栏标题行也能一键收藏 */
   onToggleFavorite: (prompt: Prompt) => void;
   /** FR-78：文件夹下拉的选项（全部文件夹树 + 「未归类」） */
@@ -64,7 +63,6 @@ export function PromptDetailPanel({
   onDelete,
   onEdit,
   onReload,
-  onUnauthorized,
   onToggleFavorite,
   folders,
   tags,
@@ -272,7 +270,6 @@ export function PromptDetailPanel({
              */
             refreshKey={prompt.version_no}
             onRollbackDone={() => onReload(prompt)}
-            onUnauthorized={onUnauthorized}
           />
         </Suspense>
       </div>
@@ -345,7 +342,6 @@ export default function PromptDetail({
   onDelete,
   onEdit,
   onReload,
-  onUnauthorized,
   onToggleFavorite,
   folders,
   tags,
@@ -363,7 +359,6 @@ export default function PromptDetail({
       onDelete={onDelete}
       onEdit={onEdit}
       onReload={onReload}
-      onUnauthorized={onUnauthorized}
       onToggleFavorite={onToggleFavorite}
       folders={folders}
       tags={tags}

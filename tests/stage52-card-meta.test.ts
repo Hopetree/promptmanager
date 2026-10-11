@@ -3,7 +3,7 @@
 //     相邻两项之间有可见「·」分隔符，项间距 6px，分隔符更淡且不可被复制/选中。
 //
 // 本文件是**源码级 + jsdom 级**断言；真浏览器的像素/间距/图标/截图证据见
-// 本地验收记录（AC-117 ①–⑨）。
+// 库外验收记录（AC-117 ①–⑨）。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

@@ -1,7 +1,7 @@
 // 阶段 55 / FR-119 ~ FR-123 / AC-119 ⑮：为**可量化**的部分补自动化断言，防止后续回归。
 //
 // 本文件是**源码级 / 纯逻辑级**断言（不依赖浏览器）；真浏览器的像素与几何证据见
-// 本地验收记录。
+// 库外验收记录。
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -18,7 +18,7 @@ const tokenDrawer = src('web/src/components/TokenDrawer.tsx');
 const theme = src('web/src/theme.ts');
 const usageSvc = src('src/services/usage.ts');
 
-/** WCAG 相对亮度与对比度（与 ac-stage55.sh 里那份算法一致） */
+/** WCAG 相对亮度与对比度（与 库外探针脚本 里那份算法一致） */
 function srgbToLin(v: number): number {
   const c = v / 255;
   return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

@@ -16,7 +16,7 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import { writeClipboard } from '../clipboard';
 import { formatDateTime, maskToken, truncateTokenName } from '../pure';
 import type { TokenSummary } from '../types';
@@ -93,7 +93,6 @@ const UNREVEALABLE_HINT = '迁移前创建的令牌没有保存可恢复的密�
 interface TokenDrawerProps {
   open: boolean;
   onClose: () => void;
-  onUnauthorized: () => void;
   /**
    * FR-106：是否移动端（与 `SplitView` 同款断点，由 `Workspace` 下发）。
    * 移动端的抽屉被夹到视口宽（390）⇒ 创建表单必须**竖排**，否则「名称」被权限选择 + 按钮挤到只剩 ~80px。
@@ -146,7 +145,7 @@ interface TokenDrawerProps {
  * **安全**：明文只存在于**本组件的 React state**（内存）——不写 localStorage/sessionStorage/URL/日志；
  * **抽屉一关就清空**（见下面 `open === false` 的 effect + Drawer 的 `destroyOnHidden`）。
  */
-export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = false }: TokenDrawerProps) {
+export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDrawerProps) {
   const { message } = AntdApp.useApp();
   const [tokens, setTokens] = useState<TokenSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -159,13 +158,9 @@ export default function TokenDrawer({ open, onClose, onUnauthorized, isMobile = 
 
   const handleError = useCallback(
     (error: unknown): void => {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     },
-    [message, onUnauthorized],
+    [message],
   );
 
   /** 拉列表 + **并发预取**所有可查看行的明文（后台、不显示）。 */

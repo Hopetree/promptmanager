@@ -13,7 +13,6 @@ interface SidebarPanelProps {
   onSelectFolder: (id: number | null) => void;
   onSelectTag: (name: string | null) => void;
   onChanged: () => void;
-  onUnauthorized: () => void;
   /** FR-70：同一父级下的文件夹拖拽重排 */
   onReorderFolders: (parentId: number | null, ids: number[]) => void;
 }
@@ -32,7 +31,6 @@ export default function SidebarPanel({
   onSelectFolder,
   onSelectTag,
   onChanged,
-  onUnauthorized,
   onReorderFolders,
 }: SidebarPanelProps) {
   return (
@@ -43,7 +41,6 @@ export default function SidebarPanel({
         selected={selectedFolderId}
         onSelect={onSelectFolder}
         onChanged={onChanged}
-        onUnauthorized={onUnauthorized}
         onReorder={onReorderFolders}
       />
       <TagPanel tags={tags} selected={selectedTag} onSelect={onSelectTag} />

@@ -127,7 +127,6 @@ interface UseViewProps {
   onSelect: (prompt: Prompt) => void;
   /** 详情面里的回滚等操作后刷新（分栏右栏复用详情面） */
   onReload: (prompt: Prompt) => void;
-  onUnauthorized: () => void;
 }
 
 /**
@@ -168,7 +167,6 @@ export default function UseView({
   selected,
   onSelect,
   onReload,
-  onUnauthorized,
 }: UseViewProps) {
   const { token } = theme.useToken();
   const { modal } = AntdApp.useApp();
@@ -554,7 +552,6 @@ export default function UseView({
           onEditDetail={onEditDetail}
           onReorder={onReorder}
           onReload={onReload}
-          onUnauthorized={onUnauthorized}
           onToggleFavorite={onToggleFavorite}
           onMetaChange={onMetaChange}
         />

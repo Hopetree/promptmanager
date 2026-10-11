@@ -40,7 +40,7 @@ npm run build:web         # 只构建前端
 npm test                  # 全量测试（自带构建 + 类型检查；用例数只增不减，以 CI 输出为准）
 npm run typecheck:web     # 前端类型检查
 npm run typecheck:tests   # 测试类型检查（**自带 build:server 前置**，见 §3）
-npm run migrate           # 幂等迁移 → ok: schema at v7
+npm run migrate           # 幂等迁移 → ok: schema at v8
 npm start                 # 启动服务（默认 0.0.0.0:8767）
 ```
 
@@ -62,11 +62,15 @@ npm ci                    # 首次（CI 里也由 workflow 先跑这一步）
 bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 ```
 
-`tools/ci-check.sh` 依次跑五步并打印**逐项 rc + 关键输出行**的汇总表：
+`tools/ci-check.sh` 依次跑**九步**并打印**逐项 rc + 关键输出行**的汇总表：
 
 | 步骤 | 命令 | 判据 |
 | --- | --- | --- |
+| ⓪ 文档体积预算 | 量 `AGENTS.md`（含 `Instructions from:` 段头）的 UTF-8 字节 | ≤ **40000 B** 红线（65536 B 预算的 61%）；> 36000 B 预警 |
 | ① 依赖就绪 | 检查 `node_modules` | 缺则提示先 `npm ci` 并停 |
+| ①b 静态检查 | `npm run lint`（oxlint） | 0 个 error |
+| ①c 依赖台账一致性 | `node tools/check-deps-ledger.mjs` | `package.json` 的每个直接依赖都在 `docs/dependencies.md` 里有对应版本行 |
+| ①d 文档路径引用 | `node tools/check-doc-paths.mjs` | 文档 / 测试注释里引用的**仓库内**路径都存在（库外 `tmp/` 与含 `*` 的通配写法豁免） |
 | ② 构建 | `npm run build` | 无 `larger than 500 kB` 告警 |
 | ③ 类型检查 | `npm run typecheck:web` + `npm run typecheck:tests` | 两个都 rc=0、0 个 TS 错误 |
 | ④ 全量测试 | `npm test`（自带构建与类型检查） | `fail 0` |

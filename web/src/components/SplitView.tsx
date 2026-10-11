@@ -33,7 +33,6 @@ interface SplitViewProps {
   /** 右栏详情面的「去编辑」：来源是**详情**（FR-55 返回详情） */
   onEditDetail: (prompt: Prompt) => void;
   onReload: (prompt: Prompt) => void;
-  onUnauthorized: () => void;
   onToggleFavorite: (prompt: Prompt) => void;
   /** FR-78：详情面内联改文件夹 / 标签 → 由外层落库 */
   onMetaChange: (prompt: Prompt, patch: PromptMetaPatch) => void;
@@ -70,7 +69,6 @@ export default function SplitView({
   onDelete,
   onEditDetail,
   onReload,
-  onUnauthorized,
   onToggleFavorite,
   onMetaChange,
   onReorder,
@@ -173,7 +171,6 @@ export default function SplitView({
               onDelete={onDelete}
               onEdit={onEditDetail}
               onReload={onReload}
-              onUnauthorized={onUnauthorized}
               onToggleFavorite={onToggleFavorite}
               folders={folders}
               tags={tags}

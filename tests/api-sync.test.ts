@@ -4,7 +4,7 @@
 //   · 本文件用 **app.inject + 本地 HTTP 桩服务器**：请求真的走 `fetch` 出去，只是把 D-57 ④ 要求可注入的
 //     GitHub API 基地址（`SYNC_GITHUB_API_BASE`）指向本进程内的桩 ⇒ base64、409 重试、错误映射都被真实执行。
 //   · **绝不使用真实 GitHub token / 真实仓库**（用户 2026-09-29 明确要求）。
-//   · AC-121 G⑫ 的界面证据（双端截图、无横滚）在 本地验收记录 + 探针里。
+//   · AC-121 G⑫ 的界面证据（双端截图、无横滚）在 库外验收记录 + 探针里。
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';

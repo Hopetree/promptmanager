@@ -1,7 +1,7 @@
 import { CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { App as AntdApp, Alert, Button, Card, Flex, Form, Input, Space, Tag } from 'antd';
 import { useEffect, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import { writeClipboard } from '../use-copy';
 import type { RenderResult } from '../types';
 import { ErrorState, LoadingState } from './States';
@@ -9,11 +9,10 @@ import { ErrorState, LoadingState } from './States';
 interface VariablePanelProps {
   /** null = 这条还没保存（新建草稿，FR-45）→ 不请求服务端，显示占位 */
   promptId: number | null;
-  onUnauthorized: () => void;
 }
 
 /** 变量填值面板（FR-8 / FR-11）：`/variables` 取变量 → 填值 → `/render` 出成品 → 一键复制。 */
-export default function VariablePanel({ promptId, onUnauthorized }: VariablePanelProps) {
+export default function VariablePanel({ promptId }: VariablePanelProps) {
   const { message } = AntdApp.useApp();
   const [variables, setVariables] = useState<string[] | null>(null);
   /** FR-126：服务端给的默认值表（只有写了 `| default(...)` 的变量才在里面）。 */
@@ -42,10 +41,6 @@ export default function VariablePanel({ promptId, onUnauthorized }: VariablePane
           setDefaults(response.defaults);
         }
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          onUnauthorized();
-          return;
-        }
         message.error(describeError(error));
         if (alive) setVariables([]);
       } finally {
@@ -55,7 +50,7 @@ export default function VariablePanel({ promptId, onUnauthorized }: VariablePane
     return () => {
       alive = false;
     };
-  }, [message, onUnauthorized, promptId]);
+  }, [message, promptId]);
 
   const render = async (): Promise<void> => {
     if (promptId === null) return;
@@ -69,10 +64,6 @@ export default function VariablePanel({ promptId, onUnauthorized }: VariablePane
       }
       setResult(await api.render(promptId, filled));
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     } finally {
       setRendering(false);

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { api } from './api';
 import LoginPage from './components/LoginPage';
 import Workspace from './components/Workspace';
+import { setSessionExpiredHandler } from './session';
 import './styles/app.css';
 import { buildTheme, cssVars } from './theme';
 import {
@@ -34,6 +35,10 @@ export default function App() {
   useEffect(() => {
     cleanupLegacyKeys(window.localStorage);
   }, []);
+
+  // FR-130 / AC-125 ①：**401 的单点出口在 `api.ts` 的 `request()`**；这里只把「踢回登录页」的动作注册进去。
+  // 回调只切状态、不弹提示 —— 「会话已失效，请重新登录」由触发请求那个组件原有的通用分支显示（否则双重 toast）。
+  useEffect(() => setSessionExpiredHandler(() => { setUsername(null); }), []);
 
   const cycleTheme = useCallback((): void => {
     setThemeMode((current) => {

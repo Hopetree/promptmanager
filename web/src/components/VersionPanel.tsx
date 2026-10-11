@@ -17,7 +17,7 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, ApiError, describeError } from '../api';
+import { api, describeError } from '../api';
 import { formatDateTime, rollbackNotice } from '../pure';
 import type { VersionSummary } from '../types';
 import DiffView from './DiffView';
@@ -30,7 +30,6 @@ interface VersionPanelProps {
   refreshKey: number;
   /** 回滚到「内容与当前不同」的版本才会生成新版本 → 通知外层刷新列表与编辑器内容 */
   onRollbackDone: () => void;
-  onUnauthorized: () => void;
 }
 
 type VersionView = 'table' | 'compare' | 'detail';
@@ -60,7 +59,7 @@ function writeNote(promptId: number, versionNo: number, value: string): void {
  * 保留原有能力：版本列表、两版本 unified diff、回滚（内容不同时生成新版本；FR-86 起最多保留最近 10 个版本）。
  * 视图切换用 antd `Segmented`（不是 `Tabs`——AC-31 ⑥ 要求编辑器面 `.ant-tabs-tab` = 0）。
  */
-export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onUnauthorized }: VersionPanelProps) {
+export default function VersionPanel({ promptId, refreshKey, onRollbackDone }: VersionPanelProps) {
   const { message } = AntdApp.useApp();
   const { token } = theme.useToken();
   const [versions, setVersions] = useState<VersionSummary[]>([]);
@@ -82,16 +81,12 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
         const result = await api.diff(promptId, fromValue, toValue);
         setDiff(result.diff);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          onUnauthorized();
-          return;
-        }
         message.error(describeError(error));
       } finally {
         setDiffLoading(false);
       }
     },
-    [message, onUnauthorized, promptId],
+    [message, promptId],
   );
 
   useEffect(() => {
@@ -123,10 +118,6 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
         setDetailNo(newest);
         if (previous !== null && newest !== null) await loadDiff(previous, newest);
       } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          onUnauthorized();
-          return;
-        }
         message.error(describeError(error));
       } finally {
         if (alive) setLoading(false);
@@ -135,7 +126,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
     return () => {
       alive = false;
     };
-  }, [loadDiff, message, onUnauthorized, promptId, refreshKey]);
+  }, [loadDiff, message, promptId, refreshKey]);
 
   useEffect(() => {
     if (detailNo !== null && promptId !== null) setNote(readNote(promptId, detailNo));
@@ -156,10 +147,6 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone, onU
       else message.success(notice.text);
       onRollbackDone();
     } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        onUnauthorized();
-        return;
-      }
       message.error(describeError(error));
     }
   };
