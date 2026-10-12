@@ -41,6 +41,35 @@ function usage(message: string): number {
   return 2;
 }
 
+/**
+ * FR-150：**每条命令的传输通道显式声明**（不再由各命令自己在实现里摸）。
+ * `local-db` 的三条命令没有 HTTP 等价物：`migrate` / `user set-password` 必须在服务启动前就能跑，
+ * `export` 是本地备份，而 `token reveal` / `set-scope` 的 HTTP 面刻意只允许浏览器 cookie 会话。
+ * `get` / `render` 是纯客户端命令；`token` 的 create/list/revoke 两条路都能走（`dual`）。
+ * 完整理由与"为什么不是一条路走到底"见 `docs/traps.md` 第 21 节。决策点只有 `resolveTransport` 一处。
+ */
+export const COMMAND_TRANSPORTS = {
+  migrate: 'local-db',
+  user: 'local-db',
+  export: 'local-db',
+  token: 'dual',
+  get: 'http',
+  render: 'http',
+} as const;
+
+export type CliTransport = 'local-db' | 'http';
+
+/**
+ * **唯一的通道决策点**（FR-150）：`dual` 命令按环境变量一次性定型；`local-db` / `http`
+ * 命令忽略环境（它们没有第二条路，这正是"显式分层"的含义）。
+ */
+export function resolveTransport(command: keyof typeof COMMAND_TRANSPORTS, api: ApiEnv): CliTransport {
+  const declared = COMMAND_TRANSPORTS[command];
+  if (declared === 'local-db') return 'local-db';
+  if (declared === 'http') return 'http';
+  return api.explicit ? 'http' : 'local-db';
+}
+
 /** 读尽 stdin；只去掉一个行尾换行（口令可以含空格，不做 trim）。 */
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
@@ -287,13 +316,18 @@ async function token(argv: string[]): Promise<number> {
     return usage(`token 的子命令 "${sub}" 未实现（create / list / set-scope / reveal / revoke）`);
   }
   /**
+   * FR-150：环境**只解析一次**，通道由 `resolveTransport` 定型 —— 下面不再出现"第二条路"，
+   * 也不再重复调 `resolveApiEnv()`。
+   */
+  const api = resolveApiEnv();
+  /**
    * FR-94 / FR-105：`reveal` 与 `set-scope` **只走本机管理路径**。
    * reveal 的 HTTP 面刻意只允许 cookie 会话（避免 token 互相窥视）；`PATCH /api/tokens/:id` 同理
    * —— 它属于"令牌管理"⇒ 用任何令牌调都是 `403 session_required`。CLI 没有 cookie ⇒ 设了
    * PM_API_URL 时**明确拒绝、不回退直连数据库**（否则会"看起来成功"却改了另一台机器的库）。
    */
   if (sub === 'reveal' || sub === 'set-scope') {
-    if (resolveApiEnv().explicit) {
+    if (api.explicit) {
       return usage(
         sub === 'reveal'
           ? 'token reveal 只支持本机管理路径（不设 PM_API_URL）；HTTP 面只允许浏览器会话调用 /api/tokens/:id/reveal'
@@ -302,8 +336,7 @@ async function token(argv: string[]): Promise<number> {
     }
   }
 
-  const api = resolveApiEnv();
-  if (api.explicit) {
+  if (resolveTransport('token', api) === 'http') {
     if (api.token === undefined) {
       return usage('设置了 PM_API_URL 时必须同时设置 PM_API_TOKEN（token 子命令走 HTTP API，不回退直连数据库）');
     }

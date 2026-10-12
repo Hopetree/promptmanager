@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import Fastify from 'fastify';
-import { classifyApiRequest, declaredCategory, registerAuthGate, authRouteCoverage } from '../dist/server/auth.js';
+import { classifyApiRequest, registerAuthGate, authRouteCoverage } from '../dist/server/auth.js';
 import type { Fixture } from './helpers.ts';
 import { cookieOf, login, makeFixture } from './helpers.ts';
 import { readSource } from './source-text.ts';

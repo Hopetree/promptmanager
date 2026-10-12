@@ -427,6 +427,15 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 
 `get` / `render` **一律经 HTTP API**，不直连数据库。退出码：`0` 成功 / `1` 运行时错误 / `2` 用法错误。
 
+**通道是显式分层的**（FR-150，`COMMAND_TRANSPORTS` / `resolveTransport`）：
+
+| 命令 | 通道 | 为什么 |
+| --- | --- | --- |
+| `migrate`、`user set-password` | 直连本机库 | 必须在服务启动**之前**就能跑（建库 / 引导口令），没有 HTTP 等价物 |
+| `export` | 直连本机库 | 本地备份：服务挂着时也要能导出（`export --out` 无需起服务） |
+| `get`、`render` | 仅 HTTP | 纯客户端命令，永远不加载数据库模块 |
+| `token` | 两条（`dual`） | 设了 `PM_API_URL` ⇒ HTTP；否则本机管理路径。⚠️ `/api/tokens*` 自 FR-105 起是 **session-only**，所以 HTTP 通道拿令牌调是 `403 session_required`（退出码 1），真正可用的是本机路径；`reveal` / `set-scope` 只支持本机路径 |
+
 ```bash
 export PM_API_URL=http://127.0.0.1:8767
 export PM_API_TOKEN=pm_…                     # 从 /api/tokens 或 `pm token create` 拿

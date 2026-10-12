@@ -24,7 +24,7 @@
     显式空串渲染成空 / 不认识的写法按字面"全部原样）；parity 测试仍在且全绿。
   - 实现细节：前端跨根引用共享模块用 `../../src/variable-syntax.ts`（Node 类型擦除与 Vite 都能解析），
     因此 `web/tsconfig.json` 增加 `allowImportingTsExtensions`；前端纯逻辑由 589 行的单文件
-    拆成 9 个按关注点划分的模块（见下一项 FR-148）。
+    拆成 9 个按关注点划分的模块（见下文 FR-148）。
   - `tests/stage60-variable-defaults.test.ts` 的 AC-122 ⑭ 按新规格**加强**改写：原来是"两份字面量
     逐字一致"，现在是"**根本不允许有第二份**，两侧都必须引用共享模块"。
 
@@ -45,6 +45,28 @@
     401 响应体与 `/api/*` **同形**（`{"error":"unauthorized"}`），差异只有"不收 cookie / 无状态"。
   - 读档 POST 白名单改为同时认数字 id 与路由模式 `:id`（机械检查看到的是 `:id`）——
     否则 `POST /api/prompts/:id/render` 会被误判成资源写。
+
+- **CLI 两条通道显式分层**（FR-150 / AC-132 D，阶段 70）：
+  - `src/server/cli.ts` 原本两条通道（直连 SQLite 的 `openCliDatabase()` 与走 HTTP 的
+    `apiRequest()`）的**决策散在各命令实现里**：`token()` 判 `api.explicit`、`get`/`render`
+    各自 `requireApiToken()`。现在通道由一张**显式声明表** `COMMAND_TRANSPORTS` 定死
+    （`migrate` / `user` / `export` = `local-db`，`get` / `render` = `http`，`token` = `dual`），
+    **决策点只有一处** `resolveTransport(command, api)`：`local-db` / `http` 命令忽略环境，
+    只有 `dual` 按 `PM_API_URL` 是否显式设置定型。
+  - **为什么不是"并成一条"**：`migrate` / `user set-password` 必须在服务启动**之前**能跑
+    （建库、引导口令）、`export` 是本地备份（服务器挂着也要能导出）、`token reveal`/`set-scope`
+    的 HTTP 面刻意只允许浏览器 cookie 会话 —— 硬并成一条会砍掉这些能力（AC-132 D16 要求保留）。
+    完整理由写进 `docs/traps.md` 第 21 节。
+  - **机械检查**（`tests/stage70-cli-transport.test.ts`）：声明表的键集合必须等于 `runCli` 的
+    `switch` 集合；`local-db` 命令体不许出现 `apiRequest(`、`http` 命令体不许出现
+    `openCliDatabase(`（按顶层函数机械切片）。
+  - **CLI 行为逐条不变**（真跑）：`migrate` → `ok: schema at v10`、`user set-password` →
+    `ok: user admin password updated`、`token create/list/revoke`、`export` → `ok: exported …`、
+    `get` / `render` 经 HTTP；没有服务时 `migrate` / `export` 照常可用。
+  - ⚠️ **已知矛盾（只记录、不改行为）**：`/api/tokens*` 自 FR-105 起是 session-only ⇒ CLI 的
+    HTTP token 通道事实上不可用（用令牌调一律 `403 session_required`，退出码 1），真正可用的是
+    本机管理路径；改它要动退出码或放松会话要求，都超出"结构改造"的范围。
+  - 接口 / 命令名 / 参数 / 输出格式 / 退出码一个字都没改；**零新增依赖**。
 
 - **前端纯逻辑按关注点拆分**（FR-148 / AC-132 B，阶段 70）：
   - 原来的前端纯逻辑入口是**一个 589 行 / 49 个 export** 的文件，混装十类关注点（列表查询串、文件夹树、
@@ -695,7 +717,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，98 个测试文件 / **662 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，99 个测试文件 / **667 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。

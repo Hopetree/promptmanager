@@ -28,6 +28,7 @@
 - [18. 性能与本地残留的四个坑（阶段 68 / FR-140 ~ FR-143）](#18-性能与本地残留的四个坑阶段-68--fr-140--fr-143)
 - [19. 机械记账的三个坑（阶段 69 / FR-144 ~ FR-146）](#19-机械记账的三个坑阶段-69--fr-144--fr-146)
 - [20. 鉴权分类与 `/mcp` 的 401（阶段 70 / FR-149）](#20-鉴权分类与-mcp-的-401阶段-70--fr-149)
+- [21. CLI 的两条通道：为什么不是"并成一条"（阶段 70 / FR-150）](#21-cli-的两条通道为什么不是并成一条阶段-70--fr-150)
 
 ---
 
@@ -522,3 +523,34 @@ BRIEF，所以只记录、不修：
   **无状态**（`GET` / `DELETE /mcp` 明确 405，而不是静默 404 或假装能开会话）。
 - **判据**：`POST /mcp`（无凭据）与 `GET /api/prompts`（无凭据）的响应体 `deepEqual`；
   `GET /mcp` ⇒ 405。差异写在这里，而不是散落在代码注释里。
+
+## 21. CLI 的两条通道：为什么不是"并成一条"（阶段 70 / FR-150）
+
+### 21.1 同一个 CLI 里两套实现，通道决策散在各命令里
+
+- **坑的形态**：`src/server/cli.ts` 有两条完全不同的执行通道 —— 直连 SQLite 的
+  `openCliDatabase()`（`migrate` / `export` / `user set-password` / `token` 的本机管理）
+  与走 HTTP 的 `apiRequest()`（`get` / `render`，以及设了 `PM_API_URL` 时的 `token`）。
+  改前通道决策**散在实现里**：`token()` 一处判 `api.explicit`、`get`/`render` 各自
+  用 `requireApiToken()`，谁也不回答"这条命令到底该走哪条路"。加一条新命令时，
+  很容易复制错那一半，或者让某条命令**两条路都碰**。
+- **为什么不能真的并成一条**：三条 `local-db` 命令**没有 HTTP 等价物** ——
+  `migrate`（建库）与 `user set-password`（引导口令）必须在**服务启动之前**就能跑；
+  `export` 是本地备份（服务器挂着时也要能导出）；而 `token reveal` / `set-scope` 的 HTTP 面
+  **刻意只允许浏览器 cookie 会话**（令牌调一律 `403 session_required`，见 §20）。
+  硬并成一条就会砍掉引导与备份能力 —— 这正是 AC-132 D16 要求保留的。
+- **做法**：通道由一张**显式声明表**给每条命令定死（`COMMAND_TRANSPORTS`：
+  `migrate`/`user`/`export` = `local-db`，`get`/`render` = `http`，`token` = `dual`），
+  **决策点只有一处** `resolveTransport(command, api)`：`local-db` / `http` 命令**忽略环境**
+  （它们没有第二条路），只有 `dual` 按 `PM_API_URL` 是否显式设置定型。
+  表与 `runCli` 的 `switch` 由机械检查对齐（少一条或多一条 ⇒ 测试红），
+  并且 `local-db` 命令体不许出现 `apiRequest(`、`http` 命令体不许出现 `openCliDatabase(`。
+- **⚠️ 已知矛盾（只记录，不改行为）**：`/api/tokens*` 自 FR-105 起是 **session-only** ⇒
+  CLI 的 HTTP token 通道**事实上不可用**（`token create/list/revoke` 用令牌调都是
+  `403 session_required`，退出码 1）。真正可用的是本机管理路径。本阶段按 D-68 ①
+  只记录这个矛盾、不动行为（改它要么改退出码、要么放松 `/api/tokens` 的会话要求，两者都超出"结构改造"）。
+- **判据**（`tests/stage70-cli-transport.test.ts`）：① 声明表的键集合 == `runCli` 的 `case` 集合；
+  ② `resolveTransport` 逐条（含 `local-db`/`http` 忽略环境）；③ 机械切片证明两条通道不互串；
+  ④ **真跑**六条命令（`migrate` → `ok: schema at v10`、`user set-password`、`token create/list/revoke`、
+  `export`、`get`/`render` 经 HTTP）退出码与输出逐字节不变；⑤ 没有服务时 `migrate` / `export`
+  仍可用（引导与备份能力在）。
