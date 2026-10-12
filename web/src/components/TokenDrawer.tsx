@@ -18,7 +18,8 @@ import type { TableProps } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../api';
 import { writeClipboard } from '../clipboard';
-import { formatDateTime, maskToken, truncateTokenName } from '../pure';
+import { formatDateTime } from '../format.ts';
+import { maskToken, truncateTokenName } from '../token-display.ts';
 import type { TokenSummary } from '../types';
 import { EmptyState } from './States';
 

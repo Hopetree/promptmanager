@@ -2,7 +2,7 @@
  * 同源 HTTP 客户端：浏览器只用 cookie 会话（`pm_sid`，HttpOnly），没有 Bearer token 的场景。
  * 一律 `credentials: 'same-origin'`（默认值，这里显式写出以表明意图）；不自建 HTTP 层、不做重试/加解密。
  */
-import { buildPromptListQuery, type PromptListQueryParams } from './pure';
+import { buildPromptListQuery, type PromptListQueryParams } from './list-query.ts';
 import { notifySessionExpired } from './session';
 import type {
   CreatedToken,

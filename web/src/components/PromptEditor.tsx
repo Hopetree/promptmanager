@@ -28,7 +28,9 @@ import {
 import type { ReactNode } from 'react';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../api';
-import { buildFolderTree, formatDateTime, removeRememberedVars } from '../pure';
+import { buildFolderTree } from '../folders-util.ts';
+import { formatDateTime } from '../format.ts';
+import { removeRememberedVars } from '../vars.ts';
 import type { Folder, Prompt, PromptWritable, Tag as PromptTag } from '../types';
 import { LazyMarkdownPreview, LazyVariablePanel, LazyVersionPanel } from '../lazy';
 import FavoriteStar from './FavoriteStar';

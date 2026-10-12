@@ -152,7 +152,7 @@ curl -s http://127.0.0.1:8767/healthz     # {"status":"ok","version":"1.1.0"}
 ## 5. `schema_version`（导出文件格式）与项目版本**解耦**
 
 - **导出文件**的字段 `schema_version` 描述的是**文件格式**，定义在
-  `web/src/pure.ts` 的 `SUPPORTED_EXPORT_FILE = { app: 'promptmanager', schema_version: 1 }`
+  `web/src/import-file.ts` 的 `SUPPORTED_EXPORT_FILE = { app: 'promptmanager', schema_version: 1 }`
   （服务端同名校验见 `src/services/export.ts` / `import.ts`）。
 - **规则**：**只有导出/导入文件的结构发生不兼容变化时才动 `schema_version`**（例如把 `prompts[].versions`
   从内嵌改成独立数组、改字段名/类型）。它与 `MAJOR.MINOR.PATCH` **不是同一个号**，也不随发版自动递增。

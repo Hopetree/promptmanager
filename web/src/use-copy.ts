@@ -2,7 +2,7 @@ import { App as AntdApp } from 'antd';
 import { useCallback, useState } from 'react';
 import { api, describeError } from './api';
 import { writeClipboard } from './clipboard';
-import { hasVariables } from './pure';
+import { hasVariables } from './vars.ts';
 import type { Prompt } from './types';
 
 /**

@@ -9,7 +9,8 @@ import {
 } from '@ant-design/icons';
 import { Button, Drawer, Flex, Modal, Popconfirm, Segmented, Select, Space, Switch, Tag, TreeSelect, Typography, theme } from 'antd';
 import { Suspense, useRef, useState } from 'react';
-import { buildFolderTree, formatDateTime } from '../pure';
+import { buildFolderTree } from '../folders-util.ts';
+import { formatDateTime } from '../format.ts';
 import type { Folder, Prompt, Tag as PromptTag } from '../types';
 import { LazyMarkdownPreview, LazyVersionPanel } from '../lazy';
 import FavoriteStar from './FavoriteStar';

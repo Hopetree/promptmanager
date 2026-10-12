@@ -654,7 +654,7 @@ test('AC-124 ㉑：docs/versioning.md 与 CHANGELOG 记明这是行为契约变�
 // ---------------------------------------------------------------------------
 
 test('返工① a：rollbackNotice 只在 version_no 真的前进时才说「已生成新版本」', async () => {
-  const { rollbackNotice } = await import('../web/src/pure.ts');
+  const { rollbackNotice } = await import('../web/src/notices.ts');
 
   // 内容没变 ⇒ 服务端不产生新版本（before === after）⇒ 必须是 info 且**不许**出现"已生成新版本"
   const same = rollbackNotice(1, 1, 1);
@@ -732,7 +732,7 @@ test('返工① c：接口层实证 —— 回滚到与当前相同的版本不�
     assert.equal(changed.statusCode, 200, changed.body);
     const after = (changed.json() as { version_no: number }).version_no;
     assert.equal(after, 3);
-    const { rollbackNotice } = await import('../web/src/pure.ts');
+    const { rollbackNotice } = await import('../web/src/notices.ts');
     assert.equal(rollbackNotice(1, 2, after).kind, 'success');
   } finally {
     await fx.close();

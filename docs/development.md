@@ -17,7 +17,7 @@
 | `src/db/` | 数据层：`index.ts`（连接 / QueryEngine）、`migrate.ts`、`schema.ts`（kysely 表类型）、`prompt-queries.ts`、`prompt-versions.ts`、`search.ts`（FTS5 trigram + LIKE 兜底） |
 | `src/mcp/` | MCP 工具面（`server.ts`，三个只读工具） |
 | `src/client/pm-api.ts` | 使用侧 CLI 走的 HTTP 客户端 |
-| `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/pure.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
+| `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/{list-query,folders-util,import-file,diff-lines,format,vars,view-mode,token-display,notices}.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
 | `migrations/` | `001_init.sql` … `010_migration-checksums.sql`（**共 10 个**；**已应用的不要改**，新增走**下一个编号**，以目录里最大号为准） |
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
 | `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`ui-shots.sh` + `ui-shot.mjs`（界面截图）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh` |

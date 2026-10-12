@@ -6,7 +6,7 @@
 // 从而保证本测试在修复前必然变红。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { filledValues, previewRender } from '../web/src/pure.ts';
+import { filledValues, previewRender } from '../web/src/vars.ts';
 import { cookieOf, login, makeFixture } from './helpers.ts';
 
 const TEXT = '你好 {{姓名}}，项目 {{项目}}。';

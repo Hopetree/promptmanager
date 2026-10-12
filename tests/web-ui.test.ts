@@ -10,7 +10,7 @@
 // 阶段 67 起"渲染出来是什么"的断言在 `tests/render/`（jsdom + react-dom）。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildPromptListQuery } from '../web/src/pure.ts';
+import { buildPromptListQuery } from '../web/src/list-query.ts';
 import { readWebSource, webSourceFiles } from './source-text.ts';
 
 const files = webSourceFiles();
@@ -103,7 +103,7 @@ test('导入导出界面：两种模式 + FR-11b 文案与 merge 计数', () => 
   assertIn('components/ImportExportModal.tsx', /api\.exportAll\(/, '导出接口');
   assertIn('components/ImportExportModal.tsx', /api\.importAll\(/, '导入接口');
   // FR-11b 的 replace 二次确认文案：常量在 pure.ts、必须被弹窗真的用上（删掉使用就红）
-  assertIn('pure.ts', /REPLACE_WARNING = '将清空现有全部 prompt \/ 文件夹 \/ 标签 \/ 版本历史'/, 'FR-11b 文案定义');
+  assertIn('import-file.ts', /REPLACE_WARNING = '将清空现有全部 prompt \/ 文件夹 \/ 标签 \/ 版本历史'/, 'FR-11b 文案定义');
   assertIn('components/ImportExportModal.tsx', /REPLACE_WARNING/, '弹窗必须使用 FR-11b 文案');
   // 用 App.useApp() 的 modal.confirm（能吃到 ConfigProvider 的主题/中文 locale），而不是静态 Modal.confirm
   assertIn('components/ImportExportModal.tsx', /[Mm]odal\.confirm/, 'antd modal.confirm（replace 二次确认）');

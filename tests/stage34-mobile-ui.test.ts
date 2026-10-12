@@ -3,7 +3,7 @@
 // 见库外验收记录。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { VIEW_MODE_VALUES, defaultViewMode, viewModeOptions } from '../web/src/pure.ts';
+import { VIEW_MODE_VALUES, defaultViewMode, viewModeOptions } from '../web/src/view-mode.ts';
 import { readWebSource } from './source-text.ts';
 
 const src = (rel: string): string => readWebSource(rel);

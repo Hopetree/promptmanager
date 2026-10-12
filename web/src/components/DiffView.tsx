@@ -1,5 +1,5 @@
 import { theme } from 'antd';
-import { classifyDiffLines, type DiffLineType } from '../pure';
+import { classifyDiffLines, type DiffLineType } from '../diff-lines.ts';
 
 interface DiffViewProps {
   diff: string;

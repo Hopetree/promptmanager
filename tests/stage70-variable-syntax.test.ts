@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cookieOf, login, makeFixture } from './helpers.ts';
 import { sourceFiles, webSourceFiles } from './source-text.ts';
-import { extractVariablesLocal, hasVariables, previewRender, scanVariablesLocal } from '../web/src/pure.ts';
+import { extractVariablesLocal, hasVariables, previewRender, scanVariablesLocal } from '../web/src/vars.ts';
 import { renderVariables } from '../dist/services/variables.js';
 
 const LITERAL = /const (?:PM_)?PLACEHOLDER = (\/.*?\/gu);/;
@@ -30,7 +30,7 @@ test('AC-132 A2：默认值解析只有一处，前后端只引用不重写', ()
   const serverFacade = sourceFiles('src').find((file) => file.rel === 'src/services/variables.ts');
   assert.ok(serverFacade !== undefined);
   assert.match(serverFacade.text, /from '\.\.\/variable-syntax\.js'/, '服务端门面必须引用共享模块');
-  const client = webSourceFiles().find((file) => file.rel === 'web/src/pure.ts');
+  const client = webSourceFiles().find((file) => file.rel === 'web/src/vars.ts');
   assert.ok(client !== undefined);
   assert.match(client.text, /from '\.\.\/\.\.\/src\/variable-syntax\.(js|ts)'/, '前端必须引用共享模块');
 });

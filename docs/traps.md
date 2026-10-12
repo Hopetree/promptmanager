@@ -226,8 +226,9 @@ prompt **零请求**，含变量的路径恰好一条事件（`render`）。
   任何"报一个、填另一个"的写法都是 bug，不是可接受的近似。
 - **默认值只写在正文里**：不落库、不新增迁移、不新增列 ⇒ 复制 / 导出 / 导入 / 云同步天然带上它，
   `variables` 接口形状不变、只加平行的 `defaults` 字段（加法 ⇒ MINOR 版本）。
-- **前后端两份正则必须逐字一致**（`src/services/variables.ts` 的 `PLACEHOLDER` 与 `web/src/pure.ts` 的
-  `PM_PLACEHOLDER`）：前端实时预览与服务端渲染结果要求**逐字符相同**，改一份必须同步改另一份，
+- **变量语法只有一处**（阶段 70 / FR-147）：`src/variable-syntax.ts` 是唯一定义，服务端门面
+  （`src/services/variables.ts`）与前端 `web/src/vars.ts` 都引用它 —— 改一处两端同时生效。改前是
+  「两份正则靠人肉同步」，
   `tests/variables-preview-parity.test.ts` 与 `tests/stage60-variable-defaults.test.ts`（AC-122 ⑭）会盯着。
 
 ## 14. 变量记忆开关放服务端，变量值仍留本地
@@ -292,7 +293,7 @@ BRIEF，所以只记录、不修：
   **恒不产生版本**；`reorderPrompts`（拖拽排序）本来就只写 `sort_order`，是"早就对了"的那一处，保持不动。
   ⚠️ 将来若给 `bulkPrompts` 加"能写内容字段"的批量动作，必须**补上判据调用**，别以为它已经过了判据。
 - ⚠️ **回滚的提示文案必须按返回值分支**：回滚到与当前内容相同的那一版时**不产生新版本**，此时若还提示
-  "已生成新版本"（旧文案），用户会以为回滚失败或以为多了一版而反复操作。落点是 `web/src/pure.ts` 的
+  "已生成新版本"（旧文案），用户会以为回滚失败或以为多了一版而反复操作。落点是 `web/src/notices.ts` 的
   `rollbackNotice(targetVersionNo, beforeVersionNo, afterVersionNo)`，由
   `web/src/components/VersionPanel.tsx` 的 `rollback()` 按 `updated.version_no` 调用。
 
@@ -331,7 +332,7 @@ BRIEF，所以只记录、不修：
   与 `pre-restore-*.json` 同目录），响应里如实回报：
   `usage_history: {action: 'cleared', count: N, backup: '<绝对路径>'}`；
   merge 不清库 ⇒ `{action: 'kept', count: N, backup: null}`；本来没有记录 ⇒ `count: 0` 且
-  **不编造备份**（`backup: null`）。界面 toast 由 `web/src/pure.ts` 的 `usageHistoryNotice()` 统一措辞。
+  **不编造备份**（`backup: null`）。界面 toast 由 `web/src/notices.ts` 的 `usageHistoryNotice()` 统一措辞。
 - ⚠️ **写备份与裁剪旧备份必须分开**（返工 ①，对抗性复核发现）：`replace` 的写库是**事务**，
   导入失败会整体回滚 —— 此时**根本没有清库**。若把"只留 3 份"的裁剪塞进写备份里，一次失败的导入会
   ①新增一份自称「清空前留档」却什么都没清的**误导性文件**，②把一份**真实历史备份挤出保留窗口**。

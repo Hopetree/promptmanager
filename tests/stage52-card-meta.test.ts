@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { CARD_FOLDER_FALLBACK, folderNameOf } from '../web/src/pure.ts';
+import { CARD_FOLDER_FALLBACK, folderNameOf } from '../web/src/folders-util.ts';
 import { readSource, readWebSource } from './source-text.ts';
 
 const src = (rel: string): string => readWebSource(rel);

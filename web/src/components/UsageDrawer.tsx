@@ -3,7 +3,7 @@ import { Button, Descriptions, Drawer, Flex, Select, Space, Spin, Statistic, Tab
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
 import { api, describeError } from '../api';
-import { formatDateTime } from '../pure';
+import { formatDateTime } from '../format.ts';
 import type { UsageSummary } from '../types';
 import { EmptyState, ErrorState, LoadingState } from './States';
 

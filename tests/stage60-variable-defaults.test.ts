@@ -12,12 +12,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { extractVariables, renderVariables, scanVariables } from '../dist/services/variables.js';
-import {
-  extractVariablesLocal,
-  filledValues,
-  hasVariables,
-  previewRender,
-} from '../web/src/pure.ts';
+import { extractVariablesLocal, filledValues, hasVariables, previewRender } from '../web/src/vars.ts';
 import { PROJECT_ROOT, cookieOf, login, makeFixture } from './helpers.ts';
 import { readSource, sourceFiles, webSourceFiles } from './source-text.ts';
 
@@ -204,7 +199,7 @@ test('AC-122 ⑭（阶段 70 / FR-147 改写）：占位符正则全仓只有一
   assert.equal(literal.test(serverFacade), false, '服务端门面不得自带第二份正则');
   assert.match(serverFacade, /from '\.\.\/variable-syntax\.js'/, '服务端必须引用共享语法模块');
   // 前端：同样只引用共享实现
-  const client = src('web/src/pure.ts');
+  const client = src('web/src/vars.ts');
   assert.equal(literal.test(client), false, '前端不得自带第二份正则（FR-147）');
   assert.match(client, /from '\.\.\/\.\.\/src\/variable-syntax\.(js|ts)'/, '前端必须引用共享语法模块');
 });
@@ -341,11 +336,11 @@ test('AC-122 ⑳：填值对话框与变量面板把默认值作为占位提示�
   }
 
   // 「还有 N 个没填」只统计无默认值的变量。阶段 61（FR-128）把这段口径从 VarsDialog 内联
-  // 提成 `missingVariables`（`web/src/pure.ts`），VarsDialog 改为调用它 —— 语义必须不变：
+  // 提成 `missingVariables`（`web/src/vars.ts`，阶段 70 前在 `pure.ts`），VarsDialog 改为调用它 —— 语义必须不变：
   // `values[name]` 为空 **且** 没有默认值才算未填。
   assert.match(dialog, /missingVariables\(/, 'VarsDialog 的 missing 必须走 missingVariables（排除有默认值的变量）');
-  const pure = src('web/src/pure.ts');
-  assert.match(pure, /defaults\[name\] === undefined/, 'missingVariables 必须排除有默认值的变量');
+  const vars = src('web/src/vars.ts');
+  assert.match(vars, /defaults\[name\] === undefined/, 'missingVariables 必须排除有默认值的变量');
 
   // 前端 api 客户端把 defaults 收进类型（形状不变 + 新增字段）
   const api = src('web/src/api.ts');

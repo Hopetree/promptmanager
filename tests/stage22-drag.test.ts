@@ -15,7 +15,8 @@ const split = src('components/SplitView.tsx');
 const useView = src('components/UseView.tsx');
 const folder = src('components/FolderPanel.tsx');
 const css = src('styles/app.css');
-const pure = src('pure.ts');
+const listQuery = src('list-query.ts');
+const format = src('format.ts');
 const api = src('api.ts');
 const types = src('types.ts');
 
@@ -60,8 +61,8 @@ test('AC-70：三处拖拽锚点（分栏中栏 / 卡片 / 文件夹树）与手
 
 test('D-28：新增「自定义」排序档（前端 type/query/下拉 + 拖拽后自动切换）', () => {
   assert.ok(types.includes("'custom'"), 'types.ts 的排序档要含 custom');
-  assert.ok(pure.includes("params.sort === 'custom'"), '查询串要带上 sort=custom');
-  assert.ok(pure.includes("sort: 'updated' | 'recent_used' | 'custom' | 'title'"), 'orderPrompts 支持 custom');
+  assert.ok(listQuery.includes("params.sort === 'custom'"), '查询串要带上 sort=custom');
+  assert.ok(format.includes("sort: 'updated' | 'recent_used' | 'custom' | 'title'"), 'orderPrompts 支持 custom');
   assert.ok(useView.includes("{ value: 'custom', label: '自定义' }"), '排序下拉要有「自定义」');
   assert.ok(/api\.reorderPrompts/.test(src('components/Workspace.tsx')), '拖拽结束调用 reorderPrompts');
   assert.ok(src('components/Workspace.tsx').includes('已切换为自定义排序'), '首次自动切档要有轻提示');

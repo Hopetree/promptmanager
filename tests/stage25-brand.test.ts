@@ -11,7 +11,7 @@ const src = (rel: string): string => readWebSource(rel);
 const header = src('components/AppHeader.tsx');
 const login = src('components/LoginPage.tsx');
 const about = src('components/AboutModal.tsx');
-const pure = src('pure.ts');
+const importFile = src('import-file.ts');
 const html = readSource('web/index.html');
 
 test('AC-76 ①：顶栏品牌文字是 PromptM（且不再出现全名）', () => {
@@ -29,15 +29,15 @@ test('AC-76 ②：反例断言 —— 其余四处**仍是全名**（防顺手�
   assert.ok(/<title>PromptManager<\/title>/.test(html), 'web/index.html 的 <title> 必须仍是 PromptManager');
   assert.ok(/PromptManager/.test(login), '登录页品牌文字必须仍是 PromptManager');
   assert.ok(/PromptManager/.test(about), '关于页品牌文字必须仍是 PromptManager');
-  assert.ok(/不是 PromptManager 的导出文件/.test(pure), 'pure.ts 的错误文案必须仍含 PromptManager');
-  for (const [name, source] of [['LoginPage', login], ['AboutModal', about], ['pure.ts', pure]] as Array<[string, string]>) {
+  assert.ok(/不是 PromptManager 的导出文件/.test(importFile), 'import-file.ts 的错误文案必须仍含 PromptManager');
+  for (const [name, source] of [['LoginPage', login], ['AboutModal', about], ['import-file.ts', importFile]] as Array<[string, string]>) {
     assert.equal(source.includes('PromptM\n') || /[^r]PromptM[^a]/.test(source), false, `${name} 不得被改成简称`);
   }
 });
 
 test('AC-76 ③：导出契约值 app 一字不动（D-31：显示名 ≠ 契约值）', () => {
-  assert.ok(/SUPPORTED_EXPORT_FILE = \{ app: 'promptmanager', schema_version: 1 \}/.test(pure), '契约值必须仍是小写 promptmanager');
-  assert.equal(/app: 'PromptM'/.test(pure), false, '契约值绝不能被改成显示名');
+  assert.ok(/SUPPORTED_EXPORT_FILE = \{ app: 'promptmanager', schema_version: 1 \}/.test(importFile), '契约值必须仍是小写 promptmanager');
+  assert.equal(/app: 'PromptM'/.test(importFile), false, '契约值绝不能被改成显示名');
 });
 
 test('AC-76 ④⑤：图标 mark 与移动端行为不变', () => {

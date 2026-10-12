@@ -3,7 +3,7 @@ import { Alert, App as AntdApp, Button, Card, Descriptions, Flex, Form, Input, M
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, describeError } from '../api';
 import type { SyncConfigView, SyncPushResult, SyncTestResult } from '../types';
-import { usageHistoryNotice } from '../pure';
+import { usageHistoryNotice } from '../notices.ts';
 
 interface SyncModalProps {
   open: boolean;

@@ -9,11 +9,11 @@
 ### 变更（Changed）
 
 - **变量语法单一实现**（FR-147 / AC-132 A，阶段 70）：
-  - 占位符正则与 `default(...)` 解析原本在 `src/services/variables.ts` 与 `web/src/pure.ts`
+  - 占位符正则与 `default(...)` 解析原本在 `src/services/variables.ts` 与前端变量模块
     各写一份（逐字相同的两份字面量，靠人肉同步）—— 现在**只有一处**：新增
     **`src/variable-syntax.ts`**（前后端共用的纯函数模块，**零 import**，能被 Vite 打进前端），
     导出 `PLACEHOLDER` / `parseDefaultText` / `scanVariableTexts` / `renderVariableText`。
-    服务端 `src/services/variables.ts` 成为门面（对外 API 一字未变），前端 `web/src/pure.ts`
+    服务端 `src/services/variables.ts` 成为门面（对外 API 一字未变），前端 `web/src/vars.ts`
     改为引用共享模块。
   - **「预览 = 剪贴板」由结构保证**：前端 `previewRender` 直接调用与服务端同一个
     `renderVariableText`，不再各写一份渲染循环。
@@ -23,9 +23,23 @@
   - **语法语义一个字都没改**（`{{ 名字 | default(x) }}`、`\{{…}}` 转义、"没填=用默认值 /
     显式空串渲染成空 / 不认识的写法按字面"全部原样）；parity 测试仍在且全绿。
   - 实现细节：前端跨根引用共享模块用 `../../src/variable-syntax.ts`（Node 类型擦除与 Vite 都能解析），
-    因此 `web/tsconfig.json` 增加 `allowImportingTsExtensions`；`web/src/pure.ts` 589 → **553 行**。
+    因此 `web/tsconfig.json` 增加 `allowImportingTsExtensions`；前端纯逻辑由 589 行的单文件
+    拆成 9 个按关注点划分的模块（见下一项 FR-148）。
   - `tests/stage60-variable-defaults.test.ts` 的 AC-122 ⑭ 按新规格**加强**改写：原来是"两份字面量
     逐字一致"，现在是"**根本不允许有第二份**，两侧都必须引用共享模块"。
+
+- **前端纯逻辑按关注点拆分**（FR-148 / AC-132 B，阶段 70）：
+  - 原 `web/src/pure.ts` 一个文件 **589 行 / 49 个 export**，混装十类关注点（列表查询串、文件夹树、
+    导出文件解析、diff 分类、时间与摘要、变量、变量记忆、视图档位、令牌显示、提示文案）。现在按关注点
+    拆成 **9 个模块**，每个模块职责单一：
+    `list-query`(2) / `folders-util`(5) / `import-file`(7) / `diff-lines`(3) / `format`(4) /
+    `vars`(16) / `view-mode`(4) / `token-display`(5) / `notices`(3)，export 总数仍是 49。
+  - **纯搬迁**：函数体一行未改，调用方只改 import 路径（13 个前端文件 + 14 个测试文件）。
+    唯一的内容级调整是 `tests/stage60-variable-defaults.test.ts` 的 AC-122 ⑭（属 FR-147，见上）。
+  - 5 处**读源码**的断言按新位置改路径、断言本身逐字保留（`import-file.ts` 的导出契约与错误文案、
+    `vars.ts` 的 `missingVariables`、`list-query.ts` 的 `sort=custom`、`format.ts` 的 `orderPrompts` 签名）。
+  - 体积：9 个模块比单文件多 **60 B** gzip（模块边界），已按 FR-146 的口径记进
+    `tests/bundle-budget.json`（`node tools/bundle-budget.mjs --record 70`）。
 
 - **机械记账三项**（FR-144 ~ FR-146 / D-67，阶段 69）：
   - **迁移有了内容校验**（FR-144）：新增迁移 **`010_migration-checksums.sql`** 给 `schema_migrations`

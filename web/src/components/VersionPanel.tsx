@@ -18,7 +18,8 @@ import {
 import type { TableProps } from 'antd';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
-import { formatDateTime, rollbackNotice } from '../pure';
+import { formatDateTime } from '../format.ts';
+import { rollbackNotice } from '../notices.ts';
 import type { VersionSummary } from '../types';
 import DiffView from './DiffView';
 import { EmptyState, LoadingState } from './States';

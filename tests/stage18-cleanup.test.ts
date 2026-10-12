@@ -42,14 +42,14 @@ test('AC-60 ②：app.css 不再使用 v17 前的旧术语「使用视图 / 管�
 });
 
 test('AC-60 ③：导入报错文案用品牌大小写，且 app 契约值原样保留', () => {
-  const pure = readSource('web/src/pure.ts');
-  assert.equal(/不是 promptmanager/.test(pure), false, '展示文案应改成「不是 PromptManager 的导出文件」');
-  assert.ok(pure.includes('不是 PromptManager 的导出文件'), '缺少改后的展示文案');
+  const importFile = readSource('web/src/import-file.ts');
+  assert.equal(/不是 promptmanager/.test(importFile), false, '展示文案应改成「不是 PromptManager 的导出文件」');
+  assert.ok(importFile.includes('不是 PromptManager 的导出文件'), '缺少改后的展示文案');
   // 契约值：必须仍是全小写 promptmanager，且**只能有一处**身份常量（改了会破坏已有导出文件兼容）
-  const contract = pure.match(/app: 'promptmanager'/g) ?? [];
-  assert.equal(contract.length, 1, `pure.ts 里 app: 'promptmanager' 应恰好 1 处，实际 ${String(contract.length)}`);
+  const contract = importFile.match(/app: 'promptmanager'/g) ?? [];
+  assert.equal(contract.length, 1, `import-file.ts 里 app: 'promptmanager' 应恰好 1 处，实际 ${String(contract.length)}`);
   // 比较逻辑必须走该常量，不得再出现裸字面量比较
-  assert.equal(/!==\s*'promptmanager'/.test(pure), false, '契约比较应改用具名常量，避免散落字面量');
+  assert.equal(/!==\s*'promptmanager'/.test(importFile), false, '契约比较应改用具名常量，避免散落字面量');
 });
 
 test('AC-60 ④：已废止概念在 web/src、src 的注释与文案里命中 0', () => {

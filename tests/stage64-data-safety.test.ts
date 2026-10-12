@@ -16,7 +16,7 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
-import { usageHistoryNotice } from '../web/src/pure.ts';
+import { usageHistoryNotice } from '../web/src/notices.ts';
 import type { Fixture } from './helpers.ts';
 import { readJson, readSource } from './source-text.ts';
 
@@ -719,7 +719,7 @@ test('AC-126 ㉑：零迁移 —— 阶段 64 自己没新增迁移（总数与�
 });
 
 test('AC-126 ⑪（续）：界面上也「不静默」—— usageHistoryNotice 说清去向、条数与备份落点', () => {
-  // FR-134 的措辞由 web/src/pure.ts 一处产出，导入弹窗与云端恢复弹窗共用
+  // FR-134 的措辞由 web/src/notices.ts 一处产出，导入弹窗与云端恢复弹窗共用
   assert.equal(usageHistoryNotice({ action: 'kept', count: 7, backup: null }), '取用历史：原样保留 7 条');
   assert.equal(usageHistoryNotice({ action: 'cleared', count: 0, backup: null }), '取用历史：本来就没有记录');
   const cleared = usageHistoryNotice({ action: 'cleared', count: 3, backup: '/data/pre-replace-usage-x.json' });

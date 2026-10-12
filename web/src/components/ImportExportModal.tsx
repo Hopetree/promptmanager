@@ -16,13 +16,8 @@ import {
 import type { UploadFile } from 'antd';
 import { useState } from 'react';
 import { api, ApiError, describeError } from '../api';
-import {
-  analyzeImportFile,
-  formatImportDetails,
-  REPLACE_WARNING,
-  usageHistoryNotice,
-  type ImportAnalysis,
-} from '../pure';
+import { analyzeImportFile, formatImportDetails, REPLACE_WARNING, type ImportAnalysis } from '../import-file.ts';
+import { usageHistoryNotice } from '../notices.ts';
 import type { ImportResult } from '../types';
 
 interface ImportExportModalProps {

@@ -28,7 +28,10 @@ import {
 } from 'antd';
 import type { TableProps } from 'antd';
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { buildFolderTree, extractVariablesLocal, folderNameOf, formatListDateTime, orderPrompts, promptExcerpt, viewModeOptions } from '../pure';
+import { buildFolderTree, folderNameOf } from '../folders-util.ts';
+import { formatListDateTime, orderPrompts, promptExcerpt } from '../format.ts';
+import { extractVariablesLocal } from '../vars.ts';
+import { viewModeOptions } from '../view-mode.ts';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag as PromptTag } from '../types';
 import FavoriteStar from './FavoriteStar';
 import type { PromptMetaPatch } from './PromptDetail';

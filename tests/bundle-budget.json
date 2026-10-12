@@ -122,6 +122,12 @@
       "stage": "deps_2026_09_30",
       "delta": 26,
       "note": "依赖补丁升级带来的**构建侧漂移**（2026-09-30 的 bot 合并记账）。 起因：dependabot 一次性合了 9 个 PR（vite 8.3.1→8.3.2 / jsdom / dompurify / `@fastify/static` / `@modelcontextprotocol/sdk`），**每个 PR 单独跑 CI 都是绿的**， 合到一起后总 gzip 涨了 26 B ⇒ `main` 上的 `ci` 变红（典型的「语义冲突」）。 归因（已核实）：只有 **vite** 影响前端产物；其余四个都在服务端或开发侧 （`grep marked|dompurify dist/web/assets/*.js` 为空 ⇒ 它们不进前端 bundle）。 口径：这类漂移**不是我们的代码增长**，但仍按本测试的纪律**逐项记账** —— 以后再合依赖补丁导致体积变化时，同样在这里加一条，不要放宽基线。"
+    },
+    {
+      "id": "STAGE70",
+      "stage": 70,
+      "delta": 60,
+      "note": "变量语法单源（FR-147）+ 前端纯逻辑拆 9 模块（FR-148）：实测比改前多 60 B"
     }
   ]
 }

@@ -2,17 +2,7 @@ import { CopyOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Alert, Button, Checkbox, Flex, Form, Input, Modal, Space, Spin, Tag, Typography, theme } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../api';
-import {
-  filledValues,
-  hasAnyFilled,
-  missingVariables,
-  previewRender,
-  readRememberedVars,
-  removeRememberedVars,
-  varsDialogTitle,
-  varsFormValues,
-  writeRememberedVars,
-} from '../pure';
+import { filledValues, hasAnyFilled, missingVariables, previewRender, readRememberedVars, removeRememberedVars, varsDialogTitle, varsFormValues, writeRememberedVars } from '../vars.ts';
 import type { Prompt } from '../types';
 
 interface VarsDialogProps {

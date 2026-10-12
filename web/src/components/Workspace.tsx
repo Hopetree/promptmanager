@@ -3,7 +3,8 @@ import { ArrowLeftOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import type { CSSProperties } from 'react';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
-import { defaultViewMode, formatListDateTime, orderPrompts } from '../pure';
+import { formatListDateTime, orderPrompts } from '../format.ts';
+import { defaultViewMode } from '../view-mode.ts';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag } from '../types';
 import type { ThemeMode } from '../theme-mode';
 import {

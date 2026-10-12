@@ -3,7 +3,7 @@
 // 只要两者对同一组输入不一致，"预览 == 剪贴板"就会破。这里逐个用例把两边**逐字符**比对。
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { previewRender } from '../web/src/pure.ts';
+import { previewRender } from '../web/src/vars.ts';
 import { cookieOf, login, makeFixture } from './helpers.ts';
 
 const TEXT = [

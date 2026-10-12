@@ -2,7 +2,7 @@
 import { CURRENT_SCHEMA_VERSION, MIGRATION_COUNT } from './migrations.ts';
 //
 // 这份测试**先写、先看它红**（red → green）：它引用的 `remember_variables` 字段、008 迁移、
-// 以及 `web/src/pure.ts` 里的记忆存储助手（`readRememberedVars` 等）在改动前都**不存在**。
+// 以及 `web/src/vars.ts` 里的记忆存储助手（`readRememberedVars` 等）在改动前都**不存在**。
 //
 // 逐条对应 AC-123 的编号见每个 test 名开头。
 import assert from 'node:assert/strict';
@@ -13,18 +13,7 @@ import test from 'node:test';
 import { loadConfig } from '../dist/config.js';
 import { openDatabase } from '../dist/db/index.js';
 import { runMigrations } from '../dist/db/migrate.js';
-import {
-  VARS_STORAGE_PREFIX,
-  hasAnyFilled,
-  missingVariables,
-  varsFormValues,
-  readRememberedVars,
-  removeRememberedVars,
-  varsDialogTitle,
-  varsStorageKey,
-  writeRememberedVars,
-  type StorageLike,
-} from '../web/src/pure.ts';
+import { VARS_STORAGE_PREFIX, hasAnyFilled, missingVariables, varsFormValues, readRememberedVars, removeRememberedVars, varsDialogTitle, varsStorageKey, writeRememberedVars, type StorageLike } from '../web/src/vars.ts';
 import { cookieOf, login, makeFixture, PROJECT_ROOT, type Fixture } from './helpers.ts';
 import { readSource } from './source-text.ts';
 

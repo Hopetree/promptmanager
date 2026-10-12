@@ -1,21 +1,14 @@
-// 阶段 8 前端纯逻辑单测（红→绿：先写测试，web/src/pure.ts 尚不存在时应整组失败）。
+// 阶段 8 前端纯逻辑单测（红→绿：先写测试，这些模块尚不存在时应整组失败）。
+// 阶段 70 / FR-148：原来的单一 `pure.ts` 已按关注点拆成 9 个模块，本文件改为逐个模块断言。
 // 这些函数被界面真实调用（列表 query 组装 / 文件夹树 / 导入文件预览计数 / diff 行分类）。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  REPLACE_WARNING,
-  analyzeImportFile,
-  buildFolderTree,
-  buildPromptListQuery,
-  classifyDiffLines,
-  extractVariablesLocal,
-  formatImportDetails,
-  hasVariables,
-  orderPrompts,
-  previewRender,
-  promptExcerpt,
-  type FolderLike,
-} from '../web/src/pure.ts';
+import { buildPromptListQuery } from '../web/src/list-query.ts';
+import { buildFolderTree, type FolderLike } from '../web/src/folders-util.ts';
+import { REPLACE_WARNING, analyzeImportFile, formatImportDetails } from '../web/src/import-file.ts';
+import { classifyDiffLines } from '../web/src/diff-lines.ts';
+import { orderPrompts, promptExcerpt } from '../web/src/format.ts';
+import { extractVariablesLocal, hasVariables, previewRender } from '../web/src/vars.ts';
 
 test('buildPromptListQuery：只带非默认参数，顺序稳定', () => {
   assert.equal(buildPromptListQuery({}), '');
