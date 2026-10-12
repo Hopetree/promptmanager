@@ -19,7 +19,7 @@ import {
   previewRender,
 } from '../web/src/pure.ts';
 import { PROJECT_ROOT, cookieOf, login, makeFixture } from './helpers.ts';
-import { readSource } from './source-text.ts';
+import { readSource, sourceFiles, webSourceFiles } from './source-text.ts';
 
 const src = (relative: string): string => readSource(relative);
 
@@ -187,15 +187,26 @@ test('AC-122 ⑬：前端纯逻辑与服务端同规则（含默认值场景）'
   assert.deepEqual(filledValues(['a', 'b'], { a: '', b: 'x' }), { b: 'x' });
 });
 
-test('AC-122 ⑭：前后端两份占位符正则逐字一致', () => {
-  const pick = (text: string): string => {
-    const match = /const (?:PM_)?PLACEHOLDER = (\/.*?\/gu);/.exec(text);
-    assert.ok(match !== null, '未找到占位符正则定义');
-    return match[1] ?? '';
-  };
-  const server = pick(src('src/services/variables.ts'));
-  const client = pick(src('web/src/pure.ts'));
-  assert.equal(client, server, '两份正则必须逐字一致（FR-126 ④）');
+test('AC-122 ⑭（阶段 70 / FR-147 改写）：占位符正则全仓只有一处定义，前后端都引用它', () => {
+  // 原来守什么：前后端各写一份 PLACEHOLDER，靠"逐字一致"防止人肉同步漏改。
+  // 现在怎么守（更强）：**根本不允许有第二份** —— 全仓恰一处字面量定义，且前后端两侧都引用同一个模块。
+  const literal = /const (?:PM_)?PLACEHOLDER = (\/.*?\/gu);/;
+  const defining = [...sourceFiles('src'), ...webSourceFiles()]
+    .filter((file) => literal.test(file.text))
+    .map((file) => file.rel);
+  assert.deepEqual(defining, ['src/variable-syntax.ts'], '占位符正则必须只有一处定义（FR-147 / AC-132 ①②）');
+
+  const shared = literal.exec(src('src/variable-syntax.ts'))?.[1] ?? '';
+  assert.ok(shared.length > 0, '共享模块必须给出正则字面量');
+
+  // 服务端门面：只转出共享实现，自己不再定义第二份
+  const serverFacade = src('src/services/variables.ts');
+  assert.equal(literal.test(serverFacade), false, '服务端门面不得自带第二份正则');
+  assert.match(serverFacade, /from '\.\.\/variable-syntax\.js'/, '服务端必须引用共享语法模块');
+  // 前端：同样只引用共享实现
+  const client = src('web/src/pure.ts');
+  assert.equal(literal.test(client), false, '前端不得自带第二份正则（FR-147）');
+  assert.match(client, /from '\.\.\/\.\.\/src\/variable-syntax\.(js|ts)'/, '前端必须引用共享语法模块');
 });
 
 /* ============================================================

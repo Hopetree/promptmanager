@@ -8,6 +8,25 @@
 
 ### 变更（Changed）
 
+- **变量语法单一实现**（FR-147 / AC-132 A，阶段 70）：
+  - 占位符正则与 `default(...)` 解析原本在 `src/services/variables.ts` 与 `web/src/pure.ts`
+    各写一份（逐字相同的两份字面量，靠人肉同步）—— 现在**只有一处**：新增
+    **`src/variable-syntax.ts`**（前后端共用的纯函数模块，**零 import**，能被 Vite 打进前端），
+    导出 `PLACEHOLDER` / `parseDefaultText` / `scanVariableTexts` / `renderVariableText`。
+    服务端 `src/services/variables.ts` 成为门面（对外 API 一字未变），前端 `web/src/pure.ts`
+    改为引用共享模块。
+  - **「预览 = 剪贴板」由结构保证**：前端 `previewRender` 直接调用与服务端同一个
+    `renderVariableText`，不再各写一份渲染循环。
+  - 可机械验证：全仓恰一处正则字面量定义（`tests/stage70-variable-syntax.test.ts` 的 A1/A2
+    扫描 `src/**` 与 `web/src/**`），条列表变量数与 `GET /api/prompts/:id/variables` 对
+    「含变量 / 不含变量 / 含默认值」三条样本逐条一致（A3），语法行为五例不回归（A5）。
+  - **语法语义一个字都没改**（`{{ 名字 | default(x) }}`、`\{{…}}` 转义、"没填=用默认值 /
+    显式空串渲染成空 / 不认识的写法按字面"全部原样）；parity 测试仍在且全绿。
+  - 实现细节：前端跨根引用共享模块用 `../../src/variable-syntax.ts`（Node 类型擦除与 Vite 都能解析），
+    因此 `web/tsconfig.json` 增加 `allowImportingTsExtensions`；`web/src/pure.ts` 589 → **553 行**。
+  - `tests/stage60-variable-defaults.test.ts` 的 AC-122 ⑭ 按新规格**加强**改写：原来是"两份字面量
+    逐字一致"，现在是"**根本不允许有第二份**，两侧都必须引用共享模块"。
+
 - **机械记账三项**（FR-144 ~ FR-146 / D-67，阶段 69）：
   - **迁移有了内容校验**（FR-144）：新增迁移 **`010_migration-checksums.sql`** 给 `schema_migrations`
     加 `checksum` 列（`ALTER TABLE ... ADD COLUMN`，**不改已应用的 `001`–`009`**）。运行器
@@ -644,7 +663,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，96 个测试文件 / **653 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，97 个测试文件 / **657 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。
