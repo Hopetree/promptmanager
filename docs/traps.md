@@ -25,6 +25,7 @@
 - [15. 「版本号只记内容变更」的三个坑](#15-版本号只记内容变更的三个坑阶段-62--fr-129)
 - [16. 排序与取用历史在导入 / 云同步里的两个坑](#16-排序与取用历史在导入--云同步里的两个坑阶段-64--fr-132--fr-134)
 - [17. 扫源码的断言：先剥注释，再断言](#17-扫源码的断言先剥注释再断言阶段-67--fr-139)
+- [18. 性能与本地残留的四个坑（阶段 68 / FR-140 ~ FR-143）](#18-性能与本地残留的四个坑阶段-68--fr-140--fr-143)
 
 ---
 
@@ -375,3 +376,55 @@ BRIEF，所以只记录、不修：
     （`${VAR#prefix}`、`URL#frag`、`foo#bar` 都保留）。
   - 反向注意：迁移文件里 `-- 取值 'read' / 'write'` 这类**注释里**的字面量本来就该被剥，
     别把"注释里的字面量消失"当成缺陷（守卫用例只检查非注释行上的字面量）。
+
+## 18. 性能与本地残留的四个坑（阶段 68 / FR-140 ~ FR-143）
+
+### 18.1 FTS 的 `AFTER UPDATE` 触发器没有 `WHEN` ⇒ 改收藏也在重建整行索引
+
+- **坑的形态**：`migrations/001_init.sql` 的 `prompts_fts_au`（`AFTER UPDATE ON prompts`）**没有 `WHEN` 子句**
+  ⇒ 对 `prompts` 的**任何** `UPDATE` 都会 `DELETE` + `INSERT` 一遍 FTS 行：改收藏、拖拽排序、
+  切「记住变量值」、移动目录，全都在重建全文索引（表越大越贵，而且和内容毫无关系）。
+- **做法**：**不动 `001_init.sql`**（已应用的迁移在别人的库上跑过了，改它会让两份库的 schema 悄悄分叉），
+  新增迁移 `009_fts-update-when.sql`：`DROP TRIGGER IF EXISTS prompts_fts_au` + 重建带 `WHEN` 的版本，
+  `WHEN old.title IS NOT new.title OR old.user_prompt IS NOT new.user_prompt OR old.system_prompt IS NOT new.system_prompt OR old.notes IS NOT new.notes`。
+  **用 `IS NOT` 而不是 `<>`**：`<>` 遇到 `NULL` 得 `NULL`（不算真），`notes` 从 `NULL` 改成 `''` 时就会漏建索引。
+- **可观测口径（不许只推理"加了 WHEN 所以不会重建"）**：`total_changes()` 的行变更数。
+  实测（`tests/stage68-fts-trigger.test.ts` ③）：改 `favorite` / `sort_order` / `remember_variables` / `updated_at` = **1**；
+  改 `title` / `user_prompt` / `system_prompt` / `notes` = **9**（触发器里的 delete + insert 也计入）；
+  写回**同一个值** = **1**（`IS NOT` 判为没变）。**对照**：把 001 里那份无 `WHEN` 的旧触发器装回去，
+  改 `favorite` 立刻变 **9** —— 证明这个口径看得见"重建"，不是恒 1 的假指标。
+- 功能不能改坏：改完 4 个内容列之一，`GET /api/prompts?q=<新值>` 必须能**真检索到**（同用例 ② 逐列实测）。
+- 迁移幂等：`runMigrations` 两次第二次 `applied.length === 0`；直接 `db.exec(009 的 SQL)` 两遍后触发器仍**恰好 1 个**。
+
+### 18.2 侧栏目录计数不要 N+1
+
+- **坑的形态**：`web/src/components/Workspace.tsx` 曾对**每个**目录发一次 `api.listPrompts({ folderId, limit: 1 })`，
+  只为拿 `total` ⇒ 单次刷新的请求数 = **目录数 + 1**（3 个目录 = 4 次）。
+  顺带纠正一个错误注释：那个接口的 `folder_id` 是**含全部后代**的筛选（`descendantFolderIds`），
+  所以每个目录的 `total` 本来就是**子树计数**，侧栏徽标必须与它逐个相同。
+- **做法**：`GET /api/prompts` 新增**可选**参数 `include=folder_counts`（只加不改；不传则响应形状逐字不变），
+  服务端用**一条递归 CTE**（`countPromptsByFolder`，口径与 `descendantFolderIds` 一致）一次算出全部目录的子树计数。
+  计数失败**不影响列表**：`folder_counts: null` + 仍然 `200`，前端此时**保留上一次的数字**（不清零、不阻塞筛选）。
+- **判据**：① 请求数从「目录数 + 1」降到 **≤1**（渲染级实测 4 → 1）；
+  ② 数字必须与改前**逐个相同**（用例把新值 `deepEqual` 于旧口径逐个 `?folder_id=N&limit=1` 的 `total`）。
+  这是"更快"，不是"换个算法"。
+
+### 18.3 Token 抽屉不要把明文反复全量预取
+
+- **坑的形态**：抽屉每次打开、每次创建 / 撤销都对**全部**可查看令牌重发 `reveal` 拿明文
+  （3 个令牌：打开 3 次、创建后累计 7 次、撤销后累计 11 次）。
+- **做法**：内存缓存（`plaintextsRef`）+ 只补**缓存里没有**的行（`fillPlaintexts`）：
+  打开 = 3、创建后 = 4（只多新行）、撤销后 = **4**（撤销只从列表消失，明文本来就在缓存里）。
+  列表请求次数不变（1 / 2 / 3）。
+- **安全底线不许顺手改**：明文**只留内存**（不写 `localStorage` / 不落库 / 不进日志），关闭抽屉即清空；
+  FR-100 的既有决定照旧 —— `revealable === false` 仍显示 `—`，**已撤销行仍预取明文**（撤销 ≠ 销毁）。
+
+### 18.4 关掉「记住变量值」必须清本地残留
+
+- **坑的形态**：开关存在服务端（§14），变量值存在浏览器 `localStorage`（键 `pm-vars:<id>`）。
+  只在**填值弹窗**里删键是不够的：**编辑页**保存 `remember_variables` 时完全不碰 `localStorage`
+  ⇒ 从编辑页关掉开关后旧值仍然躺着（"关了还在"，下次重新勾上就诈尸）。
+- **做法**：**两条入口都清** —— 编辑页 `save()` 里 `if (payload.remember_variables === false) removeRememberedVars(updated.id)`；
+  弹窗取消勾选 / 清空同样调 `removeRememberedVars`。删除是幂等的，重复调用无害。
+- 两条入口都要有**真渲染**用例（编辑页真点开关 + 真点保存；弹窗真取消勾选），并带**反向**用例：
+  开关保持"记住"时保存**不得**误删（否则就是"修好一个、弄坏另一个"）。

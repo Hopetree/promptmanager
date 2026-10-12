@@ -13,6 +13,11 @@ export interface PromptListResponse {
   limit: number;
   offset: number;
   items: Prompt[];
+  /**
+   * FR-141：只有请求里带 `include=folder_counts` 才出现。
+   * `{ [folder_id]: 条目数 }`（含子文件夹，与 `?folder_id=X` 的 `total` 同口径）；计数失败是 `null`。
+   */
+  folder_counts?: Record<string, number> | null;
 }
 
 /** POST/PUT 的可写字段（BRIEF §6.1）—— 与 `Prompt` 派生自同一份清单。 */

@@ -122,6 +122,11 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   const [loading, setLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [folders, setFolders] = useState<Folder[]>([]);
+  /**
+   * FR-141：侧栏文件夹徽标上的条目数（含子文件夹 —— 与 `?folder_id=X` 的 `total` 同口径）。
+   * 跟着列表响应一起来（`include=folder_counts`），不再单独对每个文件夹发一次请求。
+   */
+  const [folderCounts, setFolderCounts] = useState<Record<number, number>>({});
   const [tags, setTags] = useState<Tag[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -196,10 +201,16 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         sort: filters.sort,
         limit: filters.pageSize,
         offset: (filters.page - 1) * filters.pageSize,
+        // FR-141：顺手把全部文件夹的条目数带回来（替代原先"每个文件夹各发一次请求"的 N+1）
+        includeFolderCounts: true,
       });
       mergePrompts(result.items);
       setListIds(result.items.map((prompt) => prompt.id));
       setTotal(result.total);
+      // 计数失败时服务端回 `null` ⇒ **保留上一次的数字**，不影响列表（FR-49 ④ 的"失败不阻塞筛选"）
+      if (result.folder_counts != null) {
+        setFolderCounts(Object.fromEntries(Object.entries(result.folder_counts).map(([id, n]) => [Number(id), n])));
+      }
       setListError(null);
     } catch (error) {
       setListError(describeError(error));
@@ -232,33 +243,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     void loadFolders();
     void loadTags();
   }, [loadFolders, loadTags, refreshKey]);
-
-  // FR-49 ④：每个文件夹**自身**的条目数（`folder_id` 是精确筛选，含子文件夹的合计在 FolderPanel 内求和）。
-  // 走既有契约（GET /api/prompts?folder_id=N&limit=1 只取 total），不改接口。
-  const [folderCounts, setFolderCounts] = useState<Record<number, number>>({});
-  useEffect(() => {
-    let alive = true;
-    void (async () => {
-      if (folders.length === 0) {
-        if (alive) setFolderCounts({});
-        return;
-      }
-      try {
-        const pairs = await Promise.all(
-          folders.map(async (folder) => {
-            const result = await api.listPrompts({ folderId: folder.id, limit: 1 });
-            return [folder.id, result.total] as const;
-          }),
-        );
-        if (alive) setFolderCounts(Object.fromEntries(pairs));
-      } catch {
-        /* 计数失败不阻塞筛选 */
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [folders, refreshKey]);
 
   useEffect(() => {
     if (filters.folderId !== null && folders.length > 0 && !folders.some((folder) => folder.id === filters.folderId)) {

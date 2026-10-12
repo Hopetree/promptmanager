@@ -271,6 +271,7 @@ test('AC-122 ⑱：零迁移 —— migrations/ 不新增文件、schema 版本�
       '006_usage-kind.sql',
       '007_sync-config.sql',
       '008_remember-variables.sql',
+      '009_fts-update-when.sql',
     ],
     '阶段 60 零迁移：不得新增迁移文件（后续阶段若新增，同步更新本清单）',
   );

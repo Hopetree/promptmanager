@@ -28,8 +28,8 @@ test('runMigrations 幂等：重复执行不报错，schema 版本稳定在当�
     // + 006（阶段 50：usage_events.kind）+ 007（阶段 59：sync_config）
     // + 008（阶段 61：prompts.remember_variables）
     // ⇒ 当前 schema 版本 = 8
-    assert.equal(first.version, 8);
-    assert.equal(second.version, 8);
+    assert.equal(first.version, 9);
+    assert.equal(second.version, 9);
     assert.equal(second.applied.length, 0, '第二次执行不应重复应用迁移');
     const rows = db
       .prepare("select name from sqlite_master where type = 'table' order by name")

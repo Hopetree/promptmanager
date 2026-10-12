@@ -107,7 +107,7 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 | One test case | `npm run build && node --test --test-name-pattern='0.0.0.0' tests/health.test.ts` | rc=0; `tests 1` / `pass 1` / `fail 0`. |
 | Type check | `npm run typecheck:web` / `npm run typecheck:tests` | Both rc=0, `0` TS errors (silent on success). **`typecheck:tests` runs `build:server` first**, because the tests type-check against `../dist/**` (pitfall 11). |
 | **Local quality gate (= the CI gate)** | `bash tools/ci-check.sh` | rc=0; all 9 steps green (**⓪ doc byte budget / ① deps / ①b lint / ①c deps ledger / ①d doc path references / ② build / ③a+③b typecheck / ④ npm test / ⑤ 500 KB chunk budget** - the build comes *before* the type checks, see pitfall 11). The script's own pass banner is Chinese in its source; in English it says "all quality checks passed (N items)", where N is how many rows it ran. It reports `... fail 0`, the lint summary, and a max chunk size (the 500 KB budget is the gate). |
-| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v8`**. A second run prints the same and also exits 0. |
+| Migrate (idempotent) | `DATA_DIR=$AC npm run migrate` | rc=0; prints **`ok: schema at v9`**. A second run prints the same and also exits 0. |
 | Set the admin password | `printf '%s\n' '<strong-password>' \| DATA_DIR=$AC node bin/pm.mjs user set-password --username admin` | rc=0; prints **`ok: user admin password updated`** (password is read from stdin and never echoed). |
 | Start (default 8767) | `npm start` | rc=0; logs `promptmanager listening on 0.0.0.0:<PORT> (HOST=0.0.0.0 PORT=<PORT>, DATA_DIR=...)`. Verified with `PORT=8765`; **8767 is currently occupied by the test environment**. |
 | **Start a throwaway instance** | `DATA_DIR=$(mktemp -d) PORT=8766 node dist/server/index.js` | Logs `listening on 0.0.0.0:8766`; `/healthz` -> `{"status":"ok","version":"<the version in package.json>"}`; unauthenticated `/api/prompts` -> `401`; `/` -> `200`. |
@@ -132,8 +132,8 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 | `src/mcp/` | MCP tool surface (`server.ts`, three read-only tools). |
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
-| `migrations/` | `001_init.sql` ... `008_remember-variables.sql` (**8 files**, applied in order; see section 6). |
-| `tests/` | `node:test` cases (92 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
+| `migrations/` | `001_init.sql` ... `009_fts-update-when.sql` (**9 files**, applied in order; see section 6). |
+| `tests/` | `node:test` cases (94 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans**: `api.md` (HTTP/CLI/MCP reference), `development.md` (build/test/structure), `traps.md` (why the code looks like this), `dependencies.md` (deps + licenses + audits), `versioning.md` (release rules), `search-zh.md` (search measurements), `README.md` (what this directory is), `shots/` (**one** set of key page shots, 8 PNGs). **No process state.** See section 5.1. |
 | Root files | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.nvmrc` / `.npmrc`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/*.yml`. **No requirements/progress/acceptance files** - those are local (section 13). |
@@ -191,8 +191,8 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 - **Data directory**: `DATA_DIR` (defaults to `<repo>/data`, created on first run). It holds `pm.db`
   (SQLite, WAL) and `media/`. In production it is `/var/lib/promptmanager` (the unit's `StateDirectory`).
 - **Migrations**: `migrations/NNN_*.sql`, applied in order by `src/db/migrate.ts`, with applied versions
-  recorded in `schema_migrations`. There are **8** files today (`001` … `008`), hence the output
-  `ok: schema at v8`. **The server also runs migrations on startup**, so every migration must be
+  recorded in `schema_migrations`. There are **9** files today (`001` … `009`), hence the output
+  `ok: schema at v9`. **The server also runs migrations on startup**, so every migration must be
   **idempotent**.
 - **Adding a migration**: create the **next number** = highest in `migrations/` + 1 - **always read the
   directory, never trust a number written in a document**; **never edit an already-applied file**. Keep it
@@ -215,7 +215,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (92 files, **633** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (94 files, **639** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared

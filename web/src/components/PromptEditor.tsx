@@ -28,7 +28,7 @@ import {
 import type { ReactNode } from 'react';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../api';
-import { buildFolderTree, formatDateTime } from '../pure';
+import { buildFolderTree, formatDateTime, removeRememberedVars } from '../pure';
 import type { Folder, Prompt, PromptWritable, Tag as PromptTag } from '../types';
 import { LazyMarkdownPreview, LazyVariablePanel, LazyVersionPanel } from '../lazy';
 import FavoriteStar from './FavoriteStar';
@@ -183,6 +183,13 @@ export default function PromptEditor({
     setSubmitting(true);
     try {
       const updated = isNew ? await api.createPrompt(payload) : await api.updatePrompt(prompt.id, payload);
+      /**
+       * FR-143 / AC-130 ⑬：编辑页这条入口也要清本地残留 —— 关掉「记住变量值」之后，
+       * `pm-vars:<id>` 里那份**已经存下来的**变量值必须删掉（只改服务端开关的话，
+       * 下次打开填值弹窗虽然不会去读，但旧值仍躺在 localStorage 里，属于"关了还在"的残留）。
+       * 弹窗里取消勾选那条入口在 `VarsDialog` 里（同一对 helper，见 AC-130 ⑭⑮）。
+       */
+      if (payload.remember_variables === false) removeRememberedVars(updated.id);
       onSaved(updated);
       setVersionRefreshKey((key) => key + 1);
       message.success(`已保存（v${String(updated.version_no)}）`);

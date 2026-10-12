@@ -69,7 +69,7 @@ test('AC-123 ①：008 迁移在「已有数据」的库上执行后，所有存
   for (const file of allMigrations.filter((f) => /^00[1-7][-_]/.test(f))) {
     cpSync(path.join(PROJECT_ROOT, 'migrations', file), path.join(oldMigrations, file));
   }
-  assert.equal(allMigrations.length, 8, 'migrations/ 里应有 8 个迁移文件（001–007 + 008）');
+  assert.equal(allMigrations.length, 9, 'migrations/ 里应有 9 个迁移文件（001–008 + 009；阶段 68 起）');
 
   const db = openDatabase(loadConfig({ DATA_DIR: path.join(root, 'data') }));
   try {
@@ -86,7 +86,7 @@ test('AC-123 ①：008 迁移在「已有数据」的库上执行后，所有存
 
     // 跑真实 migrations/（含 008）—— 就是升级路径
     const after = runMigrations(db, path.join(PROJECT_ROOT, 'migrations'));
-    assert.equal(after.version, 8, '升级后 schema 版本 = 8（008_remember-variables.sql）');
+    assert.equal(after.version, 9, '升级后 schema 版本 = 9（阶段 68 起；009_fts-update-when.sql）');
 
     const columns = (db.prepare('pragma table_info(prompts)').all() as Array<{ name: string }>).map((c) => c.name);
     assert.ok(columns.includes('remember_variables'), `prompts 应多出 remember_variables 列（实际：${columns.join(',')}）`);

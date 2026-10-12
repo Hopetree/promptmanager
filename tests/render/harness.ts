@@ -94,7 +94,13 @@ define('fetch', async (input: unknown, init?: { method?: string; body?: string }
     });
   }
   const { status, body } = await matched.reply(request);
-  return new Response(body === undefined ? '' : JSON.stringify(body), {
+  /**
+   * 204 / 205 **不许带 body**（`new Response('', { status: 204 })` 会被运行时直接拒绝：
+   * `Invalid response status code 204`）。所以这两个状态码一律传 `null`，
+   * 这样假服务端才能像真服务端那样回"空 204"（`DELETE /api/tokens/:id` 就是这种）。
+   */
+  const noBody = status === 204 || status === 205;
+  return new Response(noBody || body === undefined ? null : JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json' },
   });

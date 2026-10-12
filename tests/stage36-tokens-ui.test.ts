@@ -129,10 +129,14 @@ test('AC-97 ①（源码级）：抽屉打开时**预取**明文，点「复制�
   assert.ok(/api\.revealToken\(token\.id\)/.test(drawer), 'load() 必须预取明文（revealToken）');
   assert.ok(/Promise\.all\(/.test(drawer), '预取必须并发（Promise.all）');
   /**
-   * ⚠️ v50（FR-100）变更：预取**不再排除已撤销行**（撤销 ≠ 销毁，撤销行也要显示掩码并可复制）
-   * ⇒ 这条断言**同步改写**为"只按 revealable 过滤"，语义随之更新，不是删掉覆盖。
+   * ⚠️ v50（FR-100）：预取**不再排除已撤销行**（撤销 ≠ 销毁，撤销行也要显示掩码并可复制）。
+   * ⚠️ 阶段 68（FR-142）：预取改成"只补**缓存里没有的**行" ⇒ 过滤表达式里多了缓存 / 失败表判断。
+   * 这里断言**表达式内容**而不是整行字面量：仍必须看 `revealable`、仍不得看 `revoked_at`，并必须跳过缓存。
    */
-  assert.ok(/filter\(\(token\) => token\.revealable\)/.test(drawer), '预取只按 revealable 过滤（含已撤销行）');
+  const prefetchFilter = /const missing = items\.filter\(\s*\(token\) => ([\s\S]*?)\);/.exec(drawer)?.[1] ?? '';
+  assert.ok(prefetchFilter.includes('token.revealable'), '预取只按 revealable 过滤（含已撤销行）');
+  assert.equal(prefetchFilter.includes('revoked_at'), false, '不得按 revoked_at 排除撤销行（FR-100）');
+  assert.ok(prefetchFilter.includes('cache.has(token.id)'), '预取必须跳过缓存里已有的行（FR-142）');
 
   // 同步复制：点击处理器里，writeClipboard 之前不得出现 await
   const handlerStart = drawer.indexOf('const copyPlaintext = (id: number): void => {');

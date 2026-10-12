@@ -221,3 +221,26 @@ export async function descendantFolderIds(qe: QueryEngine, rootId: number): Prom
   `.execute(qe);
   return result.rows.map((row) => row.id);
 }
+
+/**
+ * FR-141 / D-66 ③：**一次查询**算出每个文件夹的条目数（= 它自己和全部后代的 prompt 数）。
+ *
+ * 口径必须与 `descendantFolderIds` 逐字一致：侧栏徽标显示的数字，就等于"点进去 `GET /api/prompts?folder_id=X`
+ * 会看到多少条"（`listPrompts` 也是把 folderId 展开成含后代的 id 集）。历史实现是前端对每个文件夹各发
+ * 一次 `?folder_id=N&limit=1` 只取 `total` ⇒ 文件夹数 + 1 次请求；这里用一条递归 CTE 取代那 N 次往返。
+ *
+ * 返回 `Map<folder_id, count>`：没有 prompt 的文件夹也会有一行（LEFT JOIN ⇒ 0）。
+ */
+export async function countPromptsByFolder(qe: QueryEngine): Promise<Map<number, number>> {
+  const result = await sql<{ folder_id: number; count: number }>`
+    WITH RECURSIVE sub(root_id, id) AS (
+      SELECT id, id FROM folders
+      UNION ALL
+      SELECT sub.root_id, f.id FROM folders f JOIN sub ON f.parent_id = sub.id
+    )
+    SELECT sub.root_id AS folder_id, count(p.id) AS count
+    FROM sub LEFT JOIN prompts p ON p.folder_id = sub.id
+    GROUP BY sub.root_id
+  `.execute(qe);
+  return new Map(result.rows.map((row) => [row.folder_id, Number(row.count)]));
+}

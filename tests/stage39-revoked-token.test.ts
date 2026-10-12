@@ -15,13 +15,13 @@ const drawer = raw
   .replace(/^\s*\/\/.*$/gm, '');
 const tokensService = readSource('src/services/tokens.ts');
 
-test('AC-102 ①：预取过滤**不再排除已撤销行**（只按 revealable 过滤）', () => {
-  assert.ok(/filter\(\(token\) => token\.revealable\)/.test(drawer), '预取过滤必须只看 revealable');
-  assert.equal(
-    /filter\(\(token\) => token\.revealable && token\.revoked_at === null\)/.test(drawer),
-    false,
-    '不得再按 revoked_at === null 排除撤销行（FR-100 的就是这一条）',
-  );
+test('AC-102 ①：预取过滤**不再排除已撤销行**（只看 revealable + 缓存是否已有）', () => {
+  // 阶段 68（FR-142）把预取改成"只补缓存里没有的行" ⇒ 表达式不再是一句 `token.revealable`；
+  // 断言表达式内容：必须看 revealable、必须跳过缓存、**不得**看 revoked_at。
+  const prefetchFilter = /const missing = items\.filter\(\s*\(token\) => ([\s\S]*?)\);/.exec(drawer)?.[1] ?? '';
+  assert.ok(prefetchFilter.includes('token.revealable'), '预取过滤必须只看 revealable');
+  assert.equal(prefetchFilter.includes('revoked_at'), false, '不得再按 revoked_at === null 排除撤销行（FR-100 的就是这一条）');
+  assert.ok(prefetchFilter.includes('cache.has(token.id)'), '预取必须跳过缓存里已有的行（FR-142）');
 });
 
 test('AC-102 ②：撤销行的「使用」列判断**只看 revealable**（不再看 revoked_at）', () => {

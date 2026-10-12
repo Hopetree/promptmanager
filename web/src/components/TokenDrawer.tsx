@@ -152,6 +152,11 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
   const [creating, setCreating] = useState(false);
   /** FR-95 ①：预取的明文（**只在内存**，抽屉关闭即清空）。 */
   const [plaintexts, setPlaintexts] = useState<Map<number, string>>(new Map());
+  /**
+   * FR-142：缓存的**权威副本**（用 ref 读最新值，state 只负责触发重渲染）——
+   * 这样 `load()` 不必把 `plaintexts` 放进依赖数组，也就不会"每次缓存一变就重拉一遍"。
+   */
+  const plaintextsRef = useRef<Map<number, string>>(new Map());
   const [form] = Form.useForm<{ name: string; scope: 'read' | 'write' }>();
   /** 预取失败的 id（点「复制」时给出可读原因，而不是静默失败）。 */
   const prefetchFailed = useRef<Set<number>>(new Set());
@@ -163,39 +168,53 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
     [message],
   );
 
-  /** 拉列表 + **并发预取**所有可查看行的明文（后台、不显示）。 */
+  /**
+   * 只把**还没在缓存里**的可查看行补进内存 —— 已经在缓存里的**不重复 reveal**（FR-142）。
+   *
+   * FR-100 口径不变：**去掉 `revoked_at === null`** —— 已撤销的行也要有明文（撤销 ≠ 销毁，值仍留库、仍需核对）；
+   * 只按 `revealable` 过滤（迁移前创建、没存密文的旧 token 本来就取不到，不浪费请求）。
+   * 失败过的 id 记在 `prefetchFailed` 里，下一轮不再重试（点「复制」时给出可读原因）。
+   */
+  const fillPlaintexts = useCallback(async (items: TokenSummary[]): Promise<void> => {
+    const cache = plaintextsRef.current;
+    const missing = items.filter(
+      (token) => token.revealable && !cache.has(token.id) && !prefetchFailed.current.has(token.id),
+    );
+    if (missing.length === 0) return;
+    const results = await Promise.all(
+      missing.map(async (token) => {
+        try {
+          const { token: plaintext } = await api.revealToken(token.id);
+          return [token.id, plaintext] as const;
+        } catch {
+          prefetchFailed.current.add(token.id);
+          return null;
+        }
+      }),
+    );
+    const next = new Map(cache);
+    for (const entry of results) if (entry !== null) next.set(entry[0], entry[1]);
+    plaintextsRef.current = next;
+    setPlaintexts(next);
+  }, []);
+
+  /**
+   * 拉列表 + 补齐缺失的明文。
+   * FR-142 前这里每次都把**全部**可查看行重新 reveal 一遍：打开抽屉 3 次、创建后再 3 次、撤销后再 3 次
+   * ⇒ 同一场景 9 次 reveal；现在打开 3 次（首次必须取）、创建 1 次（只有新行）、撤销 0 次（缓存里已有）。
+   */
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await api.tokens();
       setTokens(response.items);
-      /**
-       * FR-100：**去掉 `revoked_at === null`** —— 已撤销的行也要预取明文（撤销 ≠ 销毁，值仍留库、仍需核对）。
-       * 只按 `revealable` 过滤：迁移前创建、没存密文的旧 token 本来就取不到，不浪费请求。
-       */
-      const revealable = response.items.filter((token) => token.revealable);
-      const failed = new Set<number>();
-      const results = await Promise.all(
-        revealable.map(async (token) => {
-          try {
-            const { token: plaintext } = await api.revealToken(token.id);
-            return [token.id, plaintext] as const;
-          } catch {
-            failed.add(token.id);
-            return null;
-          }
-        }),
-      );
-      prefetchFailed.current = failed;
-      const next = new Map<number, string>();
-      for (const entry of results) if (entry !== null) next.set(entry[0], entry[1]);
-      setPlaintexts(next);
+      await fillPlaintexts(response.items);
     } catch (error) {
       handleError(error);
     } finally {
       setLoading(false);
     }
-  }, [handleError]);
+  }, [fillPlaintexts, handleError]);
 
   useEffect(() => {
     if (open) void load();
@@ -207,6 +226,7 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
    */
   useEffect(() => {
     if (!open) {
+      plaintextsRef.current = new Map();
       setPlaintexts(new Map());
       prefetchFailed.current = new Set();
     }

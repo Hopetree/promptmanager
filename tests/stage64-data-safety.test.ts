@@ -704,14 +704,14 @@ test('AC-126 ⑲：非内容字段往返（回归）—— 只改 folder / favor
 
 test('AC-126 ㉑：零迁移 —— migrations 仍是 8 个文件、schema 仍是 v8', async () => {
   const files = readdirSync(path.join(PROJECT_ROOT, 'migrations')).filter((name) => name.endsWith('.sql'));
-  assert.equal(files.length, 8, '本阶段不许新增迁移');
+  assert.equal(files.length, 9, '阶段 64 自己没新增迁移；阶段 68 起总数是 9（多出 009_fts-update-when.sql）');
 
   const fx = await makeFixture();
   try {
     const row = readDb(fx, (db) => db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get()) as {
       version: number;
     };
-    assert.equal(row.version, 8, 'schema 仍是 v8');
+    assert.equal(row.version, 9, 'schema 到 v9（阶段 68 起）');
   } finally {
     await fx.close();
   }

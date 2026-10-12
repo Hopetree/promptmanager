@@ -121,6 +121,21 @@ curl -s -b /tmp/pm-jar 'http://127.0.0.1:8767/api/prompts?folder_id=1&tag=交接
 | `favorite` | `true` 只看收藏 |
 | `sort` | `updated`（默认）/ `recent_used`（从未取用的排最后）/ `custom`（拖拽出来的顺序） |
 | `limit` / `offset` | 分页（`limit` 上限 200，超出截断） |
+| `include` | 只认一个值 `folder_counts`：响应里**多带**一个 `folder_counts`（见下）。省略 ⇒ 响应形状与以前逐字相同 |
+
+**`include=folder_counts`（FR-141 / AC-130 ⑥⑦⑧）**：一次列表请求就把侧栏徽标的数字带回来，
+不必再"每个目录发一次 `limit=1` 的请求"。键是**目录 id 的字符串形式**（JSON 对象的键只能是字符串），
+值是**含全部后代**的条数 —— 与 `?folder_id=X` 的 `total` 完全同口径（同一段递归 CTE，见
+`countPromptsByFolder`）：
+
+```bash
+curl -s -b /tmp/pm-jar 'http://127.0.0.1:8767/api/prompts?limit=1&include=folder_counts'
+# → { "total": 61, "limit": 1, "offset": 0, "items": [ ... ], "folder_counts": { "1": 3, "2": 2, "7": 0 } }
+```
+
+- 计数失败（例如库被改坏）**不影响列表**：`folder_counts` 回 `null`，请求仍是 `200`，条目照常返回；
+  前端此时**保留上一次的数字**（不清零、不阻塞筛选）。
+- 值只在显式传 `include=folder_counts` 时出现 —— 不传就没有这个键，客户端不会被静默改口径。
 
 ### 3.3 拖拽排序
 

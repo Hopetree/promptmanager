@@ -14,6 +14,8 @@ import {
   type UpdatePromptInput,
 } from '../../services/prompts.js';
 import { renderVariables, scanVariables } from '../../services/variables.js';
+import { countPromptsByFolder } from '../../services/folders.js';
+import type { QueryEngine } from '../../db/index.js';
 import { diffVersions, listVersions, rollbackToVersion } from '../../services/versions.js';
 import { kindForChannel, recordUsage } from '../../services/usage.js';
 import { currentPrincipal } from '../auth.js';
@@ -21,6 +23,23 @@ import { parseBoundedInt, parsePositiveId } from '../params.js';
 
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
+
+/**
+ * FR-141 / AC-130 ⑧：只有显式 `include=folder_counts` 才算 —— 没请求就**不带这个键**（响应形状对老客户端一字不变）。
+ * 计数失败**不阻塞列表**：吞掉错误返回 `null`，前端拿到 `null` 保留上一次的数字（既有"失败不阻塞筛选"的行为）。
+ */
+async function folderCountsField(
+  qe: QueryEngine,
+  include: string | undefined,
+): Promise<{ folder_counts?: Record<string, number> | null }> {
+  if (include !== 'folder_counts') return {};
+  try {
+    const counts = await countPromptsByFolder(qe);
+    return { folder_counts: Object.fromEntries([...counts].map(([id, count]) => [String(id), count])) };
+  } catch {
+    return { folder_counts: null };
+  }
+}
 
 /**
  * 查询串一律是字符串（应用关掉了 ajv 类型强转，避免 body 被静默改写）：
@@ -38,6 +57,11 @@ const listQuerySchema = {
     limit: { type: 'string', pattern: '^[0-9]+$' },
     offset: { type: 'string', pattern: '^[0-9]+$' },
     sort: { type: 'string', enum: ['updated', 'recent_used', 'custom'] },
+    /**
+     * FR-141（只加不改）：`include=folder_counts` 时响应多带 `folder_counts` —— 一次请求拿全部文件夹的
+     * 条目数，替掉前端"每个文件夹发一次 `?folder_id=N&limit=1` 取 total"的 N+1。
+     */
+    include: { type: 'string', enum: ['folder_counts'] },
   },
 } as const;
 
@@ -108,6 +132,7 @@ export function registerPromptRoutes(app: FastifyInstance): void {
       limit?: string;
       offset?: string;
       sort?: string;
+      include?: string;
     };
     const limit = parseBoundedInt(query.limit, DEFAULT_LIMIT, 1, MAX_LIMIT, 'limit');
     const offset = parseBoundedInt(query.offset, 0, 0, Number.MAX_SAFE_INTEGER, 'offset');
@@ -127,7 +152,13 @@ export function registerPromptRoutes(app: FastifyInstance): void {
       offset,
     });
 
-    return { total: result.total, limit, offset, items: result.items };
+    return {
+      total: result.total,
+      limit,
+      offset,
+      items: result.items,
+      ...(await folderCountsField(app.qe, query.include)),
+    };
   });
 
   /**

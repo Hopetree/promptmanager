@@ -43,8 +43,8 @@ test('AC-96 ①：迁移到 schema v8，api_tokens 有 token_enc 列，存量行
       fx,
       (db) => (db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v,
     );
-    // 本用例只关心 token_enc 列，版本号随每次新增迁移更新（阶段 61 起是 008_remember-variables.sql ⇒ v8）
-    assert.equal(version, 8, '迁移必须到当前版本（阶段 61 起是 v8）');
+    // 本用例只关心 token_enc 列，版本号随每次新增迁移更新（阶段 68 起是 009_fts-update-when.sql ⇒ v9）
+    assert.equal(version, 9, '迁移必须到当前版本（阶段 68 起是 v9）');
     const columns = readDb(fx, (db) => db.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>);
     assert.ok(columns.some((column) => column.name === 'token_enc'), 'api_tokens 必须有 token_enc 列');
 

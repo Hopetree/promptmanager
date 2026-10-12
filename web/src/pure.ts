@@ -27,6 +27,8 @@ export interface PromptListQueryParams {
   sort?: 'updated' | 'recent_used' | 'custom';
   limit?: number;
   offset?: number;
+  /** FR-141：让响应带上全部文件夹的条目数（一次请求替代 N+1）。 */
+  includeFolderCounts?: boolean;
 }
 
 /**
@@ -46,6 +48,7 @@ export function buildPromptListQuery(params: PromptListQueryParams): string {
   if (params.sort === 'recent_used' || params.sort === 'custom') search.set('sort', params.sort);
   if (params.limit !== undefined) search.set('limit', String(params.limit));
   if (params.offset !== undefined) search.set('offset', String(params.offset));
+  if (params.includeFolderCounts === true) search.set('include', 'folder_counts');
   const query = search.toString();
   return query === '' ? '' : `?${query}`;
 }

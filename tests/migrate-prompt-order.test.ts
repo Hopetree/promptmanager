@@ -61,7 +61,7 @@ test('FR-70 迁移：旧库升级后既有条目顺序不变（按升级前的�
     assert.deepEqual(before.map((row) => row.id), [1, 2, 3]);
 
     const result = runMigrations(db, MIGRATIONS);
-    assert.equal(result.version, 8, '迁移必须到当前版本（阶段 61 起是 v8：008_remember-variables.sql）');
+    assert.equal(result.version, 9, '迁移必须到当前版本（阶段 68 起是 v9：009_fts-update-when.sql）');
     assert.ok(result.applied.includes('003_prompt-sort-order.sql'));
 
     const after = rows(db);
@@ -98,7 +98,7 @@ test('FR-70 迁移：全新库从 0 跑到当前版本（含 sort_order 列与�
   const db = new Database(path.join(dir, 'pm.db'));
   try {
     const result = runMigrations(db, MIGRATIONS);
-    assert.equal(result.version, 8, '迁移必须到当前版本（阶段 61 起是 v8：008_remember-variables.sql）');
+    assert.equal(result.version, 9, '迁移必须到当前版本（阶段 68 起是 v9：009_fts-update-when.sql）');
     const columns = (db.prepare('PRAGMA table_info(prompts)').all() as Array<{ name: string }>).map((row) => row.name);
     assert.ok(columns.includes('sort_order'), 'prompts 必须有 sort_order 列');
     const indexes = (db.prepare('PRAGMA index_list(prompts)').all() as Array<{ name: string }>).map((row) => row.name);

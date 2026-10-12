@@ -340,11 +340,15 @@ test('AC-128 ③：映射助手的 0/1 ↔ boolean 与缺省取值逐条与改�
 
 // ─────────────────────────── AC-128 ⑩⑬：零迁移 / 零新依赖 / 操作说明 ───────────────────────────
 
-test('AC-128 ⑩：零迁移（migrations 仍 8 个、无 009）与零新增依赖', () => {
+test('AC-128 ⑩：零迁移（阶段 66 自己没新增；阶段 68 起总数是 9）与零新增依赖', () => {
   const migrations = readdirSync(path.join(ROOT, 'migrations')).filter((name) => name.endsWith('.sql'));
-  assert.equal(migrations.length, 8, `迁移必须仍是 8 个（实际 ${String(migrations.length)}）`);
+  assert.equal(migrations.length, 9, `迁移总数必须与目录一致（阶段 68 起是 9 个，实际 ${String(migrations.length)}）`);
   assert.equal(existsSync(path.join(ROOT, 'migrations', '009_pinned.sql')), false);
-  assert.equal(migrations.some((name) => name.startsWith('009')), false, '本阶段不得新增迁移');
+  assert.deepEqual(
+    migrations.filter((name) => name.startsWith('009')),
+    ['009_fts-update-when.sql'],
+    '阶段 66 自己没新增迁移；009 是阶段 68 的 FTS 触发器迁移（AC-130 ①）',
+  );
 });
 
 test('AC-128 ⑬：文档里写清「加一个字段该动哪里」，且与本文件一致', () => {
