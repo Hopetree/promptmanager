@@ -163,7 +163,11 @@ test('AC-116 ⑨⑩（源码级）：新端点不动表结构；前端只在"复
 
   // 归"资源读"：只读令牌可用（与渲染类同档）
   const auth = strip(read('src/server/auth.ts'));
-  assert.ok(/\\\/api\\\/prompts\\\/\\d\+\\\/copy\$/.test(auth) || /prompts\\\/\\d\+\\\/copy/.test(auth), 'copy 端点必须归"资源读"（只读令牌可用）');
+  // 阶段 70 / FR-149：读档 POST 白名单改成「认数字 id 也认路由模式 :id」，断言改成读**声明表本体**，
+  // 意图不变（copy 必须落在归读的那张表 ⇒ 只读令牌可用）；行为侧见 stage70-auth-classification 的 C12。
+  const readPost = /const RESOURCE_READ_POST = \[([\s\S]*?)\];/.exec(auth)?.[1] ?? '';
+  assert.notEqual(readPost, '', '必须能定位 RESOURCE_READ_POST 声明表');
+  assert.ok(/copy/.test(readPost), 'copy 端点必须归"资源读"（只读令牌可用）');
 
   // 前端：无变量分支复制成功后记账；且**不得**再引入 getPrompt 兼职
   const copy = strip(read('web/src/use-copy.ts'));

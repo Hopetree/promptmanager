@@ -28,8 +28,26 @@
   - `tests/stage60-variable-defaults.test.ts` 的 AC-122 ⑭ 按新规格**加强**改写：原来是"两份字面量
     逐字一致"，现在是"**根本不允许有第二份**，两侧都必须引用共享模块"。
 
+- **鉴权分类与路由注册同源 + 机械检查**（FR-149 / AC-132 C，阶段 70）：
+  - 分类**只有一处入口** `classifyApiRequest(method, path)`（`src/server/auth.ts`），认证闸门的
+    `onRequest` 调它，不再自己手写路径判断。
+  - 新增 `declaredCategory(method, path)`：回答"这个路由被四张声明表**明确**覆盖了吗"（未覆盖 ⇒ `null`）。
+    `registerAuthGate` 用 `onRoute` 收集所有 `/api/*` 路由、在 `onReady` 断言**每个都被显式声明** ——
+    新加一个没声明类别的端点，服务**起不来**并点名 `METHOD /path`（改前：分类表与注册表两处人肉同步，
+    新端点悄悄落进 fail-closed 兜底，没人分得清"故意要 write"还是"忘了声明"）。
+  - 实测：收集 **41** 条 `/api/*` 路由、未声明 **0** 条；`addHook('onRoute'|'onReady')` +
+    分类 API 的出现次数 **0 → 10**；裸 Fastify 注册 `GET /api/undeclared-probe` ⇒
+    `认证分类缺失（FR-149 / AC-132 C10）：GET /api/undeclared-probe`。
+  - **兜底一点没动**：`classifyApiRequest` 最后一条仍是 fail-closed 的 `resource_write`，鉴权语义
+    （401 / `session_required` / `insufficient_scope`）逐条实测未变；权限矩阵四类在
+    `tests/stage70-auth-classification.test.ts` 里真发请求逐条钉住。
+  - `/mcp` 不在 `/api/*` 闸门内这一条写进 `docs/traps.md` 第 20 节：它自己做 Bearer 鉴权，
+    401 响应体与 `/api/*` **同形**（`{"error":"unauthorized"}`），差异只有"不收 cookie / 无状态"。
+  - 读档 POST 白名单改为同时认数字 id 与路由模式 `:id`（机械检查看到的是 `:id`）——
+    否则 `POST /api/prompts/:id/render` 会被误判成资源写。
+
 - **前端纯逻辑按关注点拆分**（FR-148 / AC-132 B，阶段 70）：
-  - 原 `web/src/pure.ts` 一个文件 **589 行 / 49 个 export**，混装十类关注点（列表查询串、文件夹树、
+  - 原来的前端纯逻辑入口是**一个 589 行 / 49 个 export** 的文件，混装十类关注点（列表查询串、文件夹树、
     导出文件解析、diff 分类、时间与摘要、变量、变量记忆、视图档位、令牌显示、提示文案）。现在按关注点
     拆成 **9 个模块**，每个模块职责单一：
     `list-query`(2) / `folders-util`(5) / `import-file`(7) / `diff-lines`(3) / `format`(4) /
@@ -677,7 +695,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，97 个测试文件 / **657 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，98 个测试文件 / **662 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。

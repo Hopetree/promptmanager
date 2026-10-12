@@ -58,9 +58,11 @@ const RESOURCE_READ_EXTRA_PATHS = new Set<string>(['/api/me']);
  *   这样**只读令牌**经 HTTP/MCP 也能记复制（口径与 render 一致）。
  */
 const RESOURCE_READ_POST = [
-  /^\/api\/prompts\/\d+\/render$/,
+  // 运行时看到的是真实数字 id；机械检查（FR-149）看到的是路由**模式**里的 `:id` ⇒ 两者都要认，
+  // 否则 `POST /api/prompts/:id/render` 会被误判成资源写。
+  /^\/api\/prompts\/(?:\d+|:id)\/render$/,
   /^\/api\/render\/markdown$/,
-  /^\/api\/prompts\/\d+\/copy$/,
+  /^\/api\/prompts\/(?:\d+|:id)\/copy$/,
 ];
 
 function isSessionOnly(path: string): boolean {
@@ -73,6 +75,47 @@ function isResourceRead(method: string, path: string): boolean {
   if (method !== 'GET' && method !== 'HEAD') return false;
   if (RESOURCE_READ_EXTRA_PATHS.has(path)) return true;
   return RESOURCE_READ_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+/**
+ * 类别 ②：资源写（**仅 write** 令牌）。这张表只服务于"每个 `/api/*` 路由都必须被显式声明"
+ * 的机械检查（FR-149 / AC-132 C）；**运行时**判定仍走 `classifyApiRequest` 的 fail-closed 兜底，
+ * 所以鉴权行为与阶段 42 逐字一致。
+ */
+const RESOURCE_WRITE_PREFIXES = ['/api/prompts', '/api/folders', '/api/tags', '/api/import', '/api/export'];
+
+function isResourceWrite(path: string): boolean {
+  return RESOURCE_WRITE_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+/** 一个 `/api/*` 请求所属的鉴权类别（FR-149：分类集中在这里，闸门与机械检查共用）。 */
+export type AuthCategory = 'public' | 'session_only' | 'resource_read' | 'resource_write';
+
+/**
+ * **唯一的分类入口**（FR-149 / AC-132 C10）：认证闸门的 `onRequest` 与
+ * 「有路由无法分类即失败」的机械检查都调它，避免"路由注册"与"权限分类"两处各记一份。
+ *
+ * 兜底是 **fail-closed 的 `resource_write`**：不在公开/仅会话/资源读白名单里的 `/api/*`
+ * 一律按"需要 write 令牌"处理 —— 与阶段 42 的行为逐字相同。
+ */
+export function classifyApiRequest(method: string, path: string): AuthCategory {
+  if (PUBLIC_API_PATHS.has(path)) return 'public';
+  if (isSessionOnly(path)) return 'session_only';
+  if (isResourceRead(method, path)) return 'resource_read';
+  return 'resource_write';
+}
+
+/**
+ * **显式声明**查询（FR-149）：只有被上面四张表之一明确覆盖的路由才算"已分类"。
+ * 与 `classifyApiRequest` 的区别：后者对未知路由也回一个类别（兜底），这里回 `null` ——
+ * 机械检查据此判定"新加的端点忘了声明类别"。
+ */
+export function declaredCategory(method: string, path: string): AuthCategory | null {
+  if (PUBLIC_API_PATHS.has(path)) return 'public';
+  if (isSessionOnly(path)) return 'session_only';
+  if (isResourceRead(method, path)) return 'resource_read';
+  if (isResourceWrite(path)) return 'resource_write';
+  return null;
 }
 
 export async function registerCookieSupport(app: FastifyInstance): Promise<void> {
@@ -103,11 +146,62 @@ function bearerChannel(request: FastifyRequest): AuthChannel {
  * 两条通道并存（D-13）：`Authorization: Bearer <token>` 优先，其次 `pm_sid` cookie 会话。
  * onRequest 在路由解析之前执行，因此**未实现的 /api/* 端点**对未认证请求同样 401（AC-3）。
  */
+/** 启动时收集到的 `/api/*` 路由（供 `authRouteCoverage` 与机械检查使用）。 */
+export interface ApiRoute {
+  method: string;
+  url: string;
+}
+
+const COLLECTED_ROUTES = new WeakMap<FastifyInstance, ApiRoute[]>();
+
+/**
+ * 本次启动注册表里每个 `/api/*` 路由的分类结果（测试用；`category === null` = 没被任何声明覆盖）。
+ * 见 `registerAuthGate` 的 `onRoute` 收集与 `onReady` 断言（FR-149 / AC-132 C10/C11）。
+ */
+export function authRouteCoverage(app: FastifyInstance): Array<ApiRoute & { category: AuthCategory | null }> {
+  return (COLLECTED_ROUTES.get(app) ?? []).map((route) => ({
+    ...route,
+    category: declaredCategory(route.method, route.url),
+  }));
+}
+
+/**
+ * 全局认证闸门：除放行清单外，所有 /api/* 未认证一律 401 {"error":"unauthorized"}。
+ * 两条通道并存（D-13）：`Authorization: Bearer <token>` 优先，其次 `pm_sid` cookie 会话。
+ * onRequest 在路由解析之前执行，因此**未实现的 /api/* 端点**对未认证请求同样 401（AC-3）。
+ *
+ * FR-149：分类只在 `classifyApiRequest` 一处，且本函数在注册期收集所有 `/api/*` 路由、
+ * 在 `onReady` 时断言"每个路由都被某张声明表覆盖" —— 新加一个没声明类别的端点，
+ * 服务**起不来**（而不是悄悄落进兜底）。这与路由注册同源，不需要两处人肉同步。
+ */
 export function registerAuthGate(app: FastifyInstance): void {
+  const routes: ApiRoute[] = [];
+  COLLECTED_ROUTES.set(app, routes);
+  app.addHook('onRoute', (route) => {
+    if (typeof route.url !== 'string' || !route.url.startsWith('/api/')) return;
+    const methods = Array.isArray(route.method) ? route.method : [route.method];
+    for (const method of methods) {
+      // Fastify 会给 GET 自动补一个 HEAD ⇒ 只登记显式声明过的那个动词，避免噪声
+      if (method === 'HEAD') continue;
+      routes.push({ method, url: route.url });
+    }
+  });
+  app.addHook('onReady', () => {
+    const missing = routes.filter((route) => declaredCategory(route.method, route.url) === null);
+    if (missing.length > 0) {
+      throw new Error(
+        `认证分类缺失（FR-149 / AC-132 C10）：${missing.map((route) => `${route.method} ${route.url}`).join('、')}` +
+          ' —— 新端点必须显式落进 src/server/auth.ts 的四张声明表之一' +
+          '（PUBLIC_API_PATHS / SESSION_ONLY_* / RESOURCE_READ_* / RESOURCE_WRITE_PREFIXES），不许依赖 fail-closed 兜底。',
+      );
+    }
+  });
+
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0] ?? '';
     if (!path.startsWith('/api/')) return;
-    if (PUBLIC_API_PATHS.has(path)) return;
+    const category = classifyApiRequest(request.method, path);
+    if (category === 'public') return;
 
     const plaintext = bearerPlaintext(request);
     if (plaintext !== null) {
@@ -128,14 +222,14 @@ export function registerAuthGate(app: FastifyInstance): void {
        * 两者都是 **403**，但错误码分开：`session_required`（令牌本就不该调这个端点）
        * 与 `insufficient_scope`（只读令牌调了资源写 ⇒ 换读写令牌即可）。
        */
-      if (isSessionOnly(path)) {
+      if (category === 'session_only') {
         await reply.code(403).send({
           error: 'session_required',
           message: '令牌管理与账号操作只允许浏览器会话（cookie）；请用界面操作，不要用 API 令牌。',
         });
         return;
       }
-      if (!isResourceRead(request.method, path) && token.scope !== 'write') {
+      if (category === 'resource_write' && token.scope !== 'write') {
         await reply.code(403).send({
           error: 'insufficient_scope',
           message: '该令牌是只读（read），只能检索 / 查看 / 渲染；修改资源需要读写（write）令牌。',
