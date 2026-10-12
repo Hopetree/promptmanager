@@ -2,14 +2,11 @@
 // 拖拽用成熟库 @dnd-kit（不手写引擎）；手柄热区 24×24 且不增高行高；过渡 ≤150ms；两处手柄锚点；排序档「自定义」。
 // 端到端（真鼠标拖拽 + 刷新持久 + 像素回归 + 接口负例）见库外验收记录 / 库外探针脚本 与 tests/api-order.test.ts。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readJson, readSource, readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
-const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as {
+const src = (rel: string): string => readWebSource(rel);
+const pkg = readJson('package.json') as {
   dependencies: Record<string, string>;
 };
 
@@ -31,7 +28,7 @@ test('FR-70 依赖纪律：拖拽用 @dnd-kit（MIT、pin 精确版本、lockfil
   assert.ok(sortable.includes('@dnd-kit/sortable'), 'SortableList 基于 @dnd-kit/sortable');
   // 不手写拖拽引擎：不得自己监听 mousemove/touchmove 做拖拽
   assert.equal(/addEventListener\(\s*['"](mouse|touch|pointer)move/.test(sortable), false, '不得手写拖拽引擎');
-  const deps = readFileSync(path.join(ROOT, 'docs', 'dependencies.md'), 'utf8');
+  const deps = readSource('docs/dependencies.md');
   assert.ok(deps.includes('@dnd-kit/core'), 'docs/dependencies.md 必须登记新依赖');
 });
 

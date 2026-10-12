@@ -5,10 +5,9 @@
 // 内容字段固定为 `prompt_versions` 装得下、且回滚能恢复的那 4 个：
 // `title` / `user_prompt` / `system_prompt` / `notes`（BRIEF FR-129 ① / D-60 ③）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
+import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
 type Fixture = Awaited<ReturnType<typeof makeFixture>>;
 
@@ -633,11 +632,11 @@ test('AC-124 ⑲：版本历史接口在非内容操作后条目数不变、内�
 });
 
 test('AC-124 ㉑：docs/versioning.md 与 CHANGELOG 记明这是行为契约变更（MINOR）', () => {
-  const versioning = readFileSync(path.join(PROJECT_ROOT, 'docs/versioning.md'), 'utf8');
+  const versioning = readSource('docs/versioning.md');
   assert.match(versioning, /内容变更/, 'versioning.md 必须写明「只有内容变更才产生新版本」');
   assert.match(versioning, /updated_at/, 'versioning.md 必须写明 updated_at 的新口径');
 
-  const changelog = readFileSync(path.join(PROJECT_ROOT, 'CHANGELOG.md'), 'utf8');
+  const changelog = readSource('CHANGELOG.md');
   assert.match(changelog, /MINOR/, 'CHANGELOG 必须标为 MINOR（行为契约变更）');
   assert.match(changelog, /版本号|version_no/, 'CHANGELOG 必须点名版本号语义的变化');
 });
@@ -677,7 +676,7 @@ test('返工① a：rollbackNotice 只在 version_no 真的前进时才说「已
 });
 
 test('返工① b：VersionPanel 按服务端返回值分支，弹窗不再无条件宣称会生成新版本', () => {
-  const src = readFileSync(path.join(PROJECT_ROOT, 'web/src/components/VersionPanel.tsx'), 'utf8');
+  const src = readSource('web/src/components/VersionPanel.tsx');
   assert.match(src, /rollbackNotice\(/, 'VersionPanel 必须调用 rollbackNotice 而不是写死文案');
   assert.match(src, /const updated = await api\.rollback\(/, '必须接住回滚接口的返回值');
   assert.match(src, /updated\.version_no/, '必须用服务端返回的 version_no 做分支');

@@ -2,14 +2,11 @@
 // 运行时段（真浏览器 + CDP 量 getBoundingClientRect 的 358/374、档位顺序 DOM、默认档位按断点、截图）
 // 见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { VIEW_MODE_VALUES, defaultViewMode, viewModeOptions } from '../web/src/pure.ts';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const split = src('components/SplitView.tsx');
 const useView = src('components/UseView.tsx');

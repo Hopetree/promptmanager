@@ -2,13 +2,10 @@
 // 编辑器 Markdown 预览去掉「备注」字段；详情面「备注」页签按原样纯文本显示（不解析 Markdown、不请求 /api/render/markdown）。
 // 运行时段（真鼠标 + CDP 网络层计数 + DOM 元素计数）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readSource, readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const editor = src('components/PromptEditor.tsx');
 const detail = src('components/PromptDetail.tsx');
@@ -53,9 +50,9 @@ test('AC-68 ③④：不外溢（列表摘要 / 变量 / 导出 / diff 都不受
   const variable = src('components/VariablePanel.tsx');
   assert.equal(variable.includes('notes'), false, '变量填值不得掺入备注');
   // 版本 diff 的快照文本仍包含 [notes]（FR-64 的文本对比不受影响）
-  const versions = readFileSync(path.join(ROOT, 'src', 'services', 'versions.ts'), 'utf8');
+  const versions = readSource('src/services/versions.ts');
   assert.ok(versions.includes("section('notes'"), 'snapshotText 仍包含 notes 段（FR-64 修复不受影响）');
   // 导入导出格式未改（app 契约值不变）
-  const exportService = readFileSync(path.join(ROOT, 'src', 'services', 'export.ts'), 'utf8');
+  const exportService = readSource('src/services/export.ts');
   assert.ok(exportService.includes("EXPORT_APP = 'promptmanager'"), '导出契约值不变');
 });

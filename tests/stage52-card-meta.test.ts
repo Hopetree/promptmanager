@@ -5,25 +5,26 @@
 // 本文件是**源码级 + jsdom 级**断言；真浏览器的像素/间距/图标/截图证据见
 // 库外验收记录（AC-117 ①–⑨）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 
 import { CARD_FOLDER_FALLBACK, folderNameOf } from '../web/src/pure.ts';
+import { readSource, readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const useView = src('components/UseView.tsx');
 const css = src('styles/app.css');
 const theme = src('theme.ts');
 
-/** 只截卡片那一行元信息（metaLine 的定义块），避免把表格列里的同名字段误判进来。 */
+/** 只截卡片那一行元信息（metaLine 的定义块），避免把表格列里的同名字段误判进来。
+ *  ⚠️ 结束标记必须是**代码**（`const renderCard = …`），不能是它上面那行注释 ——
+ *  源码文本进来时已经剥过注释（AC-129 A1），用注释当切片标记会切到文件末尾。 */
 const metaBlock = ((): string => {
   const at = useView.indexOf('const metaLine = (prompt: Prompt)');
   assert.ok(at > 0, '找不到 metaLine 定义');
-  return useView.slice(at, useView.indexOf('/** 卡片渲染', at));
+  const end = useView.indexOf('const renderCard = (prompt: Prompt', at);
+  assert.ok(end > at, '找不到 metaLine 之后的代码边界（renderCard）');
+  return useView.slice(at, end);
 })();
 
 const folders: { id: number; name: string; parent_id: number | null; sort_order: number }[] = [
@@ -176,7 +177,7 @@ test('AC-117 ⑥⑨：表格视图与分栏视图完全没动；接口契约与�
   // 因此这里改读列清单 —— 判据不变（folder_id 的契约侧类型仍是 number | null、没有 folder_name）。
   // 注意 `[^}]*`：不跨对象边界，免得"别的列也变成 number-null"时误过（复核 nit）。
   const types = src('types.ts');
-  const columns = readFileSync(path.join(ROOT, 'src', 'prompt-columns.ts'), 'utf8');
+  const columns = readSource('src/prompt-columns.ts');
   assert.ok(
     /folder_id: \{[^}]*api: 'number-null'/.test(columns),
     'Prompt.folder_id 语义未变（契约侧仍是 number | null）',

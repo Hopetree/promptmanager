@@ -1,13 +1,10 @@
 // 阶段 22 / FR-71（BRIEF v29 §4 + §8 AC-71）：分栏中栏条目精简为「标题 + 备注（固定两行）」+ 中栏宽度 -8%。
 // 运行时段（真实像素 + 文本断言 + 单击切换 + 卡片/表格对照）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const split = src('components/SplitView.tsx');
 const useView = src('components/UseView.tsx');

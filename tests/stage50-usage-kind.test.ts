@@ -4,16 +4,16 @@
 // **render 与 MCP 计入**、三处聚合（详情 / 列表 / summary）**同一口径**、表结构与导出格式未变。
 // 真实查库对账（含旧库实测迁移）在 库外验收记录。
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../dist/db/migrate.js';
 import type { Fixture } from './helpers.ts';
-import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
+import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readRaw, readSource } from './source-text.ts';
 
-const MIGRATIONS = path.join(PROJECT_ROOT, 'migrations');
 const MIGRATION_FILES = [
   '001_init.sql',
   '002_tokens-and-usage.sql',
@@ -21,13 +21,6 @@ const MIGRATION_FILES = [
   '004_token-enc.sql',
   '005_token-scope.sql',
 ];
-
-/** 去掉注释后的源码（源码级断言只检查**真代码**）。 */
-const strip = (src: string): string =>
-  src
-    .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/^\s*\/\/.*$/gm, '');
 
 async function authed(fx: Fixture): Promise<string> {
   return cookieOf(await login(fx.app));
@@ -74,7 +67,7 @@ test('AC-115 ⑨：迁移 006 存在且口径正确 —— 旧行一律填 copy�
     const db = new Database(path.join(dir, 'pm.db'));
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);');
     for (const file of MIGRATION_FILES) {
-      db.exec(readFileSync(path.join(MIGRATIONS, file), 'utf8'));
+      db.exec(readRaw(path.join('migrations', file)));
       db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)').run(
         Number.parseInt(file, 10),
         file,
@@ -193,7 +186,7 @@ test('AC-115 ②③④：render / 复制计入为 copy；MCP 的 render 计入�
 });
 
 test('AC-115 ⑥⑦（源码级）：三处聚合与两个记账点的口径一致；kind 缺省 copy', () => {
-  const usage = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'services', 'usage.ts'), 'utf8'));
+  const usage = readSource('src/services/usage.ts');
   // 类型与计入集合
   assert.ok(/export type UsageKind = 'view' \| 'copy' \| 'mcp'/.test(usage), '必须定义 UsageKind 三值');
   assert.ok(/export const COUNTED_KINDS: readonly UsageKind\[\] = \['copy', 'mcp'\]/.test(usage), '计入集合必须是 copy+mcp');
@@ -208,10 +201,10 @@ test('AC-115 ⑥⑦（源码级）：三处聚合与两个记账点的口径一�
   assert.ok(filters >= 4, `usage.ts 里至少要有一处定义 + 三处聚合调用（total·channels·by_token·top），实际 ${String(filters)}`);
   assert.ok(/COUNTED_KINDS\.map\(/.test(usage), '工厂的过滤值必须来自 COUNTED_KINDS（否则常量还是死声明）');
 
-  const queries = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'db', 'prompt-queries.ts'), 'utf8'));
+  const queries = readSource('src/db/prompt-queries.ts');
   assert.ok(/countedKindsSql\(\)/.test(queries), '列表 JOIN 也必须同一口径');
 
-  const routes = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'routes', 'prompts.ts'), 'utf8'));
+  const routes = readSource('src/server/routes/prompts.ts');
   assert.ok(/recordUsage\(app\.qe, id, principal\.channel, principal\.tokenId \?\? null, 'view'\)/.test(routes), "打开详情必须记 kind='view'");
   assert.ok(/kindForChannel\(renderPrincipal\.channel\)/.test(routes), 'render 的事件类型必须由通道推导');
 
@@ -221,19 +214,19 @@ test('AC-115 ⑥⑦（源码级）：三处聚合与两个记账点的口径一�
 
 test('AC-115 ⑩（源码级）：未改导出格式 / 未改 channel·token_id 语义 / 界面文案与列不变', () => {
   // 导出格式：schema_version 仍是 1
-  const exp = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'services', 'export.ts'), 'utf8'));
+  const exp = readSource('src/services/export.ts');
   assert.ok(/schema_version: 1|SCHEMA_VERSION = 1/.test(exp), '导出 schema_version 不得变');
   // 通道取值集合不变
-  const auth = strip(readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'auth.ts'), 'utf8'));
+  const auth = readSource('src/server/auth.ts');
   assert.ok(/export type AuthChannel = 'session' \| 'token' \| 'mcp'/.test(auth), 'channel 三值不变');
   // 界面：仍是 7 列、文案仍是「取用 N 次」
-  const drawer = strip(readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'TokenDrawer.tsx'), 'utf8'));
+  const drawer = readSource('web/src/components/TokenDrawer.tsx');
   const titles = [...drawer.matchAll(/title: '([^']+)'/g)].map((m) => m[1]);
   assert.deepEqual(titles, ['名称', 'Token', '状态', '使用', '创建时间', '最近使用', '操作'], '令牌表列不得变');
   // 前端不感知 kind（语义在后端聚合）—— 避免"界面自己算一套"
   const webFiles = ['web/src/api.ts', 'web/src/types.ts'];
   for (const rel of webFiles) {
-    const src = readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+    const src = readSource(rel);
     assert.equal(/\bkind\b/.test(src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')), false, `${rel} 不应引入 kind（口径留在后端）`);
   }
 });

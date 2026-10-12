@@ -1,11 +1,12 @@
 // 阶段 35 / FR-94（BRIEF v46 §4 + §8 AC-96）的 **token 可随时查看（AES-256-GCM）**断言。
 // 运行时证据（真鼠标点「复制」+ 读回剪贴板）在 库外验收记录 与 库外探针脚本 里。
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, renameSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readRaw, readSource } from './source-text.ts';
 
 type Fixture = Awaited<ReturnType<typeof makeFixture>>;
 
@@ -155,7 +156,7 @@ test('AC-96 ⑤：密文落库（不含 pm_ 前缀、不是明文）；密钥文
     const keyFile = path.join(dir, 'token-enc.key');
     const mode = statSync(keyFile).mode & 0o777;
     assert.equal(mode, 0o600, `密钥文件必须是 600（实际 ${mode.toString(8)}）`);
-    assert.match(readFileSync(keyFile, 'utf8').trim(), /^[0-9a-f]{64}$/, '密钥文件是 32 字节 hex');
+    assert.match(readRaw(keyFile).trim(), /^[0-9a-f]{64}$/, '密钥文件是 32 字节 hex');
 
     // 重启（同一 DATA_DIR）后仍能 reveal —— 密钥与密文都持久
     await fx.app.close();
@@ -252,9 +253,7 @@ test('AC-96：TOKEN_ENC_KEY（env）优先于密钥文件，且 env 密钥也能
 });
 
 test('AC-96 ⑧：明文不进日志 —— reveal 只记"被查看"（源码级：路由日志不含明文变量）', async () => {
-  const { readFileSync: read } = await import('node:fs');
-  const { PROJECT_ROOT } = await import('./helpers.ts');
-  const route = read(path.join(PROJECT_ROOT, 'src', 'server', 'routes', 'tokens.ts'), 'utf8');
+  const route = readSource('src/server/routes/tokens.ts');
   assert.ok(route.includes("'token revealed'"), 'reveal 成功应有一条不含值的日志');
   // 日志调用里不得把 token 变量当参数（tokenId 允许；字符串字面量里的 "token revealed" 不算）
   const logCalls = route.match(/log\.[a-z]+\([^;]*\)/g) ?? [];

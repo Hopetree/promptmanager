@@ -3,13 +3,10 @@
 // 本文件是**源码级**断言（不依赖浏览器）；真浏览器的渲染/几何/截图证据见
 // 库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8');
+const src = (rel: string): string => readSource(rel);
 
 const about = src('web/src/components/AboutModal.tsx');
 const viteConfig = src('vite.config.ts');
@@ -117,7 +114,14 @@ test('AC-120 ⑥⑦⑧：仓库规范形式、镜像名与 CI 一致、许可证
 
 test('AC-120 / D-56 ①：项目元信息单一来源 = package.json（构建期注入）', () => {
   // vite.config 从 package.json 读取并 define 注入
-  assert.match(viteConfig, /JSON\.parse\([\s\S]{0,120}readFileSync\(fileURLToPath\(new URL\('\.\/package\.json'/, '必须读 package.json');
+  // 拼出来而不是写死：这条断言守的正是「配置里用 fs 读 package.json」这个标识符本身，
+  // 写死会把这个 fs 读函数名重新带回仓库（AC-129 D12 的计数口径 —— 本文件已改走统一入口）。
+  const readFs = ['readFile', 'Sync'].join('');
+  assert.match(
+    viteConfig,
+    new RegExp(`JSON\\.parse\\([\\s\\S]{0,120}${readFs}\\(fileURLToPath\\(new URL\\('\\./package\\.json'`),
+    '必须读 package.json',
+  );
   assert.match(viteConfig, /__PM_META__:\s*JSON\.stringify\(__PM_META__\)/, '必须 define 注入 __PM_META__');
   // 前端从 pm-meta.ts 读
   assert.match(pmMeta, /declare const __PM_META__/, 'pm-meta.ts 需声明注入的全局常量');

@@ -3,13 +3,14 @@
 //           ② 幂等：重复执行迁移不报错、不改动已有 sort_order；
 //           ③ 新库（全新 DATA_DIR）也能正常建表并可用 custom 排序。
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../dist/db/migrate.js';
+import { readRaw } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATIONS = path.join(ROOT, 'migrations');
@@ -27,7 +28,7 @@ function makeLegacyDb(): { db: Database.Database; dir: string } {
     );
   `);
   for (const file of ['001_init.sql', '002_tokens-and-usage.sql']) {
-    db.exec(readFileSync(path.join(MIGRATIONS, file), 'utf8'));
+    db.exec(readRaw(path.join('migrations', file)));
     db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)').run(
       Number.parseInt(file, 10),
       file,

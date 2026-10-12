@@ -8,16 +8,10 @@
  * 本文件只读仓库内文件，不依赖 `dist/`。
  */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function readSource(relative: string): string {
-  return readFileSync(path.join(ROOT, relative), 'utf8');
-}
 
 function count(source: string, needle: string): number {
   return source.split(needle).length - 1;

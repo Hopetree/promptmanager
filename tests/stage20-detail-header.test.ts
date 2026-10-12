@@ -2,13 +2,10 @@
 // MarkdownPreview 在 fields.length === 1（详情面）时隐藏头部；编辑器页（3 字段）保持现状。
 // 运行时段（真鼠标 + 真实像素 + 切换预览）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const markdown = src('components/MarkdownPreview.tsx');
 const detail = src('components/PromptDetail.tsx');

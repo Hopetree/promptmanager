@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -10,6 +10,7 @@ import {
   removeTempDir,
   runCliProcess,
 } from './helpers.ts';
+import { readJson } from './source-text.ts';
 
 const runCli = (args: string[], dataDir: string): Promise<CliResult> => runCliProcess(args, { dataDir });
 
@@ -32,7 +33,7 @@ test('CLI export：写出与 /api/export 同结构的文件，rc=0，且不打�
     assert.match(res.stdout, /exported/);
     assert.ok(existsSync(out), '导出文件应存在');
 
-    const file = JSON.parse(readFileSync(out, 'utf8')) as Record<string, any>;
+    const file = readJson(out) as Record<string, any>;
     assert.equal(file.app, 'promptmanager');
     assert.equal(file.schema_version, 1);
     assert.match(String(file.exported_at), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
@@ -67,7 +68,7 @@ test('CLI export：与 POST /api/import 兼容（把 CLI 文件导回库）', as
 
     const cli = await runCli(['export', '--out', out], dir);
     assertCliOk(cli, 'CLI 退出码');
-    const file = JSON.parse(readFileSync(out, 'utf8')) as unknown;
+    const file = readJson(out) as unknown;
 
     const target = prepareDatabase(loadConfig({ DATA_DIR: dir2 }));
     const result = await importData(target.qe, 'replace', file, { usageBackupDir: dir2 });

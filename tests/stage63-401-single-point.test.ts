@@ -10,17 +10,15 @@
 // ② `onUnauthorized` 整条 prop 链必须消失（不留兼容可选 prop）；
 // ③ 既有**非 401** 错误处理逐条保留（`describeError` 调用数不得减少）。
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { notifySessionExpired, setSessionExpiredHandler } from '../web/src/session.ts';
+import { readSource } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function readSource(rel: string): string {
-  return readFileSync(path.join(ROOT, rel), 'utf8');
-}
 
 /** 前端全部 `.ts` / `.tsx` 源码（相对仓库根的路径，已排序）。 */
 function listFrontendSources(): string[] {

@@ -4,12 +4,10 @@
 // Alert 文案无 Markdown 星号，以及"桌面 6 列 / 列宽 / 折叠已移除"这些**不该被改坏**的口径。
 // 真实 390×844 与 1600×900 下的像素级证据在 库外验收记录 + 库外探针脚本（真浏览器 + 真鼠标）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const read = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 
 /** 去掉注释后的组件源码（源码级断言只检查**真代码**，不检查注释里提到的名字）。 */
 const drawer = read('web/src/components/TokenDrawer.tsx')

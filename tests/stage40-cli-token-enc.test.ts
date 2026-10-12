@@ -3,14 +3,15 @@
 // 这里既有**源码级**断言（CLI 传 cipher、两处调用点口径一致、既有契约的行位置），也有**真跑 CLI** 的端到端断言
 // （临时 DATA_DIR，绝不碰 8767 / 生产）：查库、reveal 逐字比对、密钥不可用三态。
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import type { CliResult } from './helpers.ts';
-import { PROJECT_ROOT, assertCliOk, makeTempDir, removeTempDir, runCliProcess } from './helpers.ts';
+import { assertCliOk, makeTempDir, removeTempDir, runCliProcess } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const cliSrc = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'cli.ts'), 'utf8');
-const routeSrc = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'routes', 'tokens.ts'), 'utf8');
+const cliSrc = readSource('src/server/cli.ts');
+const routeSrc = readSource('src/server/routes/tokens.ts');
 
 const runCli = (args: string[], dataDir: string, env: Record<string, string> = {}): Promise<CliResult> =>
   runCliProcess(args, { dataDir, env });
@@ -173,7 +174,7 @@ test('AC-103 ①（源码级）：CLI 与 HTTP 两处调用点都用 cipher，�
 });
 
 test('AC-103 ①（源码级）：createToken 的"无 cipher 则 NULL"语义未被改动（cipher 仍可选）', () => {
-  const service = readFileSync(path.join(PROJECT_ROOT, 'src', 'services', 'tokens.ts'), 'utf8');
+  const service = readSource('src/services/tokens.ts');
   /**
    * 阶段 42（FR-103）给签名**追加了第 4 个可选参数 `rawScope`**（令牌权限）—— 这是新需求要求的变化，
    * 所以断言同步更新为"前三个参数与可选性不变、加密默认值仍是 NULL"（本用例的原意：FR-101 的加密语义没被破坏）。

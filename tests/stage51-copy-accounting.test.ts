@@ -5,13 +5,12 @@
 // 以及 FR-113/FR-114 的口径不回归（一次复制一条 / 打开详情只留痕 / 列表搜索不记）。
 // 真实界面 + 查库对账（四条分支逐条实测）在 库外验收记录 + 库外探针脚本。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
 import type { Fixture } from './helpers.ts';
-import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
+import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const read = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 const strip = (src: string): string =>
   src
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')

@@ -2,29 +2,24 @@
 // 取消「使用 / 管理」双模式、顶栏精简、管理动作并入表格视图、主题图标按钮。
 // 运行时证据见库外验收记录（AC-41 / AC-42 / AC-43）。
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { defaultViewMode, viewModeOptions } from '../web/src/pure.ts';
+import { readSource, readWebSource, webSourceFiles } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const WEB_SRC = path.join(ROOT, 'web', 'src');
 
-function walk(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const full = path.join(dir, entry);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
-}
 
-const files = walk(WEB_SRC)
-  .filter((file) => file.endsWith('.tsx') || file.endsWith('.ts'))
-  .map((file) => ({ rel: path.relative(ROOT, file), text: readFileSync(file, 'utf8') }));
+const files = webSourceFiles();
 const blob = files.map((file) => file.text).join('\n');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 test('AC-41 ①：不再存在 pm-mode-use / pm-mode-manage 与模式记忆', () => {
+  // 口径：`blob` 来自统一入口 `webSourceFiles()`（已剥注释）—— 加一行提到 pm-mode-use 的注释不再假红，
+  // 而把双模式开关真的加回来仍然红（AC-129 B6）。渲染结果的对照在
+  // tests/render/stage67-render-behavior.test.ts 的「渲染后的顶栏里没有任何双模式开关」。
   assert.equal(blob.includes('pm-mode-use'), false, '仍出现 pm-mode-use（双模式未删除）');
   assert.equal(blob.includes('pm-mode-manage'), false, '仍出现 pm-mode-manage（双模式未删除）');
   // 旧键只允许出现在「清理」逻辑里（theme-mode.ts 的 LEGACY_KEYS）
@@ -94,13 +89,14 @@ test('FR-50：标签区是胶囊云（# 前缀、无计数徽标、无增删改�
    v20（BRIEF FR-47 / FR-48 / D-23）：顶栏四块顺序与菜单项序
    ============================================================ */
 
-test('AC-47：顶栏四块顺序（新建 → 更多 → 主题 → 登出）且不含用户信息', () => {
+test('AC-129 B5 迁移后：顶栏四块锚点齐全、且不含用户信息（顺序改由渲染级用例判定）', () => {
   const header = src('components/AppHeader.tsx');
-  const newAt = header.indexOf('data-testid="header-new"');
-  const moreAt = header.indexOf('data-testid="header-more"');
-  const themeAt = header.indexOf('data-testid="pm-theme-toggle"');
-  const logoutAt = header.indexOf('data-testid="header-logout"');
-  assert.ok(newAt >= 0 && moreAt > newAt && themeAt > moreAt && logoutAt > themeAt, '顶栏顺序必须是 新建 → 更多 → 主题 → 登出');
+  for (const testid of ['header-new', 'header-more', 'pm-theme-toggle', 'header-logout']) {
+    assert.ok(header.includes(`data-testid="${testid}"`), `顶栏缺少锚点 ${testid}`);
+  }
+  // 顺序断言搬去 tests/render/stage67-render-behavior.test.ts（渲染后按 DOM 顺序判定）。
+  // 原因（AC-129 B5）：源码 indexOf 的顺序会被「把按钮抽成子组件」「换一种写法」这类
+  // **无害重构**打红，却抓不住「渲染出来顺序真的错了」。
   // 用户信息不再出现在顶栏（只出现在 ⋯更多 里）
   assert.equal(header.includes('username.slice'), false, '顶栏不得再有头像首字母');
 });
@@ -284,7 +280,7 @@ test('AC-57：四个屏都使用真正的收藏控件', () => {
   for (const [file, testid] of surfaces) {
     assert.ok(src(file).includes(testid), `${file} 缺少收藏锚点 ${testid}`);
   }
-  const css = readFileSync(path.join(ROOT, 'web', 'src', 'styles', 'app.css'), 'utf8');
+  const css = readSource('web/src/styles/app.css');
   assert.ok(/\.pm-fav-btn\.ant-btn\s*\{[^}]*width:\s*24px/s.test(css), '.pm-fav-btn 热区必须 ≥24×24');
 });
 
@@ -305,7 +301,7 @@ test('AC-58：跟随系统 = 电脑图标（2026-09-28 用户要求改回，并�
 const PUBLIC_DIR = path.join(ROOT, 'web', 'public');
 
 test('AC-59 ②：index.html 四条 link/meta + title 严格等于 PromptManager', () => {
-  const html = readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
+  const html = readSource('web/index.html');
   for (const line of [
     '<link rel="icon" type="image/svg+xml" href="/favicon.svg" />',
     '<link rel="icon" href="/favicon.ico" sizes="any" />',
@@ -341,25 +337,28 @@ test('AC-59 ⑤：不得引入第三种图形（folder-art / source-1254）', ()
   assert.deepEqual(offenders, [], `仍引用了已撤销的插画资产：${offenders.join(', ')}`);
 });
 
-test('AC-59 ③④：顶栏 mark 26 用矢量；三处装饰位尺寸正确且无点击', () => {
+test('AC-129 B4 迁移后：四处品牌图形各自引用对应档位、装饰位不进无障碍树（尺寸改由渲染级用例判定）', () => {
   const header = src('components/AppHeader.tsx');
   assert.ok(header.includes('/promptmanager-icon.svg'), '顶栏 mark 必须用矢量 promptmanager-icon.svg');
-  assert.ok(header.includes('width={26}') && header.includes('height={26}'), '顶栏 mark 必须是 26×26');
-  assert.ok(/\.pm-brand\s*\{[^}]*gap:\s*9px/s.test(readFileSync(path.join(ROOT, 'web', 'src', 'styles', 'app.css'), 'utf8')), 'mark 与文字间距 9px');
+  assert.ok(/\.pm-brand\s*\{[^}]*gap:\s*9px/s.test(readSource('web/src/styles/app.css')), 'mark 与文字间距 9px');
 
   const login = src('components/LoginPage.tsx');
-  assert.ok(login.includes('/promptmanager-96.png') && login.includes('width={96}'), '登录页要用 96');
+  assert.ok(login.includes('/promptmanager-96.png'), '登录页要用 96 那一档');
   assert.ok(/aria-hidden="true"/.test(login), '登录页装饰位要 aria-hidden');
 
   const states = src('components/States.tsx');
-  assert.ok(states.includes('/promptmanager-72.png') && states.includes('width={72}'), '空态要用 72');
+  assert.ok(states.includes('/promptmanager-72.png'), '空态要用 72 那一档');
 
   const about = src('components/AboutModal.tsx');
-  assert.ok(about.includes('/promptmanager-48.png') && about.includes('width={48}'), '关于页要用 48');
+  assert.ok(about.includes('/promptmanager-48.png'), '关于页要用 48 那一档');
   assert.ok(/aria-hidden="true"/.test(about), '关于页装饰位要 aria-hidden');
 
+  // 渲染后的实际尺寸（26 / 96 / 72 / 48）搬去 tests/render/stage67-render-behavior.test.ts。
+  // 原因（AC-129 B4）：这里原来断言 `width={26}` 这种**书写形式** —— 尺寸抽成变量就假红，
+  // 而"图标换成别的尺寸、字面量还留在别处"却假绿。
+
   // 三处装饰位不得有点击/hover/动画
-  const css = readFileSync(path.join(ROOT, 'web', 'src', 'styles', 'app.css'), 'utf8');
+  const css = readSource('web/src/styles/app.css');
   assert.ok(/\.pm-brand-art\s*\{[^}]*box-shadow:\s*none/s.test(css), '装饰图不得有阴影');
   assert.equal(/\.pm-brand-art[^{]*\{[^}]*animation/s.test(css), false, '装饰图不得有动画');
 });

@@ -4,18 +4,16 @@
 // 真实像素 + 真鼠标 + 内网 IP 真粘贴在 库外验收记录 + 库外探针脚本 里跑。
 // 服务端**一行未改**（`revealToken` 本来就不看 `revoked_at`）= FR-100 的前提，见下面最后一条。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from '../tests/helpers.ts';
+import { readSource } from './source-text.ts';
 
-const raw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'TokenDrawer.tsx'), 'utf8');
+const raw = readSource('web/src/components/TokenDrawer.tsx');
 /** 负向断言扫"去注释后的代码"（注释里会**描述**这些规则，直接 grep 全文会假红）。 */
 const drawer = raw
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
   .replace(/\/\*[\s\S]*?\*\//g, '')
   .replace(/^\s*\/\/.*$/gm, '');
-const tokensService = readFileSync(path.join(PROJECT_ROOT, 'src', 'services', 'tokens.ts'), 'utf8');
+const tokensService = readSource('src/services/tokens.ts');
 
 test('AC-102 ①：预取过滤**不再排除已撤销行**（只按 revealable 过滤）', () => {
   assert.ok(/filter\(\(token\) => token\.revealable\)/.test(drawer), '预取过滤必须只看 revealable');

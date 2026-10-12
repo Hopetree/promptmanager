@@ -3,13 +3,10 @@
 // 编辑栏 : 右栏 = 1 : 1；按钮与详情面 `pm-detail-fullscreen` 同款。
 // 运行时段（真鼠标 + 真实像素）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const editor = src('components/PromptEditor.tsx');
 const workspace = src('components/Workspace.tsx');

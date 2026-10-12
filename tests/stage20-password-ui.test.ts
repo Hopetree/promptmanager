@@ -3,13 +3,10 @@
 // 统一走 api.changePassword（POST /api/password，snake_case）；关于页维护区提到界面入口。
 // 运行时段（真鼠标 + 内网 IP + 真实会话与限流）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const header = src('components/AppHeader.tsx');
 const workspace = src('components/Workspace.tsx');

@@ -11,12 +11,13 @@
 // 「sort_order 到底落成几」「取用行还剩几条」「版本行有没有多一条」这几件事回包看不出来。
 // 既有断言只按新语义**适配**（口径从"手写字面量"变成"调工厂"），不删不放松。
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
 import { usageHistoryNotice } from '../web/src/pure.ts';
 import type { Fixture } from './helpers.ts';
+import { readJson, readSource } from './source-text.ts';
 
 const BASE = { title: '阶段64 夹具', user_prompt: '正文 v1', system_prompt: '', notes: '' };
 
@@ -126,14 +127,6 @@ function insertUsage(fx: Fixture, promptId: number, channel: string, kind: strin
   });
 }
 
-function readSource(rel: string): string {
-  return readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
-}
-
-/** 去掉注释再断言（注释里出现关键词不算实现）。 */
-function stripComments(src: string): string {
-  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-}
 
 function tsFilesUnder(rel: string): string[] {
   const out: string[] = [];
@@ -331,31 +324,30 @@ test('AC-126 ⑦⑧：口径只有一处来源 —— 无手写字面量、四�
   const offenders: string[] = [];
   for (const rel of ['src', 'web/src']) {
     for (const abs of tsFilesUnder(rel)) {
-      if (readFileSync(abs, 'utf8').includes(handwritten)) offenders.push(path.relative(PROJECT_ROOT, abs));
+      if (readSource(path.relative(PROJECT_ROOT, abs)).includes(handwritten)) offenders.push(path.relative(PROJECT_ROOT, abs));
     }
   }
   assert.deepEqual(offenders, [], `不得再出现手写的过滤字面量 ${handwritten}`);
 
   const usage = readSource('src/services/usage.ts');
-  const usageCode = stripComments(usage);
   assert.match(usage, /export function countedKindsSql\(/, 'FR-133：必须有一个 SQL 片段工厂');
-  assert.match(usageCode, /COUNTED_KINDS\.map\(/, '工厂的取值必须来自 COUNTED_KINDS（否则常量还是死声明）');
+  assert.match(usage, /COUNTED_KINDS\.map\(/, '工厂的取值必须来自 COUNTED_KINDS（否则常量还是死声明）');
   assert.match(
-    usageCode,
+    usage,
     /coalesce\(\$\{[^}]+\}, 'copy'\) in \(\$\{kinds\}\)/,
     '工厂仍要保留 NULL 视作 copy 的兜底，且过滤值来自 kinds（COUNTED_KINDS）',
   );
 
   // usage.ts 里：定义 1 处 + 调用 ≥3 处
-  const callsInUsage = [...usageCode.matchAll(/countedKindsSql\(/g)].length;
+  const callsInUsage = [...usage.matchAll(/countedKindsSql\(/g)].length;
   assert.ok(callsInUsage >= 4, `usage.ts 里至少要有一处定义 + 三处调用，实际 ${String(callsInUsage)}`);
-  assert.match(usageCode, /countedKindsSql\('e'\)/, '带别名的聚合（top）也要用工厂，不能留手写副本');
+  assert.match(usage, /countedKindsSql\('e'\)/, '带别名的聚合（top）也要用工厂，不能留手写副本');
 
-  const queries = stripComments(readSource('src/db/prompt-queries.ts'));
+  const queries = readSource('src/db/prompt-queries.ts');
   assert.match(queries, /countedKindsSql\(\)/, '列表 JOIN 也必须走同一工厂');
 
   // COUNTED_KINDS 至少被引用两次（定义 + 工厂输入）——"零引用死声明"是这次要修的病
-  const kindsRefs = [...usageCode.matchAll(/COUNTED_KINDS/g)].length;
+  const kindsRefs = [...usage.matchAll(/COUNTED_KINDS/g)].length;
   assert.ok(kindsRefs >= 2, `COUNTED_KINDS 必须真的被用上，实际引用 ${String(kindsRefs)} 次`);
 });
 
@@ -468,7 +460,7 @@ test('AC-126 ⑪⑫：replace 如实回报取用历史去向与条数，且清�
     assert.ok(existsSync(backup), `备份文件必须真的存在：${backup}`);
     assert.equal(statSync(backup).mode & 0o777, 0o600, '备份含取用痕迹，权限必须 0600');
 
-    const dump = JSON.parse(readFileSync(backup, 'utf8')) as {
+    const dump = readJson(backup) as {
       count: number;
       rows: Array<{ prompt_id: number; channel: string; used_at: string; kind: string | null }>;
     };

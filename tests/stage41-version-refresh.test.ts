@@ -4,14 +4,12 @@
 // 在 库外验收记录 + 库外探针脚本 里跑（AC-104 ①–⑥）。本文件只钉住**源码级契约**：
 // 刷新信号必须是 `prompt.version_no`（而不是"只在回滚时自增的内部 state"），且不得变成"每次渲染都拉"。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const detailRaw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'PromptDetail.tsx'), 'utf8');
-const panelRaw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'VersionPanel.tsx'), 'utf8');
-const workspaceRaw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'Workspace.tsx'), 'utf8');
+const detailRaw = readSource('web/src/components/PromptDetail.tsx');
+const panelRaw = readSource('web/src/components/VersionPanel.tsx');
+const workspaceRaw = readSource('web/src/components/Workspace.tsx');
 /** 负向断言扫"去注释后的代码"（注释里会**描述**这些规则，直接 grep 全文会假红）。 */
 const strip = (src: string): string =>
   src

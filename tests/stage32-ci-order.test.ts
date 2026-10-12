@@ -5,15 +5,15 @@
 //   会把同批其它文件打挂（假红）。**真·干净环境的可执行验证**放在 库外验收记录（它先
 //   `rm -rf dist` 再跑 `bash tools/ci-check.sh`，并断言 rc=0 + 6 项全绿）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readJson, readRaw, readSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const ci = readFileSync(path.join(ROOT, 'tools', 'ci-check.sh'), 'utf8');
-const workflow = readFileSync(path.join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
-const pkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as {
+const ci = readSource('tools/ci-check.sh');
+/** 同一脚本的**未剥注释**文本：AC-89 ② 守的是文件头那句「为什么必须先构建」的注释本身
+ *  （注释里的理由就是被守护的交付物），所以按 AC-129 A2 的例外走 readRaw 并在此写明理由。 */
+const ciRaw = readRaw('tools/ci-check.sh');
+const workflow = readSource('.github/workflows/ci.yml');
+const pkg = readJson('package.json') as {
   scripts: Record<string, string>;
 };
 
@@ -44,12 +44,12 @@ test('AC-89 ②：ci-check.sh 里「构建」必须排在「typecheck:tests」�
 
 test('AC-89 ②：脚本注释里写明了「为什么必须先构建」（否则下次有人会把顺序改回去）', () => {
   // 理由必须包含三个要素：测试 import 的是构建产物、干净环境没有 dist、症状是 TS2307
-  assert.ok(ci.includes('为什么'), '注释必须显式回答"为什么必须先构建"');
-  assert.ok(/import .*from '\.\.\/dist/.test(ci) || ci.includes("'../dist/"), '注释要指出测试 import 的是 ../dist/**');
-  assert.ok(ci.includes('dist/'), '注释要提到 dist/');
-  assert.ok(ci.includes('TS2307'), '注释要写明干净环境下的症状是 TS2307');
-  assert.ok(ci.includes('rm -rf dist'), '注释要给出复现命令 rm -rf dist');
-  assert.ok(ci.includes('38'), '注释要写明实测错误数（38）');
+  assert.ok(ciRaw.includes('为什么'), '注释必须显式回答"为什么必须先构建"');
+  assert.ok(/import .*from '\.\.\/dist/.test(ci) || ciRaw.includes("'../dist/"), '注释要指出测试 import 的是 ../dist/**');
+  assert.ok(ciRaw.includes('dist/'), '注释要提到 dist/');
+  assert.ok(ciRaw.includes('TS2307'), '注释要写明干净环境下的症状是 TS2307');
+  assert.ok(ciRaw.includes('rm -rf dist'), '注释要给出复现命令 rm -rf dist');
+  assert.ok(ciRaw.includes('38'), '注释要写明实测错误数（38）');
 });
 
 test('AC-89 ①：步骤编号与顺序 —— 2026-10-10 起为 10 项（⓪ 体积预算 / ①b lint / ①c 台账一致性 / ①d 文档路径引用）', () => {

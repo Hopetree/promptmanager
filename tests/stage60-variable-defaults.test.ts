@@ -7,7 +7,7 @@
 // `{{名字}}`、`\{{}}` 转义、`{{a b}}` / `{{}}` / `{{x!}}` 不匹配即字面、`missing` 语义、
 // 空串算"已提供"、非字符串算"未提供"，全部保持原样。
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { extractVariables, renderVariables, scanVariables } from '../dist/services/variables.js';
@@ -18,8 +18,9 @@ import {
   previewRender,
 } from '../web/src/pure.ts';
 import { PROJECT_ROOT, cookieOf, login, makeFixture } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const src = (relative: string): string => readFileSync(path.join(PROJECT_ROOT, relative), 'utf8');
+const src = (relative: string): string => readSource(relative);
 
 async function authed(fx: Awaited<ReturnType<typeof makeFixture>>): Promise<string> {
   return cookieOf(await login(fx.app));

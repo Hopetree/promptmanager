@@ -3,19 +3,16 @@
 //   导出契约值 `app: 'promptmanager'` 一字不动（显示名 ≠ 契约值）；图标 mark 与移动端行为不变。
 // 运行时段（桌面/移动视口 + 截图）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readSource, readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const header = src('components/AppHeader.tsx');
 const login = src('components/LoginPage.tsx');
 const about = src('components/AboutModal.tsx');
 const pure = src('pure.ts');
-const html = readFileSync(path.join(ROOT, 'web', 'index.html'), 'utf8');
+const html = readSource('web/index.html');
 
 test('AC-76 ①：顶栏品牌文字是 PromptM（且不再出现全名）', () => {
   const attr = header.indexOf('data-testid="pm-brand-text"');

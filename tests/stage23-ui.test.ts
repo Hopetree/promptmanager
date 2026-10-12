@@ -3,13 +3,10 @@
 //   FR-73：卡片 body 撑满 + 末行 marginTop:auto 贴底 + 无标签时不渲染标签区
 //   FR-74：表格每行手柄（不新增列）+ 复用同一 PATCH 接口 + 乐观更新（不 refresh）
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const useView = src('components/UseView.tsx');
 const split = src('components/SplitView.tsx');

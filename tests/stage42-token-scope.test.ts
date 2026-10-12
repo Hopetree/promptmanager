@@ -4,7 +4,7 @@
 // 默认只读、存量 NULL 视作 write（迁移回填口径）、usage 的 token_id 归因。
 // 真实令牌打真端点的**原样输出**在 库外验收记录（含官方 Python MCP 客户端握手 / 界面真鼠标）。
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -12,9 +12,9 @@ import Database from 'better-sqlite3';
 import type { InjectOptions } from 'fastify';
 import { runMigrations } from '../dist/db/migrate.js';
 import type { Fixture } from './helpers.ts';
-import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
+import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readRaw, readSource } from './source-text.ts';
 
-const MIGRATIONS = path.join(PROJECT_ROOT, 'migrations');
 
 async function authed(fx: Fixture): Promise<string> {
   return cookieOf(await login(fx.app));
@@ -57,7 +57,7 @@ test('AC-105 ①：迁移到 v5；api_tokens 有 scope、usage_events 有 token_
     const db = new Database(path.join(dir, 'pm.db'));
     db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);`);
     for (const file of ['001_init.sql', '002_tokens-and-usage.sql', '003_prompt-sort-order.sql', '004_token-enc.sql']) {
-      db.exec(readFileSync(path.join(MIGRATIONS, file), 'utf8'));
+      db.exec(readRaw(path.join('migrations', file)));
       db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)').run(
         Number.parseInt(file, 10),
         file,
@@ -263,7 +263,7 @@ test('AC-105 ⑦：默认只读 —— 不带 scope 建令牌 = read（HTTP 与 
 });
 
 test('AC-105 ⑧（源码级）：界面有权限选择（默认只读）、状态列显示权限、**列数仍是 6**', () => {
-  const raw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'TokenDrawer.tsx'), 'utf8');
+  const raw = readSource('web/src/components/TokenDrawer.tsx');
   const drawer = raw
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -280,7 +280,7 @@ test('AC-105 ⑧（源码级）：界面有权限选择（默认只读）、状�
 });
 
 test('AC-105 ⑧（源码级）：CLI 支持 --scope（缺省 read）并回显/list 显示权限', () => {
-  const cli = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'cli.ts'), 'utf8');
+  const cli = readSource('src/server/cli.ts');
   assert.ok(/arg === '--scope'/.test(cli) && /startsWith\('--scope='\)/.test(cli), '必须支持 --scope 与 --scope=');
   assert.ok(/scope=\$\{summary\.scope\}/.test(cli), '创建输出必须回显权限');
   assert.ok(/scope=\$\{item\.scope\}/.test(cli), 'list 必须显示权限');

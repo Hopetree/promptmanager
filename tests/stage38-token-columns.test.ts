@@ -4,12 +4,10 @@
 //    AC-100 作废；这里按 FR-99 的 6 列口径**逐条改写**上一批断言（列头/宽度/名称/使用/操作/回归），
 //    并**新增**截断与掩码两条规则的断言。真实像素 + 真鼠标 + 内网 IP 真粘贴在库外验收记录里跑。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const raw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'TokenDrawer.tsx'), 'utf8');
+const raw = readSource('web/src/components/TokenDrawer.tsx');
 /** 负向断言扫"去注释后的代码"（注释里会**描述**被移除的东西，直接 grep 全文会假红）。 */
 const drawer = raw
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')

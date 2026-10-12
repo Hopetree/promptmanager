@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { loadConfig } from '../dist/config.js';
 import { PROJECT_ROOT, login, makeFixture } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
 async function wrongLogins(fx: Awaited<ReturnType<typeof makeFixture>>, xff: string): Promise<number> {
   const res = await fx.app.inject({
@@ -81,14 +82,14 @@ test('配置解析：TRUST_PROXY / PUBLIC_ORIGIN 的合法值与非法值', () =
 test('AC-28 ④⑤：反代样例与双形态部署文档（占位符、覆盖内网/公网/回滚）', () => {
   const confPath = path.join(PROJECT_ROOT, 'deploy', 'reverse-proxy.example.conf');
   assert.ok(existsSync(confPath), 'deploy/reverse-proxy.example.conf 必须存在');
-  const conf = readFileSync(confPath, 'utf8');
+  const conf = readSource(confPath);
   assert.match(conf, /X-Forwarded-For/i, '必须转发 X-Forwarded-For');
   assert.match(conf, /X-Forwarded-Proto/i, '必须转发 X-Forwarded-Proto');
   assert.match(conf, /ssl_certificate|listen\s+443/i, '必须体现 HTTPS 终结');
   assert.ok(!conf.includes('prompt.example.com'), '不得含真实域名（占位符）');
   assert.ok(!conf.includes('/etc/letsencrypt'), '不得含真实证书路径（占位符）');
 
-  const readme = readFileSync(path.join(PROJECT_ROOT, 'deploy', 'README.md'), 'utf8');
+  const readme = readSource('deploy/README.md');
   for (const keyword of ['内网', '公网', '反代', '回滚']) {
     assert.ok(readme.includes(keyword), `deploy/README.md 必须覆盖「${keyword}」`);
   }
@@ -96,7 +97,7 @@ test('AC-28 ④⑤：反代样例与双形态部署文档（占位符、覆盖�
   assert.match(readme, /PUBLIC_ORIGIN/);
   assert.match(readme, /CORS_ORIGINS/);
 
-  const env = readFileSync(path.join(PROJECT_ROOT, 'deploy', 'promptmanager.env.example'), 'utf8');
+  const env = readSource('deploy/promptmanager.env.example');
   assert.match(env, /^CORS_ORIGINS=/m);
   assert.match(env, /^TRUST_PROXY=/m);
   assert.match(env, /^PUBLIC_ORIGIN=/m);

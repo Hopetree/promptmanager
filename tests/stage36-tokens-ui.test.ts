@@ -4,14 +4,13 @@
 // 与真鼠标删除/创建（AC-98 ① / AC-99 ①②）在 库外验收记录 + 库外探针脚本 里跑
 // —— 且**必须**用内网 IP（`127.0.0.1` 是安全上下文，会掩盖本阶段的 bug，阶段 35 就是这么漏的）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
+import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readSource, readWebSource } from './source-text.ts';
 
 type Fixture = Awaited<ReturnType<typeof makeFixture>>;
 
-const webSrc = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, 'web', 'src', rel), 'utf8');
+const webSrc = (rel: string): string => readWebSource(rel);
 const drawerRaw = webSrc('components/TokenDrawer.tsx');
 /**
  * ⚠️ 负向断言必须扫**去掉注释后的代码**：本文件的注释里会**描述**这些规则
@@ -182,7 +181,7 @@ test('AC-99 ①③（源码级）：创建后**不再有明文 Modal**，改为�
   // 服务端响应形态不变：POST /api/tokens 仍返回明文一次
   assert.ok(
     /reply\.code\(201\)\.send\(\{ \.\.\.summary, token \}\)/.test(
-      readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'routes', 'tokens.ts'), 'utf8'),
+      readSource('src/server/routes/tokens.ts'),
     ),
     'POST /api/tokens 必须仍返回明文（向后兼容 CLI/脚本）',
   );

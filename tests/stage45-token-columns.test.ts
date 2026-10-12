@@ -5,12 +5,10 @@
 // 真实 390×844 与 1600×900 下的**逐列像素**证据在 库外验收记录 + 库外探针脚本
 // （真浏览器 + 真鼠标 + 等抽屉动画结束）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const read = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 
 /** 去掉注释后的组件源码（源码级断言只检查**真代码**）。 */
 const drawer = read('web/src/components/TokenDrawer.tsx')

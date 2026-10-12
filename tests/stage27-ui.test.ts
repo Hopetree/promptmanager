@@ -1,13 +1,10 @@
 // 阶段 27 / FR-77 ~ FR-81（BRIEF v34 §4 + §8 AC-78 ~ AC-82）的**前端源码级**断言。
 // 运行时段（真鼠标 + 落库读数 + 请求计数 + 真实像素）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const useView = src('components/UseView.tsx');
 const detail = src('components/PromptDetail.tsx');

@@ -2,22 +2,22 @@
 //   ① 取消 D-29 的跨目录限制（不再有 canReorder / sameFolder），且不得有静默 return；
 //   ③ 卡片/条目/表格行**本体**即拖拽激活点（rootListeners），手柄保留（键盘 + 视觉提示）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readRaw, readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const sortable = src('components/SortableList.tsx');
+/** 同一文件的**未剥注释**文本。AC-129 A2 的例外：下面那条守的是**注释本身**
+ *  （要求源码里写明 D-30 取消了跨目录限制），所以只能读未剥注释的文本 —— 走统一入口的 readRaw。 */
+const sortableRaw = readRaw('web/src/components/SortableList.tsx');
 const useView = src('components/UseView.tsx');
 const split = src('components/SplitView.tsx');
 const folder = src('components/FolderPanel.tsx');
 
 test('FR-75 ①：跨目录限制已取消（D-29 作废），拖拽总是生效', () => {
   assert.equal(sortable.includes('canReorder'), false, 'SortableList 不得再有 canReorder');
-  assert.ok(/不再有跨目录限制/.test(sortable), 'SortableList 注释要写明 D-30 的取消');
+  assert.ok(/不再有跨目录限制/.test(sortableRaw), 'SortableList 注释要写明 D-30 的取消（断言对象是注释本身 ⇒ 走 readRaw）');
   assert.equal(useView.includes('sameFolder'), false);
   assert.equal(split.includes('sameFolder'), false);
 });

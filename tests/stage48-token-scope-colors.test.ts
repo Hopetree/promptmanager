@@ -4,12 +4,10 @@
 // 已撤销走中性色、渲染处按 scope 取色（不再写死 green）、列结构与可点击入口未被破坏。
 // 真实渲染值（亮/暗两主题的 getComputedStyle + 真鼠标改权限）在 库外验收记录 + 库外探针脚本。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const read = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 
 /** 去掉注释后的源码（源码级断言只检查**真代码**，不检查注释里提到的颜色名）。 */
 const drawer = read('web/src/components/TokenDrawer.tsx')

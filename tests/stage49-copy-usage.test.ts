@@ -4,12 +4,10 @@
 // 含变量路径仍保留 `render` 那一次；打开详情/列表搜索/MCP 的既有口径不受影响；表结构不变。
 // 真实界面操作的**查库对账**（四组对照 + 改前改后对照）在 库外验收记录 + 库外探针脚本。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const read = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 
 /** 去掉注释后的源码（源码级断言只检查**真代码**，不检查注释里提到的端点名）。 */
 const strip = (src: string): string =>
@@ -72,9 +70,16 @@ test('AC-114 ⑦（源码级）：未新增迁移、未改 usage_events 表结�
 });
 
 test('AC-114 ⑤（源码级）：MCP 取用记账未被本阶段触碰', () => {
-  // MCP 走自己的 HTTP 传输，最终仍打到同一批 /api 路由（带 X-PM-Channel: mcp）⇒ 记账口径自然一致
-  const http = read('src/mcp/http.ts');
-  assert.ok(/x-pm-channel|X-PM-Channel/i.test(http), 'MCP 传输仍标记 mcp 通道（归因不变）');
+  // MCP 走自己的 HTTP 传输，最终仍打到同一批 /api 路由（带 X-PM-Channel: mcp）⇒ 记账口径自然一致。
+  // 断言**真正设置这个头的代码**（而不是注释里提到它）：server 传 channel、客户端落成请求头。
+  const server = read('src/mcp/server.ts');
+  assert.match(server, /channel: 'mcp'/, 'MCP server 必须把每次调用标成 channel=mcp');
+  const client = read('src/client/pm-api.ts');
+  assert.match(
+    client,
+    /headers\['x-pm-channel'\] = 'mcp'/,
+    'HTTP 客户端必须把 channel=mcp 落成 x-pm-channel 请求头（服务端据此归因）',
+  );
   // 本次改动只在 web/src/use-copy.ts，没动 MCP 侧
   const copySrc = read('web/src/use-copy.ts');
   assert.equal(/mcp/i.test(copySrc), false, '复制逻辑不应涉及 MCP 通道判定');

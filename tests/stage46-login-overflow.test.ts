@@ -10,12 +10,10 @@
 // 居中与留白参数未被改动；README 里有官方镜像完整地址，且**不含**镜像站 / 加速站内容（2026-09-30 反转）。
 // 真实像素证据（双视口 390×844 / 1600×900 + 成对截图）在 库外验收记录 + 库外探针脚本。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const read = (rel: string): string => readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 
 /** 去掉注释后的登录页源码（源码级断言只检查**真代码**）。 */
 const login = read('web/src/components/LoginPage.tsx')

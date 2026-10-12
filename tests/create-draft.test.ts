@@ -1,25 +1,13 @@
 // FR-45 / AC-43 的**源码级**锚点：新建必须是"内存草稿 → 点保存才 POST 创建"。
 // 运行时证据（total 不变 / 保存 +1）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource, webSourceFiles } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const WEB_SRC = path.join(ROOT, 'web', 'src');
 
-function walk(dir: string): string[] {
-  return readdirSync(dir).flatMap((entry) => {
-    const full = path.join(dir, entry);
-    return statSync(full).isDirectory() ? walk(full) : [full];
-  });
-}
 
-const files = walk(WEB_SRC)
-  .filter((file) => file.endsWith('.tsx') || file.endsWith('.ts'))
-  .map((file) => ({ rel: path.relative(ROOT, file), text: readFileSync(file, 'utf8') }));
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const files = webSourceFiles();
+const src = (rel: string): string => readWebSource(rel);
 
 test('AC-43：新建只开内存草稿——api.createPrompt 只允许出现在编辑器的"保存"路径', () => {
   const callers = files

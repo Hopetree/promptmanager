@@ -1,13 +1,10 @@
 // 阶段 29 / FR-82 / FR-83（BRIEF v38 §4 + §8 AC-84 / AC-85）的**前端源码级**断言。
 // 运行时段（真鼠标 + 真实像素 + 长内容夹具 + chip 样式对比）见库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const css = src('styles/app.css');
 const useView = src('components/UseView.tsx');

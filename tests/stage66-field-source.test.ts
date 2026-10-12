@@ -7,7 +7,7 @@
 //
 // 真浏览器的像素级证据见库外验收记录（AC-128 ⑪ 的收尾三件套与端到端）。
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -27,9 +27,10 @@ import type { Prompt } from '../web/src/types.ts';
 import type { PromptRow, PromptsTable } from '../dist/db/schema.js';
 import type { ExportPrompt } from '../dist/services/export.js';
 import type { PromptObject } from '../dist/services/prompts.js';
+import { readSource } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8');
+const read = (rel: string): string => readSource(rel);
 
 // ─────────────────────────── 编译期：与改前的字面形状逐字段等价 ───────────────────────────
 

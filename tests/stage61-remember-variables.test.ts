@@ -5,7 +5,7 @@
 //
 // 逐条对应 AC-123 的编号见每个 test 名开头。
 import assert from 'node:assert/strict';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -25,6 +25,7 @@ import {
   type StorageLike,
 } from '../web/src/pure.ts';
 import { cookieOf, login, makeFixture, PROJECT_ROOT, type Fixture } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
 async function authed(fx: Fixture): Promise<string> {
   return cookieOf(await login(fx.app));
@@ -47,9 +48,6 @@ function stripVolatile(file: Record<string, unknown>): Record<string, unknown> {
   return clone;
 }
 
-function readSource(rel: string): string {
-  return readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
-}
 
 interface PromptShape {
   id: number;

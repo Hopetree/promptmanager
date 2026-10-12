@@ -3,13 +3,10 @@
 // 本文件是**源码级 / 纯逻辑级**断言（不依赖浏览器）；真浏览器的像素与几何证据见
 // 库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8');
+const src = (rel: string): string => readSource(rel);
 
 const usageDrawer = src('web/src/components/UsageDrawer.tsx');
 const useView = src('web/src/components/UseView.tsx');

@@ -6,12 +6,10 @@
 //    6 列的列头 / 截断 / 掩码 / 操作语义在 tests/stage38-token-columns.test.ts 里断言。
 //    真实像素 + 真鼠标 + 内网 IP 真粘贴在库外验收记录里跑。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
-import { PROJECT_ROOT } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
-const raw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'TokenDrawer.tsx'), 'utf8');
+const raw = readSource('web/src/components/TokenDrawer.tsx');
 /** 负向断言扫"去注释后的代码"（注释里会描述被移除的东西，直接 grep 全文会假红）。 */
 const drawer = raw
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')

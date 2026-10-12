@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
 type Fixture = Awaited<ReturnType<typeof makeFixture>>;
 
@@ -211,11 +212,8 @@ test('AC-95：无状态契约 —— GET /mcp 与 DELETE /mcp 明确 405（不�
 });
 
 test('AC-95 ⑤⑥：同一份 buildMcpServer —— 工具定义只有一处（stdio 与 HTTP 不分叉），且源码不硬编码凭据', async () => {
-  const { readFileSync } = await import('node:fs');
-  const path = await import('node:path');
-  const { PROJECT_ROOT } = await import('./helpers.ts');
-  const http = readFileSync(path.join(PROJECT_ROOT, 'src', 'mcp', 'http.ts'), 'utf8');
-  const server = readFileSync(path.join(PROJECT_ROOT, 'src', 'mcp', 'server.ts'), 'utf8');
+  const http = readSource('src/mcp/http.ts');
+  const server = readSource('src/mcp/server.ts');
   // 工具注册只在 server.ts（http.ts 不重复定义工具）
   for (const tool of ['prompt_search', 'prompt_get', 'prompt_render']) {
     assert.ok(server.includes(`'${tool}'`), `工具定义应在 server.ts：${tool}`);

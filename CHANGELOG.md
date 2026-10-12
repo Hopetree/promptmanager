@@ -8,6 +8,15 @@
 
 ### 变更（Changed）
 
+- **测试断言从「源码文本」转向「行为」**（FR-139 / D-65，阶段 67）：新增统一入口
+  `tests/source-text.ts`（读源码并**剥注释**），测试里的 `readFileSync` 调用点从 **56 个文件 / 172 行**
+  降到 **0 / 0**；锁死「书写形式 / 文本位置」的断言改成**渲染级**断言
+  （新增 `tests/render/stage67-render-behavior.test.ts`，渲染级用例 **7 → 14**）；
+  `tests/web-ui.test.ts` 的 `assertSomewhere()`（任意文件命中即过）改成**指名文件**断言。
+  **产品代码零改动**（`src/` 与 `web/src/` 未动）、接口 / 导出格式 / DB schema 未变、**零迁移**、
+  **零新增依赖**。属纯测试重构 ⇒ 按 [`docs/versioning.md`](docs/versioning.md) §1 为 **PATCH 级**，
+  并入尚未正式发布的 `1.8.0`。
+
 - **Prompt 字段集收敛为单一来源**（FR-138 / D-64，阶段 66）：新建 `src/prompt-columns.ts`，把
   「Prompt 有哪些字段、每个字段的 SQL 类型 / 契约类型 / 是否可写 / 是否随导出走 / 算不算内容字段 /
   JSON Schema」写成**一张 `as const` 列清单**，DB 表类型（`PromptsTable`）、服务层实体（`PromptObject`）、

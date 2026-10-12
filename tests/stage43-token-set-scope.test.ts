@@ -6,12 +6,11 @@
 // 阶段 42 的三类边界不回归、界面/CLI 的源码级判据。
 // 真令牌打真端点的**原样输出**在 库外验收记录（含真鼠标改权限 + 服务端日志 grep）。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
 import type { InjectOptions } from 'fastify';
 import type { Fixture } from './helpers.ts';
-import { cookieOf, login, makeFixture, PROJECT_ROOT, readDb } from './helpers.ts';
+import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
 async function authed(fx: Fixture): Promise<string> {
   return cookieOf(await login(fx.app));
@@ -247,7 +246,7 @@ test('AC-107 ⑧：阶段 42 的边界不回归 —— 只读的 6 个写端点�
 });
 
 test('AC-107 ⑨（源码级）：改权限只在会话通道，且日志行不含明文', async () => {
-  const raw = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'routes', 'tokens.ts'), 'utf8');
+  const raw = readSource('src/server/routes/tokens.ts');
   const route = raw
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
@@ -267,7 +266,7 @@ test('AC-107 ⑨（源码级）：改权限只在会话通道，且日志行不�
   // 闸门未改动：/api/tokens 前缀仍是"仅会话"（防自我提权的唯一依赖点）
   // 阶段 59（v70 / FR-125）：同一数组里合法地追加了 '/api/sync'（同步接口也只允许会话调用），
   // 所以匹配放宽为「首项必须是 '/api/tokens'，后面可以还有别的仅会话前缀」——守卫本身不变。
-  const auth = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'auth.ts'), 'utf8');
+  const auth = readSource('src/server/auth.ts');
   assert.ok(
     /SESSION_ONLY_PREFIXES = \['\/api\/tokens'(?:\s*,\s*'[^']+')*\]/.test(auth),
     '令牌管理必须仍是仅会话（含 PATCH）',
@@ -275,7 +274,7 @@ test('AC-107 ⑨（源码级）：改权限只在会话通道，且日志行不�
 });
 
 test('AC-107 ⑥（源码级）：状态列权限文本可点击（Dropdown 两项、手型、title 提示），**仍是 6 列**，已撤销行无入口', () => {
-  const raw = readFileSync(path.join(PROJECT_ROOT, 'web', 'src', 'components', 'TokenDrawer.tsx'), 'utf8');
+  const raw = readSource('web/src/components/TokenDrawer.tsx');
   const drawer = raw
     .replace(/\{\/\*[\s\S]*?\*\/\}/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -299,7 +298,7 @@ test('AC-107 ⑥（源码级）：状态列权限文本可点击（Dropdown 两�
 });
 
 test('AC-107 ⑦（源码级）：CLI 有 token set-scope（本机管理路径），非法值给用法错误', () => {
-  const cli = readFileSync(path.join(PROJECT_ROOT, 'src', 'server', 'cli.ts'), 'utf8');
+  const cli = readSource('src/server/cli.ts');
   assert.ok(/sub !== 'set-scope'/.test(cli), 'set-scope 必须在允许的子命令里');
   assert.ok(/token set-scope <id> <read\|write>/.test(cli), '用法说明必须列出 set-scope');
   assert.ok(/tokens\.setTokenScope\(handle\.qe, Number\(rawId\), scope\)/.test(cli), '必须直接开库改（本机管理路径）');

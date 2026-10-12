@@ -6,19 +6,17 @@
 // ③ 文档里写死的数字必须等于**现场数出来的数字**（迁移数 / schema 版本 / 测试文件数 / 用例数）——
 //    这一类数字以前就是靠人手抄，抄错了没人发现，所以让它进测试。
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readRaw, readSource } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHECKER = path.join(ROOT, 'tools/check-doc-paths.mjs');
 
-function readSource(rel: string): string {
-  return readFileSync(path.join(ROOT, rel), 'utf8');
-}
 
 function runChecker(root: string): { status: number; stdout: string } {
   const result = spawnSync(process.execPath, [CHECKER, '--root', root], { encoding: 'utf8' });
@@ -49,7 +47,7 @@ function withTempRoot<T>(files: Record<string, string>, fn: (dir: string) => T):
 const MIGRATION_FILES = readdirSync(path.join(ROOT, 'migrations')).filter((name) => name.endsWith('.sql'));
 const TEST_FILES = readdirSync(path.join(ROOT, 'tests')).filter((name) => name.endsWith('.test.ts'));
 const TEST_CASES = TEST_FILES.reduce(
-  (total, name) => total + (readFileSync(path.join(ROOT, 'tests', name), 'utf8').match(/^test\(/gm) ?? []).length,
+  (total, name) => total + (readSource(path.join('tests', name)).match(/^test\(/gm) ?? []).length,
   0,
 );
 
@@ -168,10 +166,30 @@ test('阶段63 ⑬g：测试文件数与用例数等于现场实测（AGENTS.md 
 });
 
 test('阶段63 ⑬h：质量门步数与检查器一致（文档说九步，脚本文件头列 ⓪①①b①c①d②③④⑤）', () => {
-  const ci = readSource('tools/ci-check.sh');
-  assert.match(ci, /^#\s+⓪/m);
+  // 文件头的步骤表**就是注释**：这条守的是"文档写全了"，所以按 AC-129 A2 的例外走 readRaw。
+  const ciRaw = readRaw('tools/ci-check.sh');
+  assert.match(ciRaw, /^#\s+⓪/m);
   for (const step of ['①', '①b', '①c', '①d', '②', '③', '④', '⑤']) {
-    assert.match(ci, new RegExp(`^#\\s+${step}\\s`, 'm'), `ci-check.sh 文件头必须列出步骤 ${step}`);
+    assert.match(ciRaw, new RegExp(`^#\\s+${step}\\s`, 'm'), `ci-check.sh 文件头必须列出步骤 ${step}`);
+  }
+  // 光看注释会假绿（注释列了 9 步、代码里少跑一步也照样过）⇒ 再对**代码**数一遍：
+  // 每个步骤一次 `line "…"`，两边的步数必须相等。
+  const ci = readSource('tools/ci-check.sh');
+  const codeSteps = [...ci.matchAll(/^line "([^"]+)"/gm)].map((m) => m[1] ?? '');
+  // 只取文件头**连续**的那段步骤表：后面「为什么」段落里也会出现 ①②，不能一起数进来。
+  const docLines: string[] = [];
+  let inList = false;
+  for (const line of ciRaw.split('\n')) {
+    if (/^#\s+[⓪①②③④⑤]/.test(line)) {
+      inList = true;
+      docLines.push(line);
+    } else if (inList) break;
+  }
+  const docSteps = docLines.map((line) => /^#\s+([⓪①②③④⑤]\w*)\s/.exec(line)?.[1] ?? '');
+  assert.equal(codeSteps.length, 9, `ci-check.sh 必须恰好跑 9 个步骤（实际 ${String(codeSteps.length)}）`);
+  assert.equal(docSteps.length, codeSteps.length, `文件头列的步数（${String(docSteps.length)}）必须与代码里真跑的（${String(codeSteps.length)}）一致`);
+  for (const [index, step] of docSteps.entries()) {
+    assert.ok(codeSteps[index]?.startsWith(step), `第 ${String(index + 1)} 步：文件头写 ${step}，代码跑的是 ${String(codeSteps[index])}`);
   }
   const dev = readSource('docs/development.md');
   assert.match(dev, /依次跑\*\*九步\*\*/);
@@ -183,7 +201,7 @@ test('阶段63 ⑬i：测试注释里不再有悬空引用（旧口径词与库�
   const bannedWord = ['本地', '验收记录'].join('');
   const bannedScript = ['ac-', 'stage'].join('');
   for (const name of TEST_FILES) {
-    const text = readFileSync(path.join(ROOT, 'tests', name), 'utf8');
+    const text = readSource(path.join('tests', name));
     assert.equal(text.includes(bannedWord), false, `${name} 里不该再出现旧口径词（过程态是库外的）`);
     assert.equal(text.toLowerCase().includes(bannedScript), false, `${name} 里不该再出现库外脚本名`);
   }
@@ -288,7 +306,7 @@ test('返工① g：AGENTS.md §13 既说清「`tmp/` 不进历史」，也不�
 
 test('返工① h：`tests/` 下的自指符号链接同样不会让检查器崩（不只是 `docs/`）', () => {
   // 独立复核实测：walkMarkdown 会跳过符号链接，但 tests/*.test.ts 那条读文件路径没有防护，
-  // 于是 `tests/` 下的自指 `.test.ts` 链接会让 readFileSync 抛 ELOOP 并把门禁打成红的（rc=1）。
+  // 于是 `tests/` 下的自指 `.test.ts` 链接会让读文件抛 ELOOP 并把门禁打成红的（rc=1）。
   const dir = makeTempRoot({ 'README.md': '# t\n' });
   try {
     mkdirSync(path.join(dir, 'tests'), { recursive: true });

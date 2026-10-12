@@ -2,13 +2,10 @@
 // 运行时段（真鼠标登录 / 错误提示 / 亮暗截图 / 移动端不溢出 / 运行时 DOM 无账号名）见
 // 库外验收记录。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const login = readFileSync(path.join(ROOT, 'web', 'src', 'components', 'LoginPage.tsx'), 'utf8');
+const login = readSource('web/src/components/LoginPage.tsx');
 
 /** FR-88 ② 要删干净的四条噪音（逐条断言命中 0）。 */
 const NOISE = ['SELF-HOSTED', '数据只在本机', '网页不提供注册', '未认证一律'];

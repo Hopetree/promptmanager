@@ -3,11 +3,12 @@
 // ④ 六处重组件必须走动态 import（懒加载）；⑤ 总 gzip 不增（对照阶段 18 开工前基线）
 // 说明：本文件依赖 `npm run build` 的产物（`npm test` 会先 build）；产物缺失时**失败而不是跳过**。
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
+import { readBytes, readRaw, readSource } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST_WEB = path.join(ROOT, 'dist', 'web');
@@ -261,7 +262,7 @@ function readDistAssets(): Array<{ rel: string; raw: number; gzip: number }> {
   return walk(ASSETS)
     .filter((file) => file.endsWith('.js') || file.endsWith('.css'))
     .map((file) => {
-      const buffer = readFileSync(file);
+      const buffer = readBytes(file);
       return { rel: path.relative(DIST_WEB, file), raw: buffer.byteLength, gzip: zlib.gzipSync(buffer).byteLength };
     });
 }
@@ -279,7 +280,7 @@ test('AC-61 ①：没有任何 chunk 超过 500 KB（未压缩）——构建不
 });
 
 test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用的 js）', () => {
-  const html = readFileSync(path.join(DIST_WEB, 'index.html'), 'utf8');
+  const html = readRaw(path.join('dist/web', 'index.html'));
   const entry = html.match(/src="\/(assets\/[^"]+\.js)"/)?.[1];
   assert.ok(entry !== undefined, 'index.html 里找不到入口 js');
   const asset = readDistAssets().find((item) => item.rel === entry);
@@ -315,7 +316,7 @@ test('AC-61 ⑤：总 gzip 不增（js+css 合计 ≤ 开工前基线 + 已对�
 });
 
 test('AC-61 ④：六处重组件都走动态 import（编辑器 / Markdown 预览 / 版本 diff / 导入导出 / 使用统计 / 令牌）', () => {
-  const lazy = readFileSync(path.join(ROOT, 'web', 'src', 'lazy.ts'), 'utf8');
+  const lazy = readSource('web/src/lazy.ts');
   const required = [
     './components/PromptEditor',
     './components/MarkdownPreview',
@@ -332,12 +333,12 @@ test('AC-61 ④：六处重组件都走动态 import（编辑器 / Markdown 预�
   }
   // 版本 diff 由 VersionPanel 承载（DiffView 是其子件），单独断言仍然可达
   assert.ok(
-    readFileSync(path.join(ROOT, 'web', 'src', 'components', 'VersionPanel.tsx'), 'utf8').includes('DiffView'),
+    readSource('web/src/components/VersionPanel.tsx').includes('DiffView'),
     '版本历史里仍要能看到 diff 视图',
   );
   // 不得再静态 import 这些重组件（否则打进首屏图，懒加载失效）
   for (const file of ['Workspace.tsx', 'PromptDetail.tsx', 'PromptEditor.tsx']) {
-    const text = readFileSync(path.join(ROOT, 'web', 'src', 'components', file), 'utf8');
+    const text = readSource(path.join('web/src/components', file));
     for (const heavy of ['PromptEditor', 'MarkdownPreview', 'VersionPanel', 'ImportExportModal', 'UsageDrawer', 'TokenDrawer']) {
       assert.equal(
         new RegExp(`^import\\s+${heavy}\\s+from`, 'm').test(text),
@@ -349,7 +350,7 @@ test('AC-61 ④：六处重组件都走动态 import（编辑器 / Markdown 预�
 });
 
 test('AC-61：分包策略写在 vite.config.ts（vendor 分离：react / rc / antd / 懒加载块）', () => {
-  const config = readFileSync(path.join(ROOT, 'vite.config.ts'), 'utf8');
+  const config = readSource('vite.config.ts');
   // Vite 8（rolldown）下 manualChunks 已弃用，等价 API 是 output.codeSplitting.groups；
   // 两种写法都算「合理分包」，但至少要有一个在。
   assert.ok(

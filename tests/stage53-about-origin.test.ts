@@ -8,23 +8,24 @@
 // 本文件断言「取值来源正确 + 不写死协议 + 复制内容 = 显示内容 + 不新增网络请求 + 其它信息不变」；
 // 真浏览器双场景（HTTP / HTTPS）证据见库外验收记录 的 A 段。
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { readRaw, readWebSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, 'web', 'src', rel), 'utf8');
+const src = (rel: string): string => readWebSource(rel);
 
 const about = src('components/AboutModal.tsx');
 const api = src('api.ts');
 
+/** 同一文件的**未剥注释**文本：下面要断言"取值处留了说明原因的注释"，
+ *  断言的**对象就是注释**，所以按 AC-129 A2 的例外走 readRaw（并在此写明理由）。 */
+const aboutRaw = readRaw('web/src/components/AboutModal.tsx');
+
 /** 只取 address 定义那一行（含注释块），避免把注释里提到的 `http://` 误判成"还在写死协议"。 */
 const addressDecl = ((): string => {
-  const at = about.indexOf('const address =');
+  const at = aboutRaw.indexOf('const address =');
   assert.ok(at > 0, '找不到 address 的定义');
-  const from = about.lastIndexOf('/**', at);
-  return about.slice(from > 0 ? from : at, about.indexOf('\n', at));
+  const from = aboutRaw.lastIndexOf('/**', at);
+  return aboutRaw.slice(from > 0 ? from : at, aboutRaw.indexOf('\n', at));
 })();
 
 test('AC-118 A③：取值来自浏览器自身信息（origin），不写死任一协议', () => {

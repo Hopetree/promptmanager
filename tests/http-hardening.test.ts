@@ -5,11 +5,10 @@
 //   · P2-9② 同步客户端：不跟重定向 + 有界读取
 import assert from 'node:assert/strict';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { test } from 'node:test';
 import { createGitHubClient } from '../dist/services/sync-github.js';
-import { cookieOf, login, makeFixture, PROJECT_ROOT } from './helpers.ts';
+import { cookieOf, login, makeFixture } from './helpers.ts';
+import { readSource } from './source-text.ts';
 
 // ─────────────────────────── P1-1 安全响应头 ───────────────────────────
 
@@ -110,7 +109,7 @@ test('P2-2：既有的 400 / 401 / 404 契约逐字不变（改动不能伤到�
 // ─────────────────────────── P2-8 全局异常处理器 ───────────────────────────
 
 test('P2-8：index.ts 注册了 unhandledRejection / uncaughtException，且是「记日志 + 优雅关库后退出」', () => {
-  const src = readFileSync(path.join(PROJECT_ROOT, 'src/server/index.ts'), 'utf8');
+  const src = readSource('src/server/index.ts');
   assert.match(src, /process\.on\('unhandledRejection'/);
   assert.match(src, /process\.on\('uncaughtException'/);
   assert.match(src, /app\.log\.error/, '必须记日志，不能静默');

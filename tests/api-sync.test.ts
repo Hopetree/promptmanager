@@ -7,15 +7,14 @@
 //   · AC-121 G⑫ 的界面证据（双端截图、无横滚）在 库外验收记录 + 探针里。
 import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { loadTokenCipher } from '../dist/services/token-crypto.js';
 import { cookieOf, login, makeFixture, readDb, type Fixture } from './helpers.ts';
+import { readJson, readSource } from './source-text.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const src = (rel: string): string => readFileSync(path.join(ROOT, rel), 'utf8');
+const src = (rel: string): string => readSource(rel);
 /** 去掉注释，避免注释里的字被当成实现。 */
 const code = (s: string): string => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
@@ -610,7 +609,7 @@ test('AC-121 D⑧：pull mode=replace 不带 confirm ⇒ 400；带 confirm ⇒ �
     assert.equal(body.snapshot_kept, 3);
     assert.match(String(body.snapshot), /^pre-restore-.*\.json$/);
     assert.ok(existsSync(path.join(fx.dir, String(body.snapshot))), '执行前写的本地快照必须真的存在');
-    const snap = JSON.parse(readFileSync(path.join(fx.dir, String(body.snapshot)), 'utf8')) as { prompts: unknown[] };
+    const snap = readJson(path.join(fx.dir, String(body.snapshot))) as { prompts: unknown[] };
     assert.equal(snap.prompts.length, 2, '快照应是 replace 之前的本地全量（2 条）');
 
     assert.equal(
