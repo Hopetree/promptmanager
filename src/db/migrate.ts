@@ -30,10 +30,12 @@ export function checksumOf(content: Buffer | string): string {
 
 /**
  * 列出目录里的迁移文件（按版本号升序），并做命名护栏。
- * 非 `.sql` 的文件（README 之类）忽略；`.sql` 但不符合 `NNN_*.sql` 的一律报错。
+ * 非 `.sql` 的文件（README 之类）忽略；`.sql`（**扩展名大小写不敏感**）但不符合
+ * `NNN_*.sql` 的一律报错 —— 若只认小写 `.sql`，`011_x.SQL` 会被静默跳过，
+ * 版本号停在原地且没有任何报错，与"命名不合规必须报错"矛盾。
  */
 function listMigrationFiles(migrationsDir: string): string[] {
-  const files = readdirSync(migrationsDir).filter((name) => name.endsWith('.sql'));
+  const files = readdirSync(migrationsDir).filter((name) => /\.sql$/i.test(name));
   const bad = files.filter((name) => !MIGRATION_FILE.test(name));
   if (bad.length > 0) {
     throw new Error(
@@ -69,6 +71,28 @@ function hasChecksumColumn(db: Db): boolean {
  * - 文件名与记录不符（被改名）⇒ 抛错：改名会让历史无法追溯。
  */
 function verifyAppliedMigrations(db: Db, migrationsDir: string, files: string[]): void {
+  // 记录里有、目录里没有 ⇒ 已应用的迁移文件被删了。**删除同样是"改动"**：
+  // 文件没了就无法再校验内容，历史也无从追溯（改前这种删除会被静默放过）。
+  // 只查"目录里最大版本号以内"的洞：记录版本**高于**目录最大号说明这份库比当前代码新
+  // （用旧代码打开新库的降级场景），那不是删除，不该在这里拦。
+  // ⚠️ 这一步必须在 hasChecksumColumn 之前做，且只查 version/name —— 存量库还没有 checksum 列。
+  const recorded = db.prepare('SELECT version, name FROM schema_migrations').all() as Array<{
+    version: number;
+    name: string;
+  }>;
+  const versionsInDir = new Set(files.map((file) => Number.parseInt(file, 10)));
+  const maxVersionInDir = files.length === 0 ? 0 : Math.max(...versionsInDir);
+  for (const row of recorded) {
+    if (row.version > maxVersionInDir) continue;
+    if (!versionsInDir.has(row.version)) {
+      throw new Error(
+        `已应用的迁移文件不见了：${row.name}（版本 ${String(row.version)}）。` +
+          '已应用的迁移在别人的库上跑过了，删掉它就没法再校验内容、也丢了历史 —— ' +
+          '请把文件恢复回来（要变更就新增一个迁移）。',
+      );
+    }
+  }
+
   if (!hasChecksumColumn(db)) return;
   const rows = db
     .prepare('SELECT version, name, checksum FROM schema_migrations')

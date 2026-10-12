@@ -9,7 +9,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { readBytes, readRaw, readSource } from './source-text.ts';
-import { evaluateBundleBudget, readBundleBudget } from './bundle-budget.ts';
+import { budgetStages, evaluateBundleBudget, readBundleBudget } from './bundle-budget.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST_WEB = path.join(ROOT, 'dist', 'web');
@@ -19,7 +19,8 @@ const ASSETS = path.join(DIST_WEB, 'assets');
 // 由 `node tools/bundle-budget.mjs --record <阶段> --note "<依据>"` 写入（delta 可为负 ⇒ 体积下降会回收预算）。
 // 判定是纯函数 `evaluateBundleBudget`，上界与下界都查；测试标题里的阶段清单也从账本派生。
 const LEDGER = readBundleBudget();
-const VERDICT = evaluateBundleBudget(0, LEDGER);
+// 标题只需要阶段清单 ⇒ 直接调 `budgetStages`（不必造一个假的实测值去过 `evaluateBundleBudget`）。
+const STAGES = budgetStages(LEDGER);
 
 const MAX_ENTRY_BYTES = 100_000;
 
@@ -64,7 +65,7 @@ test('AC-61 ②：首屏入口 chunk 存在且在预算内（index.html 引用�
   assert.ok(asset.raw <= MAX_ENTRY_BYTES, `入口 chunk ${entry} = ${String(asset.raw)} B，超过预算 ${String(MAX_ENTRY_BYTES)} B`);
 });
 
-test(`AC-61 ⑤：总 gzip 在账本区间内（上界与下界都查；账本阶段：${VERDICT.stages}）`, () => {
+test(`AC-61 ⑤：总 gzip 在账本区间内（上界与下界都查；账本阶段：${STAGES}）`, () => {
   const total = readDistAssets().reduce((sum, asset) => sum + asset.gzip, 0);
   const verdict = evaluateBundleBudget(total, LEDGER);
   assert.ok(verdict.ok, verdict.message);

@@ -140,7 +140,7 @@ test('AC-131 C12：测试标题与账本同源（阶段清单从账本派生，�
   const source = readSource('tests/stage18-bundle.test.ts');
   assert.match(
     source,
-    /AC-61 ⑤：总 gzip 在账本区间内（上界与下界都查；账本阶段：\$\{VERDICT\.stages\}）/,
+    /AC-61 ⑤：总 gzip 在账本区间内（上界与下界都查；账本阶段：\$\{STAGES\}）/,
     '标题里的阶段清单必须由账本派生',
   );
   assert.equal(budgetStages(LEDGER), LEDGER.entries.map((entry) => String(entry.stage)).join(' / '));

@@ -7,6 +7,10 @@
 //   node tools/bundle-budget.mjs --check                          # 同上，越界时退出码 1
 //   node tools/bundle-budget.mjs --record 69 --note "<依据>"       # 用当前构建产物实测，记一条（delta 可为负）
 //
+// ⚠️ `--record` 的缩水护栏（阶段 69 返工 ①）：一次记账若把预算压掉超过 5%，会被**拒绝**
+// （防止对着半成品 / dev 构建记一次账就把预算永久压扁，之后完整构建必然超上界）。
+// 确实要压扁（例如真删掉一个大依赖）时加 `--force`。
+//
 // 口径与 `tests/stage18-bundle.test.ts` 完全一致：`dist/web/assets` 下所有 js+css 的
 // `zlib.gzipSync`（默认级别）字节数之和。判定 = [floor(budget × floor_ratio), budget]。
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -66,12 +70,13 @@ function printReport(ledger, measured) {
 }
 
 function parseArgs(argv) {
-  const options = { check: false, record: null, note: '' };
+  const options = { check: false, record: null, note: '', force: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--check') options.check = true;
     else if (arg === '--record') options.record = argv[(i += 1)] ?? null;
     else if (arg === '--note') options.note = argv[(i += 1)] ?? '';
+    else if (arg === '--force') options.force = true;
     else throw new Error(`未知参数：${arg}`);
   }
   return options;
@@ -89,6 +94,20 @@ if (options.record === null) {
 const before = budgetTotal(ledger);
 const delta = measured - before;
 const stage = /^\d+$/.test(options.record) ? Number(options.record) : options.record;
+
+// 缩水护栏：一次记账把预算压掉 >5% 通常是**构建不完整**（半成品 / 只跑了 build:web 的一部分）
+// 而不是真的瘦身 —— 记下去会把预算永久压扁，之后完整构建必然超上界。要压扁就显式 --force。
+const SHRINK_GUARD = 0.95;
+if (!options.force && measured < before * SHRINK_GUARD) {
+  const percent = Math.round((1 - measured / before) * 100);
+  console.error(
+    `❌ 拒绝记账：实测 ${measured} B 比当前预算 ${before} B 低约 ${percent}%（超过 5% 的缩水护栏）。\n` +
+      '   先确认这是**完整** `npm run build` 的产物，而不是半成品 / dev 构建；\n' +
+      '   确实是真瘦身（例如删掉一个大依赖）时，加 `--force` 重跑。',
+  );
+  process.exit(1);
+}
+
 ledger.entries.push({
   id: `STAGE${String(stage).toUpperCase()}`,
   stage,

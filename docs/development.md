@@ -167,6 +167,14 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 | `docs/development.md` §1 结构表 | `migrations/` 行的文件数与末位文件名 |
 | `docs/development.md` §2 命令块 | `ok: schema at vN` |
 
+**校验的边界（阶段 69 返工 ① 明确写下）**：运行器用 `schema_migrations.checksum`（sha256 of 文件原始字节）
+检测"已应用的迁移被改 / 被改名 / 被删"。两处**它管不到**的窗口要知道：
+
+- **存量库第一次升级**：升级前应用的迁移没有历史 hash，补记用的是**当前磁盘字节**的 hash ⇒
+  如果某个迁移是在这次升级**之前**就被篡改的，篡改会被一并补记、此后永久受信。
+  补记只是把老库**拉进**受校验状态，**不追溯升级前的改动**（详见 `docs/traps.md` §19.1）。
+- **大小写扩展名**：`011_x.SQL` 会被当成不合规文件名**报错**（不是静默忽略）；写迁移请用 `.sql`。
+
 **实测收益**（口径：加一个迁移时必须跟着改的**测试文件数**；详见 `tmp/dev-process/PROGRESS.md` 阶段 69 §9.4）：
 
 - 改前（`cb62293`，schema v9）：**11 个测试文件**（9 个写死 `version, 9` / `schema at v9`，

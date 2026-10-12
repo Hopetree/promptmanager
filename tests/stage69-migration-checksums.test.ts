@@ -218,6 +218,55 @@ test('AC-131 ⑤：不符合 NNN_*.sql 的文件 ⇒ 明确报错（不静默跳
   });
 });
 
+test('AC-131 ⑤（续）：大写扩展名 `011_x.SQL` 也必须报错，不得静默跳过（阶段 69 返工 ①）', () => {
+  withDb((db) => {
+    const dir = copyMigrations();
+    try {
+      writeFileSync(path.join(dir, '011_x.SQL'), 'SELECT 1;');
+      assert.throws(
+        () => runMigrations(db, dir),
+        (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          assert.match(message, /011_x\.SQL/, '必须点名大写扩展名的文件');
+          assert.match(message, /NNN_\*\.sql/, '必须说清命名规范');
+          return true;
+        },
+      );
+      const version = db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get() as {
+        version: number;
+      };
+      assert.equal(version.version, 0, '报错时不得应用任何迁移');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+test('AC-131 ③（续 2）：已应用迁移的文件被删掉 ⇒ 明确失败（改前被静默放过）', () => {
+  withDb((db) => {
+    runMigrations(db, MIGRATIONS);
+    const holed = copyMigrations();
+    try {
+      rmSync(path.join(holed, '002_tokens-and-usage.sql'));
+      assert.throws(
+        () => runMigrations(db, holed),
+        (error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          assert.match(message, /002_tokens-and-usage\.sql/, '必须点名缺失的文件');
+          assert.match(message, /不见了/, '必须说清是"文件不见了"');
+          return true;
+        },
+      );
+      const version = db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get() as {
+        version: number;
+      };
+      assert.equal(version.version, CURRENT_SCHEMA_VERSION, '校验失败时不得改动版本表');
+    } finally {
+      rmSync(holed, { recursive: true, force: true });
+    }
+  });
+});
+
 test('AC-131 ③（口径）：checksum 对**原始字节**取 —— 改注释、加空行同样算改动', () => {
   assert.equal(checksumOf('SELECT 1;'), checksumOf(Buffer.from('SELECT 1;')), '字符串与 Buffer 同口径');
   assert.notEqual(checksumOf('SELECT 1;'), checksumOf('SELECT 1;\n'), '加一个换行也算改动');

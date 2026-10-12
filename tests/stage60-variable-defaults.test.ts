@@ -1,5 +1,5 @@
 // 阶段 60 / FR-126 / AC-122：提示词变量支持「默认值」—— `{{ 名字 | default(默认值) }}`（Jinja 系语法）。
-import { MIGRATION_FILES } from './migrations.ts';
+import { CURRENT_SCHEMA_VERSION } from './migrations.ts';
 //
 // 本文件按 AC-122 的 A~F 六组逐条落断言。判据以 `tmp/dev-process/BRIEF.md` 的
 // **FR-126 / AC-122 / D-58** 三节为准，不以派活提示词为准。
@@ -263,10 +263,15 @@ test('AC-122 ⑱：零迁移 —— migrations/ 不新增文件、schema 版本�
     .sort();
   // 阶段 69 / FR-145 起清单从 tests/migrations.ts 派生：本用例的历史意图（阶段 60 零迁移）
   // 已由「一处绊线」承担，这里保留的是「每个迁移文件都不得新增名为 default 的列」。
-  assert.deepEqual(
-    files,
-    [...MIGRATION_FILES],
-    '迁移清单必须与目录一致（tests/migrations.ts 是唯一来源）',
+  //
+  // ⚠️ 阶段 69 返工 ①：原来这里是 `assert.deepEqual(files, [...MIGRATION_FILES])`，
+  // 而 `files` 与 `MIGRATION_FILES` **都是"读目录 + 排序"推导出来的同一个东西** ⇒ 恒真、
+  // 永远不会红（独立复核用"临时加一个 999_probe.sql"实证过）。改成对着**唯一手写**的
+  // `CURRENT_SCHEMA_VERSION` 断言文件数：加了迁移却忘了 bump 绊线时这里会红。
+  assert.equal(
+    files.length,
+    CURRENT_SCHEMA_VERSION,
+    '迁移文件数必须等于唯一手写的 CURRENT_SCHEMA_VERSION（tests/migrations.ts）',
   );
   // 默认值只写在正文里 ⇒ 迁移文件里不得出现名为 default 的**列**
   for (const name of files) {
