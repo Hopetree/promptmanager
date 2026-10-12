@@ -107,12 +107,19 @@ export function stripCodeComments(text: string): string {
       let commentEnd = Math.min(length, end + 2);
       // JSX 注释 `{/* … */}`：连外层那对 `{` `}` 一起去掉。
       // 否则剥完会留下一个空的表达式容器 `{    }`，让"品牌区只剩 PromptM"这类断言误判。
-      let before = commentStart - 1;
-      while (before >= 0 && (chars[before] === ' ' || chars[before] === '\t')) before -= 1;
-      if (before >= 0 && chars[before] === '{') commentStart = before;
-      let after = commentEnd;
-      while (after < length && (chars[after] === ' ' || chars[after] === '\t')) after += 1;
-      if (after < length && chars[after] === '}') commentEnd = after + 1;
+      //
+      // ⚠️ 只认**紧贴**的 `{/*`（`{` 与 `/*` 之间不允许空白）：对象字面量里的
+      // `{\n  /** JSDoc */` 与空对象 `{ /* c */ }` 不是 JSX 注释，擦掉开括号会破坏文本
+      // （`catch { /* 隐私模式忽略 */ }` 会被擦成 `catch              `）。
+      // 守卫用例：`tests/stage67-source-text.test.ts`。
+      if (index > 0 && chars[index - 1] === '{') {
+        let after = commentEnd;
+        while (after < length && (chars[after] === ' ' || chars[after] === '\t' || chars[after] === '\n')) after += 1;
+        if (after < length && chars[after] === '}') {
+          commentStart = index - 1;
+          commentEnd = after + 1;
+        }
+      }
       ranges.push([commentStart, commentEnd]);
       index = Math.min(length, end + 2);
       continue;
@@ -192,6 +199,96 @@ export function stripCodeComments(text: string): string {
   return blankOut(text, ranges);
 }
 
+/**
+ * 剥 SQL 注释（`-- …` 与 `/* … *\/`）。
+ *
+ * 不能直接用正则：`'a -- b'` 与 `'/* x *\/'` 里的内容**是字符串字面量**，
+ * 正则会把 `'read'` / `'write'` / `'view'` 这类值整段擦掉（实测命中
+ * `migrations/005_token-scope.sql` 与 `migrations/006_usage-kind.sql` 多处），
+ * 让断言读到被破坏的 SQL。这里只在**引号外**识别注释。
+ */
+function stripSqlComments(text: string): string {
+  const ranges: Array<[number, number]> = [];
+  const length = text.length;
+  let index = 0;
+  while (index < length) {
+    const char = text[index]!;
+    if (char === "'" || char === '"') {
+      const quote = char;
+      index += 1;
+      while (index < length) {
+        if (text[index] === quote) {
+          if (text[index + 1] === quote) {
+            index += 2; // SQL 的 `''` 转义
+            continue;
+          }
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    if (char === '-' && text[index + 1] === '-') {
+      const end = text.indexOf('\n', index);
+      const stop = end === -1 ? length : end;
+      ranges.push([index, stop]);
+      index = stop;
+      continue;
+    }
+    if (char === '/' && text[index + 1] === '*') {
+      const end = text.indexOf('*/', index + 2);
+      const stop = end === -1 ? length : end + 2;
+      ranges.push([index, stop]);
+      index = stop;
+      continue;
+    }
+    index += 1;
+  }
+  return blankOut(text, ranges);
+}
+
+/**
+ * 剥 YAML / shell 的 `#` 注释。
+ *
+ * - `^[ \t]*#…`：整行注释；
+ * - 行内 `#`：**前一个字符必须是空白**（YAML / shell 的规定），且不在 `'` `"` 引号内
+ *   —— 这样 `${VAR#prefix}`、`URL#frag`、`foo#bar` 都不会被误剥。
+ *
+ * 之前只剥整行注释，于是 `key: 1 # c` / `echo hi # c` 剥完仍含 `# c`，
+ * 对 `.yml` / `.sh` 的源码断言仍可能被行内注释骗过（对抗性复核实测）。
+ */
+function stripHashComments(text: string): string {
+  const ranges: Array<[number, number]> = [];
+  let offset = 0;
+  for (const line of text.split('\n')) {
+    let index = 0;
+    while (index < line.length && (line[index] === ' ' || line[index] === '\t')) index += 1;
+    if (line[index] === '#') {
+      ranges.push([offset, offset + line.length]);
+    } else {
+      let quote: string | null = null;
+      for (let position = 0; position < line.length; position += 1) {
+        const char = line[position]!;
+        if (quote !== null) {
+          if (char === quote) quote = null;
+          continue;
+        }
+        if (char === "'" || char === '"') {
+          quote = char;
+          continue;
+        }
+        if (char === '#' && (position === 0 || /\s/.test(line[position - 1]!))) {
+          ranges.push([offset + position, offset + line.length]);
+          break;
+        }
+      }
+    }
+    offset += line.length + 1;
+  }
+  return blankOut(text, ranges);
+}
+
 /** 按文件种类剥注释（`none` 原样返回）。 */
 export function stripSourceComments(text: string, kind: SourceKind = 'code'): string {
   switch (kind) {
@@ -202,12 +299,9 @@ export function stripSourceComments(text: string, kind: SourceKind = 'code'): st
     case 'html':
       return stripBlockComments(text, /<!--[\s\S]*?-->/g);
     case 'sql':
-      return stripBlockComments(stripBlockComments(text, /\/\*[\s\S]*?\*\//g), /--[^\n]*/g);
+      return stripSqlComments(text);
     case 'hash':
-      return blankOut(
-        text,
-        [...text.matchAll(/^[ \t]*#[^\n]*/gm)].map((match) => [match.index, match.index + match[0].length] as [number, number]),
-      );
+      return stripHashComments(text);
     default:
       return text;
   }

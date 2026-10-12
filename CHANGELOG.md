@@ -16,6 +16,12 @@
   **产品代码零改动**（`src/` 与 `web/src/` 未动）、接口 / 导出格式 / DB schema 未变、**零迁移**、
   **零新增依赖**。属纯测试重构 ⇒ 按 [`docs/versioning.md`](docs/versioning.md) §1 为 **PATCH 级**，
   并入尚未正式发布的 `1.8.0`。
+  - **返工 ①（独立对抗性复核的产物）**：修掉 `tests/source-text.ts` 的三处剥注释缺陷，并新增守卫用例
+    `tests/stage67-source-text.test.ts`（9 条）—— ① JSX 外壳只认**紧贴**的 `{/*`（对象字面量里的
+    `{\n  /** JSDoc */` 与 `catch { /* 隐私模式忽略 */ }` 的开括号不再被误擦）；② SQL 只在**引号外**
+    识别 `--` / `/* */`（`'read'` / `'view'` 这类字面量不再被当注释吃掉）；③ YAML / shell 的**行内** `#`
+    注释也剥（引号内的 `#` 与 `${VAR#x}` 保留）。守卫用例在旧版剥注释器下 **9 条里 4 条红**。
+    测试文件数 **91 → 92**、用例数 **624 → 633**。
 
 - **Prompt 字段集收敛为单一来源**（FR-138 / D-64，阶段 66）：新建 `src/prompt-columns.ts`，把
   「Prompt 有哪些字段、每个字段的 SQL 类型 / 契约类型 / 是否可写 / 是否随导出走 / 算不算内容字段 /
@@ -588,7 +594,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，91 个测试文件 / **624 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，92 个测试文件 / **633 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。
