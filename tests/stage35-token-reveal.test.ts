@@ -1,4 +1,5 @@
 // 阶段 35 / FR-94（BRIEF v46 §4 + §8 AC-96）的 **token 可随时查看（AES-256-GCM）**断言。
+import { CURRENT_SCHEMA_VERSION } from './migrations.ts';
 // 运行时证据（真鼠标点「复制」+ 读回剪贴板）在 库外验收记录 与 库外探针脚本 里。
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdtempSync, renameSync, rmSync, statSync } from 'node:fs';
@@ -43,8 +44,8 @@ test('AC-96 ①：迁移到 schema v8，api_tokens 有 token_enc 列，存量行
       fx,
       (db) => (db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v,
     );
-    // 本用例只关心 token_enc 列，版本号随每次新增迁移更新（阶段 68 起是 009_fts-update-when.sql ⇒ v9）
-    assert.equal(version, 9, '迁移必须到当前版本（阶段 68 起是 v9）');
+    // 本用例只关心 token_enc 列；版本号从唯一手写处取（tests/migrations.ts，阶段 69 / FR-145）
+    assert.equal(version, CURRENT_SCHEMA_VERSION, '迁移必须到当前版本（唯一手写在 tests/migrations.ts）');
     const columns = readDb(fx, (db) => db.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>);
     assert.ok(columns.some((column) => column.name === 'token_enc'), 'api_tokens 必须有 token_enc 列');
 

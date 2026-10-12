@@ -8,6 +8,25 @@
 
 ### 变更（Changed）
 
+- **机械记账三项**（FR-144 ~ FR-146 / D-67，阶段 69）：
+  - **迁移有了内容校验**（FR-144）：新增迁移 **`010_migration-checksums.sql`** 给 `schema_migrations`
+    加 `checksum` 列（`ALTER TABLE ... ADD COLUMN`，**不改已应用的 `001`–`009`**）。运行器
+    （`src/db/migrate.ts`）在应用前逐个校验：**已应用的迁移被改动一个字节** ⇒ 抛
+    `已应用的迁移文件被改动过：<file>`；**被改名** ⇒ 抛"文件名与记录不符"；**文件名不符合
+    `NNN_*.sql`** ⇒ 抛错并点名（改前是**静默跳过**）。存量库（升级前没有 checksum）**首次见到时补记**，
+    所以老库照常启动。checksum 对**文件原始字节**取（含注释与换行），口径有测试钉住。
+  - **「加一个迁移」的机械成本 11 → 1**（FR-145）：schema 版本与迁移数改成**一处绊线，其余派生** ——
+    唯一手写的数字是 `tests/migrations.ts` 的 `CURRENT_SCHEMA_VERSION`，其余从 `migrations/` 目录读；
+    改前有 11 个测试文件写死版本号 / 迁移数 / 完整清单。**绊线仍在**（删掉一个迁移文件、或改大版本号，
+    测试都会红 —— 双向验证过）。
+  - **体积预算有下界、账本改为工具生成**（FR-146）：预算从「`BASELINE_TOTAL_GZIP` + 20 个手工累加的
+    `ACCOUNTED_DELTA` 常量」搬到 `tests/bundle-budget.json`（由 `node tools/bundle-budget.mjs --record`
+    按**实测值**写入，delta 可为负 ⇒ 体积下降会回收预算），判定是纯函数
+    `evaluateBundleBudget`，**上界与下界都查**（低于预算 95% ⇒ 提示账本该回收）。测试标题里的阶段清单
+    也从账本派生（改前标题与常量已对不上）。
+  - **接口 / 导出格式 / DB 行为未变**（只是新增一列校验列）、**零新增依赖**；`500 KB` 体积红线
+    **一个字都没动**；测试文件数 **94 → 96**、用例数 **639 → 651**（schema 9 → **10**）。
+
 - **性能与本地残留四项**（FR-140 ~ FR-143 / D-66，阶段 68）：
   - **FTS 触发器只在内容真的变了时才重建索引**（FR-140）：`prompts` 的 `AFTER UPDATE` 触发器原先没有
     `WHEN`，改收藏 / 拖拽排序 / 切「记住变量值」/ 移动目录都会重建整行全文索引。新增迁移
@@ -615,7 +634,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，94 个测试文件 / **639 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，96 个测试文件 / **651 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。

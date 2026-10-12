@@ -45,7 +45,7 @@ sudo -u promptmanager git -C /opt/promptmanager pull   # 或 rsync 项目目录�
 cd /opt/promptmanager
 sudo -u promptmanager npm ci --omit=dev=false          # 含 devDependencies（构建需要 vite/typescript）
 sudo -u promptmanager npm run build                     # 服务端编译 + 前端构建
-sudo -u promptmanager npm run migrate                   # 幂等迁移，输出 ok: schema at v3（当前版本号）
+sudo -u promptmanager npm run migrate                   # 幂等迁移，输出 ok: schema at vN（N = migrations/ 里的最大编号）
 
 # 1.3 设置管理员口令（口令从 stdin 读，只落库、绝不进日志/git/环境文件）
 printf '%s\n' '<你的强口令>' | sudo -u promptmanager node bin/pm.mjs user set-password --username admin

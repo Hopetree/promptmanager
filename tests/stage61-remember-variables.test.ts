@@ -1,4 +1,5 @@
 // 阶段 61 / FR-127 + FR-128 / AC-123：变量记忆「可控」（服务端开关）+ 填值弹窗「一键清空」。
+import { CURRENT_SCHEMA_VERSION, MIGRATION_COUNT } from './migrations.ts';
 //
 // 这份测试**先写、先看它红**（red → green）：它引用的 `remember_variables` 字段、008 迁移、
 // 以及 `web/src/pure.ts` 里的记忆存储助手（`readRememberedVars` 等）在改动前都**不存在**。
@@ -69,7 +70,7 @@ test('AC-123 ①：008 迁移在「已有数据」的库上执行后，所有存
   for (const file of allMigrations.filter((f) => /^00[1-7][-_]/.test(f))) {
     cpSync(path.join(PROJECT_ROOT, 'migrations', file), path.join(oldMigrations, file));
   }
-  assert.equal(allMigrations.length, 9, 'migrations/ 里应有 9 个迁移文件（001–008 + 009；阶段 68 起）');
+  assert.equal(allMigrations.length, MIGRATION_COUNT, '迁移文件数从唯一手写处派生（tests/migrations.ts）');
 
   const db = openDatabase(loadConfig({ DATA_DIR: path.join(root, 'data') }));
   try {
@@ -86,7 +87,7 @@ test('AC-123 ①：008 迁移在「已有数据」的库上执行后，所有存
 
     // 跑真实 migrations/（含 008）—— 就是升级路径
     const after = runMigrations(db, path.join(PROJECT_ROOT, 'migrations'));
-    assert.equal(after.version, 9, '升级后 schema 版本 = 9（阶段 68 起；009_fts-update-when.sql）');
+    assert.equal(after.version, CURRENT_SCHEMA_VERSION, '升级后 schema 版本 = 唯一手写处（tests/migrations.ts）');
 
     const columns = (db.prepare('pragma table_info(prompts)').all() as Array<{ name: string }>).map((c) => c.name);
     assert.ok(columns.includes('remember_variables'), `prompts 应多出 remember_variables 列（实际：${columns.join(',')}）`);

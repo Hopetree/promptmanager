@@ -1,4 +1,5 @@
 // 阶段 63（FR-131 / AC-125 C）：**交付文档与现状对齐** + CI 的「引用的仓库内路径必须存在」检查。
+import { CURRENT_SCHEMA_VERSION, MIGRATION_COUNT, MIGRATION_FILES } from './migrations.ts';
 //
 // 这个文件做三件事：
 // ① 检查器本身自检（在本仓库上必须绿）；
@@ -43,8 +44,7 @@ function withTempRoot<T>(files: Record<string, string>, fn: (dir: string) => T):
   }
 }
 
-/** 现场数出来的真实数字。 */
-const MIGRATION_FILES = readdirSync(path.join(ROOT, 'migrations')).filter((name) => name.endsWith('.sql'));
+/** 现场数出来的真实数字（迁移数从 tests/migrations.ts 派生）。 */
 const TEST_FILES = readdirSync(path.join(ROOT, 'tests')).filter((name) => name.endsWith('.test.ts'));
 const TEST_CASES = TEST_FILES.reduce(
   (total, name) => total + (readSource(path.join('tests', name)).match(/^test\(/gm) ?? []).length,
@@ -138,8 +138,8 @@ test('阶段63 ⑬d：测试文件只看注释行（代码里的字符串不算�
 // —— ③ 文档数字必须等于现场数出来的数字 ————————————————————————————————
 
 test('阶段63 ⑬e：AGENTS.md / docs/development.md 的迁移数与 schema 版本等于现场实测', () => {
-  const count = MIGRATION_FILES.length;
-  const version = count; // 001…NNN 连续编号 ⇒ schema 版本号 == 迁移文件数
+  const count = MIGRATION_COUNT;
+  const version = CURRENT_SCHEMA_VERSION; // 唯一手写处（tests/migrations.ts）；count 是现场派生，两者必须一致
   const last = MIGRATION_FILES[MIGRATION_FILES.length - 1];
   const agents = readSource('AGENTS.md');
   assert.match(agents, new RegExp(`\\| \`migrations/\` \\| \`001_init\\.sql\` \\.\\.\\. \`${last}\``));

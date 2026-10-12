@@ -1,4 +1,5 @@
 // 阶段 42 / FR-103（令牌权限两档，**只作用于资源**）+ FR-104（取用归因）断言。
+import { CURRENT_SCHEMA_VERSION } from './migrations.ts';
 //
 // 覆盖：迁移 v5 与两列、三类边界的**逐端点 HTTP 码**、只读令牌的渲染类 POST 仍可用、
 // 默认只读、存量 NULL 视作 write（迁移回填口径）、usage 的 token_id 归因。
@@ -70,7 +71,7 @@ test('AC-105 ①：迁移到 v5；api_tokens 有 scope、usage_events 有 token_
     ).run('a'.repeat(64));
 
     const result = runMigrations(db);
-    assert.equal(result.version, 9, '迁移必须到当前版本（阶段 68 起是 v9；本用例只关心 005 的应用）');
+    assert.equal(result.version, CURRENT_SCHEMA_VERSION, '迁移必须到当前版本（唯一手写在 tests/migrations.ts；本用例只关心 005 的应用）');
     assert.ok(result.applied.includes('005_token-scope.sql'));
     const columns = (db.prepare('PRAGMA table_info(api_tokens)').all() as Array<{ name: string }>).map((r) => r.name);
     assert.ok(columns.includes('scope'), 'api_tokens 必须有 scope 列');

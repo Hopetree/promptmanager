@@ -1,4 +1,5 @@
 // 阶段 60 / FR-126 / AC-122：提示词变量支持「默认值」—— `{{ 名字 | default(默认值) }}`（Jinja 系语法）。
+import { MIGRATION_FILES } from './migrations.ts';
 //
 // 本文件按 AC-122 的 A~F 六组逐条落断言。判据以 `tmp/dev-process/BRIEF.md` 的
 // **FR-126 / AC-122 / D-58** 三节为准，不以派活提示词为准。
@@ -260,20 +261,12 @@ test('AC-122 ⑱：零迁移 —— migrations/ 不新增文件、schema 版本�
   const files = readdirSync(path.join(PROJECT_ROOT, 'migrations'))
     .filter((name) => name.endsWith('.sql'))
     .sort();
+  // 阶段 69 / FR-145 起清单从 tests/migrations.ts 派生：本用例的历史意图（阶段 60 零迁移）
+  // 已由「一处绊线」承担，这里保留的是「每个迁移文件都不得新增名为 default 的列」。
   assert.deepEqual(
     files,
-    [
-      '001_init.sql',
-      '002_tokens-and-usage.sql',
-      '003_prompt-sort-order.sql',
-      '004_token-enc.sql',
-      '005_token-scope.sql',
-      '006_usage-kind.sql',
-      '007_sync-config.sql',
-      '008_remember-variables.sql',
-      '009_fts-update-when.sql',
-    ],
-    '阶段 60 零迁移：不得新增迁移文件（后续阶段若新增，同步更新本清单）',
+    [...MIGRATION_FILES],
+    '迁移清单必须与目录一致（tests/migrations.ts 是唯一来源）',
   );
   // 默认值只写在正文里 ⇒ 迁移文件里不得出现名为 default 的**列**
   for (const name of files) {

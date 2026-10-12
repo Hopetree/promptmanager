@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { runMigrations } from '../dist/db/migrate.js';
 import { readRaw } from './source-text.ts';
+import { CURRENT_SCHEMA_VERSION } from './migrations.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATIONS = path.join(ROOT, 'migrations');
@@ -61,7 +62,7 @@ test('FR-70 迁移：旧库升级后既有条目顺序不变（按升级前的�
     assert.deepEqual(before.map((row) => row.id), [1, 2, 3]);
 
     const result = runMigrations(db, MIGRATIONS);
-    assert.equal(result.version, 9, '迁移必须到当前版本（阶段 68 起是 v9：009_fts-update-when.sql）');
+    assert.equal(result.version, CURRENT_SCHEMA_VERSION, '迁移必须到当前版本（唯一手写在 tests/migrations.ts）');
     assert.ok(result.applied.includes('003_prompt-sort-order.sql'));
 
     const after = rows(db);
@@ -98,7 +99,7 @@ test('FR-70 迁移：全新库从 0 跑到当前版本（含 sort_order 列与�
   const db = new Database(path.join(dir, 'pm.db'));
   try {
     const result = runMigrations(db, MIGRATIONS);
-    assert.equal(result.version, 9, '迁移必须到当前版本（阶段 68 起是 v9：009_fts-update-when.sql）');
+    assert.equal(result.version, CURRENT_SCHEMA_VERSION, '迁移必须到当前版本（唯一手写在 tests/migrations.ts）');
     const columns = (db.prepare('PRAGMA table_info(prompts)').all() as Array<{ name: string }>).map((row) => row.name);
     assert.ok(columns.includes('sort_order'), 'prompts 必须有 sort_order 列');
     const indexes = (db.prepare('PRAGMA index_list(prompts)').all() as Array<{ name: string }>).map((row) => row.name);

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { CURRENT_SCHEMA_VERSION } from './migrations.ts';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -27,9 +28,9 @@ test('runMigrations 幂等：重复执行不报错，schema 版本稳定在当�
     // + 004（阶段 35：api_tokens.token_enc）+ 005（阶段 42：api_tokens.scope / usage_events.token_id）
     // + 006（阶段 50：usage_events.kind）+ 007（阶段 59：sync_config）
     // + 008（阶段 61：prompts.remember_variables）
-    // ⇒ 当前 schema 版本 = 8
-    assert.equal(first.version, 9);
-    assert.equal(second.version, 9);
+    // ⇒ 当前 schema 版本 = CURRENT_SCHEMA_VERSION（唯一手写在 tests/migrations.ts，阶段 69 / FR-145）
+    assert.equal(first.version, CURRENT_SCHEMA_VERSION);
+    assert.equal(second.version, CURRENT_SCHEMA_VERSION);
     assert.equal(second.applied.length, 0, '第二次执行不应重复应用迁移');
     const rows = db
       .prepare("select name from sqlite_master where type = 'table' order by name")

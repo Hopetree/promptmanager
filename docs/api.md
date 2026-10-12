@@ -451,7 +451,7 @@ node bin/pm.mjs token reveal <id>            # 查看明文（本机管理路径
 服务端管理命令（**在服务所在主机上执行**）：
 
 ```bash
-node bin/pm.mjs migrate                          # 幂等迁移 → ok: schema at v3（服务启动时也会自动迁移）
+node bin/pm.mjs migrate                          # 幂等迁移 → ok: schema at vN（N = migrations/ 里的最大编号；服务启动时也会自动迁移）
 printf '%s\n' '你的强口令' | node bin/pm.mjs user set-password --username admin
                                                  # → ok: user admin password updated（绝不打印口令）
                                                  # 注意：该命令会吊销该用户**全部**会话（含当前）

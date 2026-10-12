@@ -1,4 +1,5 @@
 // 阶段 66 / FR-138（BRIEF v77 §6 + §8 AC-128 / D-64）：核心实体 Prompt 的**字段集单一来源**。
+import { MIGRATION_COUNT } from './migrations.ts';
 //
 // 判据分三层：
 //   ① 源码级 —— 7 处不再各自手写字段表（读码可验）；
@@ -340,9 +341,9 @@ test('AC-128 ③：映射助手的 0/1 ↔ boolean 与缺省取值逐条与改�
 
 // ─────────────────────────── AC-128 ⑩⑬：零迁移 / 零新依赖 / 操作说明 ───────────────────────────
 
-test('AC-128 ⑩：零迁移（阶段 66 自己没新增；阶段 68 起总数是 9）与零新增依赖', () => {
+test('AC-128 ⑩：零迁移（阶段 66 自己没新增；总数从 tests/migrations.ts 派生）与零新增依赖', () => {
   const migrations = readdirSync(path.join(ROOT, 'migrations')).filter((name) => name.endsWith('.sql'));
-  assert.equal(migrations.length, 9, `迁移总数必须与目录一致（阶段 68 起是 9 个，实际 ${String(migrations.length)}）`);
+  assert.equal(migrations.length, MIGRATION_COUNT, `迁移总数必须与目录一致（实际 ${String(migrations.length)}）`);
   assert.equal(existsSync(path.join(ROOT, 'migrations', '009_pinned.sql')), false);
   assert.deepEqual(
     migrations.filter((name) => name.startsWith('009')),

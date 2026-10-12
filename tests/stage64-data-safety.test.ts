@@ -1,4 +1,5 @@
 // 阶段 64（FR-132 / FR-133 / FR-134 / FR-135 / AC-126 / D-62）：数据安全与口径。
+import { CURRENT_SCHEMA_VERSION, MIGRATION_COUNT } from './migrations.ts';
 //
 // 四件事，来自设计评审 F4 / F5 / F6 / F9：
 //   ① 导出 / 导入带上提示词的 `sort_order`（拖好的顺序在「导出→导入」与「从云端恢复」后不该归零）；
@@ -702,16 +703,16 @@ test('AC-126 ⑲：非内容字段往返（回归）—— 只改 folder / favor
 
 // ════════════════ E 组：零迁移与现状 ════════════════
 
-test('AC-126 ㉑：零迁移 —— migrations 仍是 8 个文件、schema 仍是 v8', async () => {
+test('AC-126 ㉑：零迁移 —— 阶段 64 自己没新增迁移（总数与版本从 tests/migrations.ts 派生）', async () => {
   const files = readdirSync(path.join(PROJECT_ROOT, 'migrations')).filter((name) => name.endsWith('.sql'));
-  assert.equal(files.length, 9, '阶段 64 自己没新增迁移；阶段 68 起总数是 9（多出 009_fts-update-when.sql）');
+  assert.equal(files.length, MIGRATION_COUNT, '阶段 64 自己没新增迁移；总数从 tests/migrations.ts 派生');
 
   const fx = await makeFixture();
   try {
     const row = readDb(fx, (db) => db.prepare('SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations').get()) as {
       version: number;
     };
-    assert.equal(row.version, 9, 'schema 到 v9（阶段 68 起）');
+    assert.equal(row.version, CURRENT_SCHEMA_VERSION, 'schema 到唯一手写处（tests/migrations.ts）');
   } finally {
     await fx.close();
   }

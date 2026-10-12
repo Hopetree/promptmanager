@@ -1,0 +1,127 @@
+{
+  "baseline_total_gzip": 399175,
+  "floor_ratio": 0.95,
+  "note": "dist/web 的 js+css 合计 gzip（zlib.gzipSync 默认级别）。baseline 是阶段 18 开工前的实测值；entries 是逐阶段**已对账**增量。新增一条请用 `node tools/bundle-budget.mjs --record <阶段> --note \"<依据>\"`，**不要手改本文件**：工具会用当前构建产物实测出 delta（体积下降就是负数，预算会跟着回收）。",
+  "entries": [
+    {
+      "id": "STAGE18",
+      "stage": 18,
+      "delta": 2560,
+      "note": "基线上允许的**已对账**增量（阶段 18 三件事的记账，逐项见 PROGRESS）： ① 分包边界开销：每个 chunk 是一个独立 gzip 流，实测约 +0.4 KB； ② FR-62（编辑器全屏）是**新增功能**，其代码本身（按钮 / 状态 / 全屏逻辑 / CSS）实测约 +1.4 KB； 只做 FR-61（B）时实测 **398,567 B < 基线**（即瘦身本身没有增体积）。"
+    },
+    {
+      "id": "STAGE22",
+      "stage": 22,
+      "delta": 15954,
+      "note": "阶段 22（FR-70 拖拽排序）的**已对账**增量：**实测** +15,954 B gzip。 依据：把 HEAD~2（阶段 21，未引入拖拽库）的 `web/src` 在同一 `node_modules` 下重新构建， 总 gzip = 401,067 B；阶段 22 为 417,021 B ⇒ 差值 15,954 B = `@dnd-kit` 四包（core/sortable/utilities/modifiers， 落在 `vendor-misc` chunk）+ 拖拽/备注样式，减去 FR-71 删掉的正文摘要与元信息代码。 BRIEF FR-70 明确要求\"用成熟库、禁止自己手写拖拽引擎\"，故这笔体积是**规格要求**的代价； 未压缩的最大 chunk 仍为 467,320 B（≤500KB，AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE27",
+      "stage": 27,
+      "delta": 963,
+      "note": "阶段 27（FR-77 ~ FR-81）的**已对账**增量：**实测** +963 B gzip。 依据（2026-09-21）：把本阶段改动前的 `web/src`（HEAD = 阶段 26 收尾）在同一 `node_modules` 下重新 `npm run build:web`，总 gzip = **417,515 B**；本阶段完成后 = **418,478 B** ⇒ 差值 **963 B**。 构成：表格批量工具条 + `rowSelection` + 批量移动弹窗（FR-77）、详情页元信息行（文件夹下拉 + 标签胶囊，FR-78）、 减去移除的「备注」页签（FR-79）与变量区块（FR-80）、VarsDialog 尺寸（FR-81，仅数值改动）后的净值。 未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE29",
+      "stage": 29,
+      "delta": 166,
+      "note": "阶段 29（FR-82 / FR-83）的**已对账**增量：**实测** +166 B gzip。 依据（2026-09-21）：阶段 27 收尾时总 gzip = **418,478 B**（见上一条）；本阶段完成后 = **418,644 B** ⇒ 差值 **166 B**。构成：`app.css` 新增的半选态覆写 + 工具条间距 + 详情 chip 统一（约 +0.4 KB raw / +0.16 KB gzip）， 以及 `PromptDetail.tsx` 的间距/换行保护（无新增依赖、无新增组件）。 未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE31",
+      "stage": 31,
+      "delta": 113,
+      "note": "阶段 31（FR-85 / FR-86）的**已对账**增量：**实测** +113 B gzip。 依据（2026-09-21）：阶段 29 收尾时总 gzip = **418,644 B**（见上一条）；本阶段完成后 = **418,757 B** ⇒ 差值 **113 B**。构成：`UseView.tsx` 表格「标签」列改成 `Flex gap={4} wrap` + 每个 Tag 归零自带 margin（FR-85）、 `VersionPanel.tsx` 新增保留策略文案与回滚确认文案（FR-86）。**无新增依赖、无新增组件、无新增 chunk**。 未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE36",
+      "stage": 36,
+      "delta": 679,
+      "note": "阶段 36（FR-95 / FR-96 / FR-97）的**已对账**增量：**实测** +679 B gzip。 依据（2026-09-22）：阶段 31 收尾时总 gzip = **418,757 B**（见上一条）；本阶段完成后 = **419,436 B** ⇒ 差值 **679 B**。构成：`TokenDrawer.tsx` 的\"预取明文 + 同步复制 + 真「显示」入口 + 硬删除按钮 + 去掉创建弹窗\"（净增）与 `clipboard.ts` 兜底改为 Selection API（新增一条路径，+约 0.3 KB raw）。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍为 470,985 B（≤500KB，AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE37",
+      "stage": 37,
+      "delta": 247,
+      "note": "阶段 37（FR-98 令牌列表折叠排版）的**已对账**增量：**实测** +247 B gzip。 依据（2026-09-22）：阶段 36 收尾总 gzip = **419,436 B**；本阶段完成后 = **419,683 B** ⇒ **+247 B**。 构成：`TokenDrawer` 6 列 → 4 列 + 行展开区（`最近使用`/`操作`/明文折进展开区）+ 两个展开箭头图标。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE43",
+      "stage": 43,
+      "delta": 246,
+      "note": "阶段 43（FR-105 令牌权限可改）的**已对账**增量：**实测** +246 B gzip。 依据（2026-09-22）：把改动前的 `web/src`（HEAD = 阶段 42 收尾 `774836e`）在同一 `node_modules` 下 重新 `npm run build:web`，总 gzip = **419,673 B**；本阶段完成后 = **419,919 B** ⇒ 差值 **246 B**。 构成：`TokenDrawer.tsx` 的「状态」列权限文本包进 antd `Dropdown`（两项菜单 + 手型/title + 只更新该行 state） 与 `api.ts` 的 `setTokenScope`。**无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE48",
+      "stage": 48,
+      "delta": 89,
+      "note": "阶段 48（FR-112 令牌状态列配色）的**已对账**增量：**实测** +89 B gzip。 依据（2026-09-23）：把改动前的 `web/src`（HEAD = 阶段 47 收尾）在同一 `node_modules` 下重新 `npm run build:web`， 总 gzip = **420,053 B**；本阶段完成后 = **420,142 B** ⇒ 差值 **89 B**。 构成：`TokenDrawer.tsx` 引入 `TOKEN_SCOPE_TAG_COLOR`（read=green / write=gold）与 `TOKEN_REVOKED_TAG_COLOR` 两个常量 + 渲染处改用变量取色（原来两处都写死 `color=\"green\"`；新增的 `gold` 走 antd preset 的 CSS-in-JS 分支）。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍 470,985 B（AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE52",
+      "stage": 52,
+      "delta": 202,
+      "note": "阶段 52（FR-116 / AC-117）的**已对账**增量：**实测** +202 B gzip。 依据（2026-09-24）：把本阶段改动前的 `web/src`（`git stash` 掉 UseView / pure / app.css / theme 四处） 在同一 `node_modules` 下重新 `npm run build:web`，总 gzip = **420,165 B**；本阶段完成后 = **420,367 B** ⇒ 差值 **202 B**。构成：`pure.ts` 新增 `folderNameOf` + `CARD_FOLDER_FALLBACK`； `UseView.tsx` 元信息行改为「目录项（含图标）+ 两个分隔符 span + 版本 + 变量数」并删掉取用/日期两项； `theme.ts` 新增 `inkFaint` 一档；`app.css` 新增 `.pm-meta-sep` 规则。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 `vendor-antd` 470,985 B（AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE55",
+      "stage": 55,
+      "delta": 116,
+      "note": "阶段 55（FR-119 ~ FR-123 五项小修）的**已对账**增量：**实测** +116 B gzip。 依据（2026-09-25）：把本阶段改动前的 `web/src`（5 个文件 `git stash` 掉）在同一 `node_modules` 下重新 `npm run build:web`，总 gzip = **420,352 B**；本阶段完成后 = **420,468 B** ⇒ 差值 **116 B**。 构成：使用统计两处口径文案加长、空态两套文案 + `hasActiveFilter` 判定、分隔符色值改写（长度相当）、 Token 掩码列 `104 → 120` 与 `whiteSpace: nowrap`、文件夹列 `width: 86 → minWidth: 110`。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 `vendor-antd` 470,985 B（AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE56",
+      "stage": 56,
+      "delta": 1260,
+      "note": "阶段 56（FR-124 关于页改开源项目形态）的**已对账**增量：**实测** +1,260 B gzip。 依据（2026-09-25）：本阶段开工前（= 阶段 55 收尾）总 gzip = **420,468 B**； 把 `AboutModal.tsx` 换回 HEAD 版本重新 `npm run build:web` 复核仍为 **420,468 B**（确认基线一致）， 本阶段完成后 = **421,728 B** ⇒ 差值 **1,260 B**。 构成：`pm-meta.ts` 元信息读取入口 + `vite.config.ts` 的 package.json 解析/规范化/注入 + 关于页从「服务/使用/维护」三运维分区改为「身份/出处与去向/使用·维护」—— 新增 `ExtLink` 组件、5 行出处条目、关键词标签渲染，并移除原「服务」区的 `Descriptions`。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 `vendor-antd` 470,985 B（AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE57",
+      "stage": 57,
+      "delta": 112,
+      "note": "阶段 57（主题「跟随系统」图标改回电脑图标）的**已对账**增量：**实测** +112 B gzip。 依据（2026-09-28）：把本阶段改动前的 `web/src`（`git stash` 掉 AppHeader / app.css / 本文件三处） 在同一 `node_modules` 下重新 `npm run build:web`，总 gzip = **421,728 B**；本阶段完成后 = **421,840 B** ⇒ 差值 **112 B**。构成：跟随系统态由「`SunOutlined` + `MoonOutlined` 并排的 span」换成单枚 `DesktopOutlined`——`vendor-antd` 里多出电脑图标的 path 数据（约 +0.3 KB gzip）， 减去删掉的 `.pm-theme-icon-both` 两条 CSS 规则（约 -0.2 KB gzip）后的净值。 这笔体积是**用户 2026-09-28 明确要求**（并排图标认不出是在切主题）的代价，不是顺手加功能。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍为 vendor-antd 470,919 B（≤500KB，AC-61 ① 不变）。"
+    },
+    {
+      "id": "STAGE59",
+      "stage": 59,
+      "delta": 5138,
+      "note": "阶段 59（FR-125 远程数据同步）的**已对账**增量：**实测** +5,138 B gzip。 依据（2026-09-30）：`git stash push -u -- web/src` 暂存掉本阶段的前端改动（`SyncModal.tsx` + 接线）， 在同一 `node_modules` 下 `npm run build:web`，总 gzip = **421,850 B**；恢复改动后重建 = **426,988 B** ⇒ 差值 **5,138 B**。构成：新增懒加载 chunk `SyncModal`（约 3.5 KB gzip）+ `web/src/api.ts` 的 5 个方法、 `web/src/types.ts` 的 5 个类型、`web/src/lazy.ts` 的导出、`AppHeader`/`Workspace` 的接线 （打进主包的部分约 1.6 KB gzip）。**无新增依赖、无新增非懒加载 chunk**； 未压缩的最大 chunk 仍是 vendor-antd（470,919 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。 这笔体积是 FR-125 这个**用户要求的新功能**的代价，故按既有口径（基线 + 逐阶段实测增量）对账进预算， **不是**放宽预算。注：该批只改本地验收脚本，无前端改动 ⇒ 没有相应增量。"
+    },
+    {
+      "id": "STAGE60",
+      "stage": 60,
+      "delta": 215,
+      "note": "阶段 60（FR-126 变量默认值）的**已对账**增量：**实测** +215 B gzip。 依据（2026-09-30）：`git stash push -- web/src` 暂存掉本阶段的前端改动，在同一 `node_modules` 下 `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,046 B**；`git stash pop` 恢复后重建 = **427,261 B** ⇒ 差值 **215 B**（正好等于 AC-61 ⑤ 的预算余量被吃掉的部分）。 构成：`web/src/pure.ts` 的默认值正则 + `scanVariablesLocal`/`parseDefaultText` + `previewRender` 分支、 `web/src/api.ts` 的类型、`VarsDialog`/`VariablePanel` 的 `defaults` 状态与占位提示（全部打进主包）。 **无新增依赖、无新增 chunk**；未压缩的最大 chunk 仍是 vendor-antd（470,919 B ≤ 500KB，AC-61 ① 不变）， 入口 chunk 仍 ≤100KB（AC-61 ②）。这笔体积是 FR-126 这个**用户要求的新功能**的代价， 故按既有口径（基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。"
+    },
+    {
+      "id": "STAGE61",
+      "stage": 61,
+      "delta": 452,
+      "note": "阶段 61（FR-127 变量记忆可控 / FR-128 填值弹窗一键清空）的**已对账**增量：**实测** +452 B gzip。 依据（2026-10-10）：`git stash push -- web/src` 暂存掉本阶段的前端改动，在同一 `node_modules` 下 `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,261 B**；`git stash pop` 恢复后重建 = **427,713 B** ⇒ 差值 **452 B**。迭代中间态（同一口径实测）：427,654 B / +393 B（首版）→ 427,674 B / +413 B（按 AC-123 ⑧ 修掉「不记住时输入框残留上次手打的字」：`VarsDialog.load()` 改为把**每个变量**都显式写一遍表单，而不是只 `setFieldsValue(initial)`）→ 427,681 B / +420 B （`Workspace.tsx` 的 `EMPTY_DRAFT` 补 `remember_variables: true`，让「新建」草稿与服务端默认一致， 否则 `typecheck:web` 报 TS2741）→ 427,713 B / +452 B（对抗性复核后的三处修复：把逐变量写表单的口径 提成 `pure.ts` 的 `varsFormValues` 以便机械验证、`VarsDialog.load()` 先同步置勾选态并用 `loadingIdRef` 丢弃过期响应、勾选框加载中 `disabled`）。 构成：`web/src/pure.ts` 的记忆读写助手（`VARS_STORAGE_PREFIX` / `readRememberedVars` / `writeRememberedVars` / `removeRememberedVars` / `varsDialogTitle` / `missingVariables` / `hasAnyFilled`）、 `VarsDialog` 的勾选框、「清空」按钮与逐变量写表单、`PromptEditor` 的「记住变量值」开关、`Workspace` 的 `setRememberVariables` 接线、`web/src/types.ts` 的新字段（全部打进主包）。 **无新增依赖、无新增 chunk**（仍 10 个）；未压缩的最大 chunk 仍是 vendor-antd （470,946 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。 这笔体积是 FR-127/FR-128 这两个**用户要求的新功能**的代价，故按既有口径 （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。"
+    },
+    {
+      "id": "STAGE62",
+      "stage": 62,
+      "delta": 132,
+      "note": "阶段 62（FR-129 版本号只记「内容变更」）的**已对账**增量：**实测** +132 B gzip。 依据（2026-10-10，返工 ①）：`git stash push -- web/src` 暂存掉返工的前端改动，在同一 `node_modules` 下 `npm run build:web`，`dist/web/assets` 的 js+css 总 gzip = **427,713 B**（= 阶段 61 的落点）； `git stash pop` 恢复后重建 = **427,845 B** ⇒ 差值 **132 B**。 构成：`web/src/pure.ts` 新增纯函数 `rollbackNotice(target, before, after)` 与 `RollbackNotice` 类型、`web/src/components/VersionPanel.tsx` 的 `rollback()` 改为接住 `api.rollback` 的返回值并 按 `updated.version_no` 分支（`message.info` / `message.success`）、两处 Popconfirm 描述改为 「内容与当前不同时会生成一个新版本」、表格视图 Alert 改为「回滚到不同内容时会生成新版本」 （全部打进主包）。 ⚠️ 阶段 62 的**主改动在服务端**（`src/services/prompts.ts` / `versions.ts`），不进前端 bundle； 这 132 B 只来自返工 ① 的文案修复 —— 起因是独立对抗性复核发现：回滚到「内容与当前相同」的版本时 服务端不产生新版本（AC-124 ⑭），而旧文案仍无条件宣称「已生成新版本」/「回滚会生成新版本」。 **无新增依赖、无新增 chunk**（仍 10 个）；未压缩的最大 chunk 仍是 vendor-antd （470,946 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。 这笔体积是「让提示与真实行为一致」的必要代价，故按既有口径 （基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。"
+    },
+    {
+      "id": "STAGE64",
+      "stage": 64,
+      "delta": 166,
+      "note": "阶段 64（FR-132 / FR-134）的实测增量：**166 B**。 口径同前（`git stash push -- web/src` → 同一 node_modules 下 `npm run build:web` → 量 `dist/web/assets` 的 js+css 总 gzip → `git stash pop` 重建）： 开工前 = **427,724 B**（= 阶段 62 的落点 427,845 − 阶段 63 前端重构收回的 121 B）， 改完 = **427,890 B** ⇒ 差值 **166 B**。 构成：`web/src/pure.ts` 新增 `usageHistoryNotice()`（把「取用历史被清空了多少条、备份在哪」说成人话， 导入弹窗与云端恢复弹窗共用）、`web/src/types.ts` 新增 `UsageHistoryReport` 并把 `usage_history` 加进 `ImportResult` / `SyncPullResult`、`ImportExportModal.tsx` 与 `SyncModal.tsx` 两处文案接线。 ⚠️ 本阶段的**主改动在服务端**（导出 / 导入 / 取用口径 / 事务边界），不进前端 bundle； 这 166 B 只来自\"不静默\"这条要求必须在界面上也说到。**无新增依赖、无新增 chunk**（仍 10 个）； 未压缩的最大 chunk 仍是 vendor-antd（470,946 B ≤ 500KB，AC-61 ① 不变），入口 chunk 仍 ≤100KB（AC-61 ②）。 按既有口径（基线 + 逐阶段实测增量）对账进预算，**不是**放宽预算。"
+    },
+    {
+      "id": "STAGE65",
+      "stage": 65,
+      "delta": 184,
+      "note": "阶段 65「前端状态收敛 + 两个用户可见缺陷」（FR-136 / FR-137）的前端增量。 构成：`Workspace.tsx` 把 6 处 prompt 副本收敛成单一数据源（`Map<number, Prompt>` + `listIds` + 派生 `selected`/`detail`/`editing` + `mergePrompts`/`dropPrompts`），删掉 4 套手写 merge；`use-copy.ts` 只存 `varsPromptId`；`PromptEditor.tsx` 加 `lastFilled` 稳定标识；`VarsDialog.tsx` 加 `loadedIdRef`； 另加一个测试定位用 testid（`pm-editor-list-item-<id>`）。**净增 184 B**。 口径（与既有阶段一致）：`git stash push -- web/src` ⇒ `npm run build:web` ⇒ js+css 合计 gzip = 427,890 B（基线）；收敛后同一口径 = 428,057 B ⇒ 差值 **167 B**。 收尾时又发现并修掉一个**同类缺陷**（渲染级 B7 + 真浏览器实证）：点编辑器里的星标后，表单里的 「收藏」开关不再跟着变（FR-136 ① 不再整体重填表单的代价），而保存时 `favorite` 正是从表单里读的 ⇒ 点完星标再保存会把收藏状态改回去。修法是点星标时**只**同步这一个字段 （`form.setFieldsValue({ favorite: !target.favorite })`），并给该开关加 testid `editor-favorite` ⇒ 同一口径再测 = **428,074 B**，故本阶段按 **184 B** 记账（167 + 17）。 **无新增依赖、无新增 chunk** （仍 10 个），未压缩的最大 chunk 仍是 vendor-antd（470,946 B ≤ 500KB，AC-61 ① 不变）， 入口 chunk 仍 ≤100KB（AC-61 ②）。按既有口径逐阶段记账，**不是**放宽预算。"
+    },
+    {
+      "id": "DEPS_2026_09_30",
+      "stage": "deps_2026_09_30",
+      "delta": 26,
+      "note": "依赖补丁升级带来的**构建侧漂移**（2026-09-30 的 bot 合并记账）。 起因：dependabot 一次性合了 9 个 PR（vite 8.3.1→8.3.2 / jsdom / dompurify / `@fastify/static` / `@modelcontextprotocol/sdk`），**每个 PR 单独跑 CI 都是绿的**， 合到一起后总 gzip 涨了 26 B ⇒ `main` 上的 `ci` 变红（典型的「语义冲突」）。 归因（已核实）：只有 **vite** 影响前端产物；其余四个都在服务端或开发侧 （`grep marked|dompurify dist/web/assets/*.js` 为空 ⇒ 它们不进前端 bundle）。 口径：这类漂移**不是我们的代码增长**，但仍按本测试的纪律**逐项记账** —— 以后再合依赖补丁导致体积变化时，同样在这里加一条，不要放宽基线。"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 // 阶段 50 / FR-114（取用语义修正：「打开详情」不算取用）断言。
+import { CURRENT_SCHEMA_VERSION } from './migrations.ts';
 //
 // 覆盖：迁移 006 的存在与口径、`kind` 的类型/缺省、**打开详情记 `view` 且不计入**、
 // **render 与 MCP 计入**、三处聚合（详情 / 列表 / summary）**同一口径**、表结构与导出格式未变。
@@ -14,7 +15,9 @@ import type { Fixture } from './helpers.ts';
 import { cookieOf, login, makeFixture, readDb } from './helpers.ts';
 import { readRaw, readSource } from './source-text.ts';
 
-const MIGRATION_FILES = [
+// 这是**只到 005 的历史快照**（本用例要造"006 之前的库"），不是当前迁移清单 ——
+// 当前迁移清单的唯一来源是 tests/migrations.ts 的 MIGRATION_FILES（阶段 69 / FR-145）。
+const LEGACY_MIGRATION_FILES = [
   '001_init.sql',
   '002_tokens-and-usage.sql',
   '003_prompt-sort-order.sql',
@@ -66,7 +69,7 @@ test('AC-115 ⑨：迁移 006 存在且口径正确 —— 旧行一律填 copy�
   try {
     const db = new Database(path.join(dir, 'pm.db'));
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at TEXT NOT NULL);');
-    for (const file of MIGRATION_FILES) {
+    for (const file of LEGACY_MIGRATION_FILES) {
       db.exec(readRaw(path.join('migrations', file)));
       db.prepare('INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)').run(
         Number.parseInt(file, 10),
@@ -86,7 +89,7 @@ test('AC-115 ⑨：迁移 006 存在且口径正确 —— 旧行一律填 copy�
     assert.equal(before, 3);
 
     const result = runMigrations(db);
-    assert.equal(result.version, 9, '迁移必须到当前版本（阶段 68 起是 v9；本用例只关心 006 的应用）');
+    assert.equal(result.version, CURRENT_SCHEMA_VERSION, '迁移必须到当前版本（唯一手写在 tests/migrations.ts；本用例只关心 006 的应用）');
     assert.ok(result.applied.includes('006_usage-kind.sql'), '006 应被应用');
 
     const columns = (db.prepare('PRAGMA table_info(usage_events)').all() as Array<{ name: string }>).map((r) => r.name);

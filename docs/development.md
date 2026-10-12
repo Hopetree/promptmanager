@@ -18,7 +18,7 @@
 | `src/mcp/` | MCP 工具面（`server.ts`，三个只读工具） |
 | `src/client/pm-api.ts` | 使用侧 CLI 走的 HTTP 客户端 |
 | `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/pure.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
-| `migrations/` | `001_init.sql` … `009_fts-update-when.sql`（**共 9 个**；**已应用的不要改**，新增走**下一个编号**，以目录里最大号为准） |
+| `migrations/` | `001_init.sql` … `010_migration-checksums.sql`（**共 10 个**；**已应用的不要改**，新增走**下一个编号**，以目录里最大号为准） |
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
 | `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`ui-shots.sh` + `ui-shot.mjs`（界面截图）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh` |
 | `deploy/` | 交付物（**本仓库不部署它们**）：systemd unit / env 模板 / 部署说明 / 反代样例 / 容器说明 |
@@ -40,7 +40,7 @@ npm run build:web         # 只构建前端
 npm test                  # 全量测试（自带构建 + 类型检查；用例数只增不减，以 CI 输出为准）
 npm run typecheck:web     # 前端类型检查
 npm run typecheck:tests   # 测试类型检查（**自带 build:server 前置**，见 §3）
-npm run migrate           # 幂等迁移 → ok: schema at v9
+npm run migrate           # 幂等迁移 → ok: schema at v10
 npm start                 # 启动服务（默认 0.0.0.0:8767）
 ```
 
@@ -144,6 +144,38 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 | `../SECURITY.md` / `../CONTRIBUTING.md` | 报告漏洞的人 / 贡献者 | 漏洞报告渠道 / 环境与质量门 / 提交规矩 |
 | [`../deploy/README.md`](../deploy/README.md) | 运维 | systemd 安装 / 验证 / 回滚 / 排错 |
 | [`../deploy/container.md`](../deploy/container.md) | 运维 | 容器构建 / 运行 / 镜像发布 / 备份 / 实测踩坑 |
+
+---
+
+## 7.1 加一个迁移该动哪里（阶段 69 / FR-145）
+
+**一处绊线，其余派生。** 迁移数与当前 schema 版本**只在一个地方手写**：
+
+| 位置 | 内容 |
+| --- | --- |
+| `tests/migrations.ts` | `CURRENT_SCHEMA_VERSION` —— **唯一手写的数字**（绊线）；`MIGRATION_FILES` / `MIGRATION_COUNT` / `LATEST_MIGRATION` 全部从 `migrations/` 目录派生 |
+
+**加一个迁移的步骤**：① `migrations/` 新建下一个编号的 `.sql`（编号 = 目录里最大号 + 1，**已应用的不要改**）；
+② 把 `tests/migrations.ts` 的 `CURRENT_SCHEMA_VERSION` 改成新版本号（**只此一处**）；
+③ 同步下面 5 处文档里的数字（都有测试盯着，漏改会红）。
+
+| 文档 | 要改什么 |
+| --- | --- |
+| `AGENTS.md` §3 命令表 | `ok: schema at vN` |
+| `AGENTS.md` §4 布局表 | `migrations/` 行的文件数与末位文件名 |
+| `AGENTS.md` §6 | 文件数、`001` … `NNN`、`ok: schema at vN` |
+| `docs/development.md` §1 结构表 | `migrations/` 行的文件数与末位文件名 |
+| `docs/development.md` §2 命令块 | `ok: schema at vN` |
+
+**实测收益**（口径：加一个迁移时必须跟着改的**测试文件数**；详见 `tmp/dev-process/PROGRESS.md` 阶段 69 §9.4）：
+
+- 改前（`cb62293`，schema v9）：**11 个测试文件**（9 个写死 `version, 9` / `schema at v9`，
+  4 个写死迁移数，1 个字面量列出完整清单，去重后 11 个）
+- 改后：**1 个**（`tests/migrations.ts` 的绊线）
+
+**绊线仍在**（双向验证过）：删掉一个迁移文件、或把 `CURRENT_SCHEMA_VERSION` 改大，`tests/stage69-mechanical-accounting.test.ts`
+都会红；改动**已应用**的迁移（哪怕一个字节、一个注释）则由 `tests/stage69-migration-checksums.test.ts`
+的冻结指纹与运行器的 checksum 校验一起盯住。
 
 ---
 

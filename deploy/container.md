@@ -183,7 +183,7 @@ MCP 端点本身**无状态**（不建会话、不做 SSE 长连），所以不�
 | 跨机可达 | 从另一台机器访问 `http://<宿主>:<映射端口>/healthz` → `{"status":"ok","version":"1.0.0"}`；未认证 `/api/prompts` → **401** |
 | 功能 | 登录 ✓ / 新建 prompt ✓ / 列表 ✓ / 变量渲染（`你好 {{名字}}` → `你好 世界`）✓ |
 | 真实渲染 | headless chromium 打开首页 → 登录页**渲染出内容** ✅（不是白屏） |
-| 迁移 | 容器内 `node bin/pm.mjs migrate` → `ok: schema at v3` ✅ |
+| 迁移 | 容器内 `node bin/pm.mjs migrate` → `ok: schema at vN`（N = `migrations/` 里的最大编号） ✅ |
 | 数据持久化 | `docker restart` 后数据仍在 ✅ |
 | 标签/TTL | 5 个 `greenhouse.*` 标签齐全（部署到本机容器环境时按本机规范填） ✅ |
 

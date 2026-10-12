@@ -1,4 +1,5 @@
 // 阶段 68 / FR-140（AC-130 ①②③④⑤）：FTS 触发器加 `WHEN` 子句。
+import { CURRENT_SCHEMA_VERSION, MIGRATION_COUNT } from './migrations.ts';
 //
 // 问题（设计评审 F10）：`migrations/001_init.sql` 的 `prompts_fts_au`（`AFTER UPDATE ON prompts`）
 // **没有 `WHEN`** ⇒ 改收藏 / 拖拽排序 / 切「记住变量值」/ 移动目录这些**不碰被索引列**的写入，
@@ -69,8 +70,9 @@ test('AC-130 ①：新增迁移 009 重建带 WHEN 的 AFTER UPDATE 触发器，
   const files = readdirSync(path.join(PROJECT_ROOT, 'migrations'))
     .filter((name) => /^\d{3}_.*\.sql$/.test(name))
     .sort();
-  assert.equal(files.length, 9, `迁移数应为 9（实测 ${String(files.length)}：${files.join(', ')}）`);
-  assert.equal(files.at(-1), '009_fts-update-when.sql');
+  assert.equal(files.length, MIGRATION_COUNT, `迁移数必须与目录一致（实测 ${String(files.length)}：${files.join(', ')}）`);
+  // 009 之后还会有新迁移（阶段 69 起是 010）⇒ 这里只断言 009 存在，不再断言它是最后一个
+  assert.ok(files.includes('009_fts-update-when.sql'), '009 必须还在目录里');
 
   // 断言的是**剥掉注释后的代码**：WHEN 子句必须真的在 SQL 里，不能只是注释里写了
   const migration = readSource('migrations/009_fts-update-when.sql');
@@ -102,7 +104,7 @@ test('AC-130 ②：迁移在已有数据的库上执行后，改 4 个被索引�
       const row = db.prepare('select max(version) as v from schema_migrations').get() as { v: number };
       return row.v;
     });
-    assert.equal(version, 9, '复用既有 DATA_DIR 启动后，009 应已应用 ⇒ schema v9');
+    assert.equal(version, CURRENT_SCHEMA_VERSION, '复用既有 DATA_DIR 启动后，009 应已应用 ⇒ schema 到唯一手写处');
 
     const cases: Array<{ field: keyof typeof LEGACY_ROW; next: string }> = [
       { field: 'title', next: '新标甲' },
@@ -158,7 +160,7 @@ test('AC-130 ③：改非索引列不触发重建（total_changes 口径，含"�
   const db = openDatabase(loadConfig({ DATA_DIR: dir }));
   try {
     const result = runMigrations(db);
-    assert.equal(result.version, 9);
+    assert.equal(result.version, CURRENT_SCHEMA_VERSION);
     const info = db
       .prepare(
         'insert into prompts (title, user_prompt, system_prompt, notes, created_at, updated_at) values (?, ?, ?, ?, ?, ?)',
@@ -215,8 +217,8 @@ test('AC-130 ④⑤：_ai / _ad 行为不变；迁移幂等（重复执行不报
   try {
     const first = runMigrations(db);
     const second = runMigrations(db);
-    assert.equal(first.version, 9);
-    assert.equal(second.version, 9);
+    assert.equal(first.version, CURRENT_SCHEMA_VERSION);
+    assert.equal(second.version, CURRENT_SCHEMA_VERSION);
     assert.equal(second.applied.length, 0, '第二次执行不应重复应用迁移');
     assert.equal(triggerCount(db), 1, 'prompts_fts_au 应恰好一个');
 
