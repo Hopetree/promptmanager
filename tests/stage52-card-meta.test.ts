@@ -172,7 +172,15 @@ test('AC-117 ⑥⑨：表格视图与分栏视图完全没动；接口契约与�
     assert.equal(itemBlock.includes(banned), false, `分栏中栏不得出现 ${banned}`);
   }
   // 前端类型契约未改：Prompt 仍是 folder_id（没有新增 folder_name 字段）
+  // 阶段 66（FR-138）：`Prompt` 的字段集改为派生自 `src/prompt-columns.ts`，声明搬到了那份共享列清单，
+  // 因此这里改读列清单 —— 判据不变（folder_id 的契约侧类型仍是 number | null、没有 folder_name）。
   const types = src('types.ts');
-  assert.ok(/folder_id: number \| null;/.test(types), 'Prompt.folder_id 语义未变');
+  const columns = readFileSync(path.join(ROOT, 'src', 'prompt-columns.ts'), 'utf8');
+  assert.ok(
+    /folder_id: \{[\s\S]*?api: 'number-null'/.test(columns),
+    'Prompt.folder_id 语义未变（契约侧仍是 number | null）',
+  );
+  assert.ok(types.includes('export type Prompt = PromptEntity;'), 'Prompt 仍派生自共享列清单（FR-138）');
   assert.equal(types.includes('folder_name'), false, '没有给契约新增字段（本阶段选择前端映射）');
+  assert.equal(columns.includes('folder_name'), false, '没有给契约新增字段（本阶段选择前端映射）');
 });

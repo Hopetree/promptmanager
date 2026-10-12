@@ -419,9 +419,16 @@ test('AC-126 ⑩：历史数据不重算 —— kind 为 NULL 的行按 copy 计
   try {
     const cookie = await authed(fx);
     const id = await createPrompt(fx, cookie, { title: 'AC126 历史行' });
-    insertUsage(fx, id, 'session', null, NOW);
-    insertUsage(fx, id, 'session', 'view', NOW);
-    insertUsage(fx, id, 'token', 'copy', NOW);
+    /**
+     * ⚠️ 既有缺陷（阶段 66 发现，与本次改动无关，在父提交 `3dc0352` 上同样红）：
+     * 本用例原先用固定的 `NOW`（2026-10-11T00:00Z）灌行，却用 `days=1` 的**相对**窗口查统计 ⇒
+     * 真实时钟走过 NOW + 24h 之后，这些行就落在窗口外（本仓库的机器时钟一到 2026-10-12T00:00 就红）。
+     * 这里改成"刚刚"，语义不变：要验的是 `kind` 为 NULL 视作 copy、view 不计入，不是时间窗口。
+     */
+    const recent = new Date().toISOString();
+    insertUsage(fx, id, 'session', null, recent);
+    insertUsage(fx, id, 'session', 'view', recent);
+    insertUsage(fx, id, 'token', 'copy', recent);
 
     const detail = await fx.app.inject({ method: 'GET', url: `/api/prompts/${String(id)}`, headers: { cookie } });
     // 注意：这一次 GET 自己也会写一条 view 行，但它不该被计入

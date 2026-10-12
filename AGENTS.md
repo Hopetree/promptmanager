@@ -125,6 +125,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 | --- | --- |
 | `bin/` | Two entry points: `pm.mjs` (CLI, delegates to `dist/server/cli.js`) and `pm-mcp.mjs` (MCP stdio entry). |
 | `src/config.ts` | Runtime config (`HOST` / `PORT` / `DATA_DIR` / ... defaults and validation). `findProjectRoot()` locates the repo root by the `name` field in `package.json`. |
+| `src/prompt-columns.ts` | **The single source of the prompt field set** (FR-138): the 12-column spec table plus every type / JSON-schema / export-import mapping derived from it. Adding a prompt field starts here - see `docs/development.md` section 7. |
 | `src/server/` | HTTP layer: `index.ts` (**process entry**, listen + graceful shutdown), `app.ts` (assembles Fastify, mounts routes and static hosting), `cli.ts` (CLI implementation), `auth.ts` (session / Bearer gate), `params.ts`, `routes/*.ts` (auth, prompts, folders, tags, export, render, tokens, usage, sync, health). |
 | `src/services/` | Domain logic: `prompts.ts`, `folders.ts`, `tags.ts`, `versions.ts`, `variables.ts`, `markdown.ts`, `export.ts`, `import.ts`, `tokens.ts`, `usage.ts`, `auth.ts`, `sync.ts` / `sync-github.ts` / `sync-config.ts` (GitHub snapshot push/pull). |
 | `src/db/` | Data layer: `index.ts` (connection / QueryEngine), `migrate.ts` (applies `migrations/*.sql`), `schema.ts` (kysely table types), `prompt-queries.ts`, `prompt-versions.ts`, `search.ts` (FTS5 trigram with LIKE fallback). |
@@ -132,7 +133,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
 | `migrations/` | `001_init.sql` ... `008_remember-variables.sql` (**8 files**, applied in order; see section 6). |
-| `tests/` | `node:test` cases (90 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
+| `tests/` | `node:test` cases (91 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans**: `api.md` (HTTP/CLI/MCP reference), `development.md` (build/test/structure), `traps.md` (why the code looks like this), `dependencies.md` (deps + licenses + audits), `versioning.md` (release rules), `search-zh.md` (search measurements), `README.md` (what this directory is), `shots/` (**one** set of key page shots, 8 PNGs). **No process state.** See section 5.1. |
 | Root files | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.nvmrc` / `.npmrc`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/*.yml`. **No requirements/progress/acceptance files** - those are local (section 13). |
@@ -214,7 +215,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (90 files, **614** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (91 files, **620** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared

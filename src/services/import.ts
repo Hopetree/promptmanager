@@ -1,6 +1,11 @@
 import type { QueryEngine } from '../db/index.js';
 import { pruneVersions } from '../db/prompt-versions.js';
 import { InvalidImportError, isConstraintError } from '../errors.js';
+import {
+  promptImportedColumns,
+  promptImportedColumnsWithoutId,
+  type PromptExportedColumns,
+} from '../prompt-columns.js';
 import { nowIso } from './auth.js';
 import { EXPORT_APP, SUPPORTED_SCHEMA_VERSION } from './export.js';
 import { countUsageEvents, pruneUsageBackups, readUsageEvents, removeUsageBackup, writeUsageBackup } from './usage-backup.js';
@@ -53,29 +58,28 @@ interface ImportOutcome {
   imported: ImportCounts;
 }
 
-interface NormalizedPrompt {
-  id: number;
+/** 导出文件里的版本快照（导入侧自己声明，便于逐字段校验）。 */
+interface NormalizedVersion {
+  version_no: number;
   title: string;
   user_prompt: string;
   system_prompt: string;
   notes: string;
-  folder_id: number | null;
-  /** FR-132：缺省 0（阶段 64 之前的导出文件里没有这一项）。 */
-  sort_order: number;
-  tags: string[];
-  favorite: boolean;
-  /** FR-127：缺省 = 记住（老导出文件里没有这一项，必须按既有行为处理）。 */
-  remember_variables: boolean;
   created_at: string;
-  updated_at: string;
-  versions: Array<{
-    version_no: number;
-    title: string;
-    user_prompt: string;
-    system_prompt: string;
-    notes: string;
-    created_at: string;
-  }>;
+}
+
+/**
+ * 归一化后的 prompt 条目。
+ *
+ * FR-138 / D-64：**列字段那一半派生**自 `src/prompt-columns.ts`（`exported: true` 的 11 列）；
+ * `tags`（关联表）与 `versions`（版本快照）不是列，单独声明。
+ *
+ * 派生带来的一处**编译期保障**：列清单里加一个 `exported` 字段，这里就会因缺字段而类型检查失败
+ * ⇒ 归一化必须跟着补，堵住"导入静默丢字段"的口子。
+ */
+interface NormalizedPrompt extends PromptExportedColumns {
+  tags: string[];
+  versions: NormalizedVersion[];
 }
 
 interface NormalizedFile {
@@ -339,18 +343,9 @@ async function replaceImport(qe: QueryEngine, file: NormalizedFile): Promise<Imp
       await trx
         .insertInto('prompts')
         .values({
-          id: prompt.id,
-          title: prompt.title,
-          user_prompt: prompt.user_prompt,
-          system_prompt: prompt.system_prompt,
-          notes: prompt.notes,
-          folder_id: prompt.folder_id,
-          sort_order: prompt.sort_order,
-          favorite: prompt.favorite ? 1 : 0,
-          remember_variables: prompt.remember_variables ? 1 : 0,
+          // FR-138：列的值由列清单派生（含 favorite / remember_variables 的 true/false → 1/0）。
+          ...promptImportedColumns(prompt),
           version_no: maxVersionNo(prompt),
-          created_at: prompt.created_at,
-          updated_at: prompt.updated_at,
         })
         .execute();
 
@@ -451,17 +446,11 @@ async function mergeImport(qe: QueryEngine, file: NormalizedFile): Promise<Impor
       const inserted = await trx
         .insertInto('prompts')
         .values({
-          title: prompt.title,
-          user_prompt: prompt.user_prompt,
-          system_prompt: prompt.system_prompt,
-          notes: prompt.notes,
+          // FR-138：列的值由列清单派生；merge 模式**不带文件里的 id**（本地重建新行），
+          // 且 `folder_id` 要映射到本次新建的文件夹。
+          ...promptImportedColumnsWithoutId(prompt),
           folder_id: prompt.folder_id === null ? null : folderIdMap.get(prompt.folder_id) ?? null,
-          sort_order: prompt.sort_order,
-          favorite: prompt.favorite ? 1 : 0,
-          remember_variables: prompt.remember_variables ? 1 : 0,
           version_no: maxVersionNo(prompt),
-          created_at: prompt.created_at,
-          updated_at: prompt.updated_at,
         })
         .returning('id')
         .executeTakeFirstOrThrow();

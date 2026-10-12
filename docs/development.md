@@ -144,3 +144,51 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 | `../SECURITY.md` / `../CONTRIBUTING.md` | 报告漏洞的人 / 贡献者 | 漏洞报告渠道 / 环境与质量门 / 提交规矩 |
 | [`../deploy/README.md`](../deploy/README.md) | 运维 | systemd 安装 / 验证 / 回滚 / 排错 |
 | [`../deploy/container.md`](../deploy/container.md) | 运维 | 容器构建 / 运行 / 镜像发布 / 备份 / 实测踩坑 |
+
+---
+
+## 7. 加一个 Prompt 字段该动哪里（字段集单一来源）
+
+Prompt 的字段集**只有一处声明**：[`../src/prompt-columns.ts`](../src/prompt-columns.ts) 里的
+`PROMPT_COLUMNS`（`as const` 的列清单，每列带 `sql` / `generated` / `api` / `exported` / `writable`
+与各自的 `default`、JSON Schema 片段）。DB 表类型、服务层实体类型、前端类型、导出/导入映射、
+HTTP 校验 schema 全部由它**派生** —— "漏一处就静默出错"（校验放行但落库忽略、导出静默丢字段）
+在结构上被堵住了。
+
+**加一个字段，按这个顺序做：**
+
+1. **写进列清单** —— 在 `src/prompt-columns.ts` 的 `PROMPT_COLUMNS` 里加一条，6 个键都填。
+   契约字段名、DB 类型、能不能写、随不随导出走、缺省值、JSON Schema，都在这一条里。
+2. **加迁移** —— `migrations/` 里新建下一个编号的 `.sql`（编号 = 目录里最大号 + 1）。
+   这一步**无法派生**：列必须真的存在。**已应用的迁移不要改。**
+3. **跑类型检查，让编译器点名剩下的地方**（本阶段的核心收益：从"靠人记住"变成"编译器点名"）：
+
+   ```bash
+   npm run typecheck:web
+   npm run typecheck:tests
+   ```
+
+   实测（阶段 66 的加字段演练，字段名 `pinned`，可写 + 随导出走）被点名的只有：
+
+   | 文件 | 为什么必须改 |
+   | --- | --- |
+   | `src/services/import.ts` | 导出文件的解析/归一化 —— 新字段必须从文件里读出来，否则导入会静默丢掉它 |
+   | `web/src/components/Workspace.tsx` | `EMPTY_DRAFT` 字面量（新建草稿的缺省值） |
+   | `tests/render/*.test.ts` | 渲染级夹具里的 `makePrompt()` 字面量（字段出现在夹具里时） |
+
+4. **界面** —— 这个字段若要能在界面上改，界面本身仍是产品工作（表单控件 + 保存 payload），
+   派生帮不到你；但那已经不是"字段集漂移"问题了。
+
+**不需要再手改的地方**（改前要一处一处跟着改，现在自动跟着走）：`src/db/schema.ts`（表类型）、
+`src/services/prompts.ts`（实体类型 / create 缺省 / PUT 子集）、`src/services/export.ts`（导出字段与映射）、
+`src/server/routes/prompts.ts`（`POST` / `PUT` 的 JSON Schema，且两者是**同一份**）、`web/src/types.ts`（前端类型）。
+
+**两处有意保留的例外**（都在同一份清单里声明，不是第二份字段表）：
+
+- kysely 的 `Generated<>` 包装层（`id` / `sort_order` 这两个有 `DEFAULT` 的列）留在 `src/db/schema.ts` ——
+  它套的是列清单给出的类型，`generated` 标记仍来自清单。
+- `tags`（关联表）与 `use_count` / `last_used_at`（取用聚合）**不是列**，在清单里单独声明。
+
+> 演练实测（阶段 66 / AC-128 ④⑤）：加一个"可写 + 随导出走"的布尔字段，**必须改的文件从阶段 61 的
+> 27 个降到 6 个**（列清单自身 1 + 迁移 1 + 类型检查点名 4）。原样输出见本地进度日志
+> `tmp/dev-process/PROGRESS.md`。

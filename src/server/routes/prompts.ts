@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { NotFoundError } from '../../errors.js';
+import { PROMPT_WRITABLE_FIELDS } from '../../prompt-columns.js';
 import {
   bulkPrompts,
   createPrompt,
@@ -62,33 +63,19 @@ const promptBulkSchema = {
   },
 } as const;
 
-const writableFields = {
-  title: { type: 'string', maxLength: 500 },
-  user_prompt: { type: 'string', maxLength: 200_000 },
-  system_prompt: { type: 'string', maxLength: 200_000 },
-  notes: { type: 'string', maxLength: 200_000 },
-  folder_id: { type: ['integer', 'null'], minimum: 1 },
-  tags: {
-    type: 'array',
-    maxItems: 50,
-    items: { type: 'string', minLength: 1, maxLength: 64 },
-  },
-  favorite: { type: 'boolean' },
-  /** FR-127 / D-59：是否记住这个提示词的变量值（默认 true）。 */
-  remember_variables: { type: 'boolean' },
-} as const;
-
-const createPromptSchema = {
+/**
+ * `POST` / `PUT` 的 body schema。
+ *
+ * FR-138 / D-64：`properties` **派生**自 `src/prompt-columns.ts` 的列清单（可写列的 JSON Schema
+ * 片段写在各列的 `schema` 上），本文件不再手写字段表。
+ *
+ * AC-128 ②：create 与 update **合成一份** —— PUT 是"可写字段的子集"（BRIEF §6.1），
+ * 两者的 properties 本来逐字相同，因此不设 `required`。
+ */
+const promptWritableSchema = {
   type: 'object',
   additionalProperties: false,
-  properties: writableFields,
-} as const;
-
-/** PUT 是"可写字段的子集"（BRIEF §6.1），因此不设 required。 */
-const updatePromptSchema = {
-  type: 'object',
-  additionalProperties: false,
-  properties: writableFields,
+  properties: PROMPT_WRITABLE_FIELDS,
 } as const;
 
 /** diff 的两个版本号都是**必填**（缺参 → 400，BRIEF §6.1）。 */
@@ -153,7 +140,7 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     return reply.code(204).send();
   });
 
-  app.post('/api/prompts', { schema: { body: createPromptSchema } }, async (request, reply) => {
+  app.post('/api/prompts', { schema: { body: promptWritableSchema } }, async (request, reply) => {
     const prompt = await createPrompt(app.qe, request.body as CreatePromptInput);
     return reply.code(201).send(prompt);
   });
@@ -184,7 +171,7 @@ export function registerPromptRoutes(app: FastifyInstance): void {
     return (await getPrompt(app.qe, id)) ?? prompt;
   });
 
-  app.put('/api/prompts/:id', { schema: { body: updatePromptSchema } }, async (request) => {
+  app.put('/api/prompts/:id', { schema: { body: promptWritableSchema } }, async (request) => {
     const id = parsePositiveId((request.params as { id?: string }).id);
     return updatePrompt(app.qe, id, request.body as UpdatePromptInput);
   });

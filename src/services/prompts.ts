@@ -3,52 +3,28 @@ import { pruneVersions } from '../db/prompt-versions.js';
 import { searchPrompts } from '../db/prompt-queries.js';
 import type { PromptRow } from '../db/schema.js';
 import { constraintKind, InvalidBodyError, NotFoundError, isConstraintError } from '../errors.js';
+import {
+  promptCreateColumns,
+  promptEntityColumnsFrom,
+  promptPatchColumns,
+  type PromptEntity,
+  type PromptWritable,
+} from '../prompt-columns.js';
 import { nowIso } from './auth.js';
 import { descendantFolderIds } from './folders.js';
 import { usageStatsOf, type UsageStats } from './usage.js';
 
-/** 契约里的 Prompt 对象（BRIEF §6.1；字段名固定）。 */
-export interface PromptObject {
-  id: number;
-  title: string;
-  user_prompt: string;
-  system_prompt: string;
-  notes: string;
-  folder_id: number | null;
-  tags: string[];
-  favorite: boolean;
-  /** FR-127：这个提示词是否记住填过的变量值（默认 true = 记住）。 */
-  remember_variables: boolean;
-  created_at: string;
-  updated_at: string;
-  version_no: number;
-  /** 只读：被"取用"（详情/渲染/MCP）的次数（FR-19） */
-  use_count: number;
-  /** 只读：最后一次取用时间（ISO 8601），从未取用为 null（FR-19） */
-  last_used_at: string | null;
-}
+/**
+ * 契约里的 Prompt 对象（BRIEF §6.1；字段名固定）。
+ * FR-138 / D-64：字段集**派生**自 `src/prompt-columns.ts` 的列清单，本文件不再手写字段表。
+ */
+export type PromptObject = PromptEntity;
 
-export interface CreatePromptInput {
-  title?: string;
-  user_prompt?: string;
-  system_prompt?: string;
-  notes?: string;
-  folder_id?: number | null;
-  tags?: string[];
-  favorite?: boolean;
-  remember_variables?: boolean;
-}
+/** `POST /api/prompts` 的可写字段（派生；`tags` 不是列，单独声明在那份清单里）。 */
+export type CreatePromptInput = PromptWritable;
 
-export interface UpdatePromptInput {
-  title?: string;
-  user_prompt?: string;
-  system_prompt?: string;
-  notes?: string;
-  folder_id?: number | null;
-  tags?: string[];
-  favorite?: boolean;
-  remember_variables?: boolean;
-}
+/** `PUT /api/prompts/:id` 的可写字段（派生；与 create 同一份字段集，PUT 不设 required）。 */
+export type UpdatePromptInput = PromptWritable;
 
 export interface ListPromptsParams {
   /** 检索词（FR-6）；空/纯空白 = 不过滤 */
@@ -71,19 +47,10 @@ export interface ListPromptsResult {
 }
 
 function toPromptObject(row: PromptRow, tags: string[], usage: UsageStats): PromptObject {
+  // FR-138：逐字段映射由列清单派生（`favorite` / `remember_variables` 的 0/1 → true/false 也在那里）。
   return {
-    id: row.id,
-    title: row.title,
-    user_prompt: row.user_prompt,
-    system_prompt: row.system_prompt,
-    notes: row.notes,
-    folder_id: row.folder_id,
+    ...promptEntityColumnsFrom(row),
     tags,
-    favorite: row.favorite === 1,
-    remember_variables: row.remember_variables === 1,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    version_no: row.version_no,
     use_count: usage.use_count,
     last_used_at: usage.last_used_at,
   };
@@ -134,15 +101,10 @@ function normalizeTagNames(raw: string[]): string[] {
 export async function createPrompt(qe: QueryEngine, input: CreatePromptInput): Promise<PromptObject> {
   const now = nowIso();
   const tags = normalizeTagNames(input.tags ?? []);
+  // FR-138：可写列的值由列清单派生（缺省取清单上的 `default`：字符串 ''、folder_id null、
+  // favorite false、remember_variables true —— FR-127 / D-59 ② 的"默认记住"就在那份清单里）。
   const values = {
-    title: input.title ?? '',
-    user_prompt: input.user_prompt ?? '',
-    system_prompt: input.system_prompt ?? '',
-    notes: input.notes ?? '',
-    folder_id: input.folder_id ?? null,
-    favorite: input.favorite === true ? 1 : 0,
-    // FR-127 / D-59 ②：默认「记住」——只有显式传 false 才关掉。
-    remember_variables: input.remember_variables === false ? 0 : 1,
+    ...promptCreateColumns(input),
     version_no: 1,
     created_at: now,
     updated_at: now,
@@ -277,20 +239,22 @@ export async function updatePrompt(
       const existing = await trx.selectFrom('prompts').selectAll().where('id', '=', id).executeTakeFirst();
       if (existing === undefined) throw new NotFoundError();
 
+      /**
+       * FR-138：可写列的值由列清单派生 —— 请求里给了的覆盖 `existing`，没给的保持原值。
+       * 返回的键集合 = 全部可写列（4 个内容字段 + `folder_id` + `favorite` + `remember_variables`），
+       * 与派生之前的写法逐字段一致（含 `favorite` / `remember_variables` 的 true/false → 1/0）。
+       */
+      const writable = promptPatchColumns(existing, patch);
       const content = {
-        title: patch.title ?? existing.title,
-        user_prompt: patch.user_prompt ?? existing.user_prompt,
-        system_prompt: patch.system_prompt ?? existing.system_prompt,
-        notes: patch.notes ?? existing.notes,
+        title: writable.title,
+        user_prompt: writable.user_prompt,
+        system_prompt: writable.system_prompt,
+        notes: writable.notes,
       };
       // FR-129 ②：判据是"值真的变了"，不是"请求里带了这个字段"
       const contentChanged = hasContentChange(existing, content);
       const next = {
-        ...content,
-        folder_id: patch.folder_id === undefined ? existing.folder_id : patch.folder_id,
-        favorite: patch.favorite === undefined ? existing.favorite : patch.favorite ? 1 : 0,
-        remember_variables:
-          patch.remember_variables === undefined ? existing.remember_variables : patch.remember_variables ? 1 : 0,
+        ...writable,
         // 内容没变 ⇒ 版本号与 updated_at 原样写回（等于不动）；变了才 +1 / 取当前时间
         version_no: contentChanged ? existing.version_no + 1 : existing.version_no,
         updated_at: contentChanged ? now : existing.updated_at,

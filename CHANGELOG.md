@@ -6,7 +6,19 @@
 
 ## [未发布]
 
-- （无）
+### 变更（Changed）
+
+- **Prompt 字段集收敛为单一来源**（FR-138 / D-64，阶段 66）：新建 `src/prompt-columns.ts`，把
+  「Prompt 有哪些字段、每个字段的 SQL 类型 / 契约类型 / 是否可写 / 是否随导出走 / JSON Schema」
+  写成**一张 `as const` 列清单**，DB 表类型（`PromptsTable`）、服务层实体（`PromptObject`）、
+  前端类型（`Prompt` / `PromptWritable`）、导出 / 导入映射与 HTTP 校验 schema（create 与 update
+  合成一份）**全部由它派生**；原先 7 处各自手写的字段表不再存在。
+  - **加一个字段要动的文件数：27 → 6**（实测演练，见 `docs/development.md` §7）。
+  - **接口形状、导出 / 导入文件格式、DB schema、界面行为一律未变**（`docs/api.md` 一字未改）；
+    **零迁移**、**零新增依赖**。属纯内部重构 ⇒ 按 [`docs/versioning.md`](docs/versioning.md) §1 为
+    **PATCH 级**；因 `1.8.0` 尚未正式发布，并入同一个 `1.8.0`。
+  - 唯一可观察差异：导出的 JSON 与 HTTP 响应里**字段键顺序**随派生顺序变化（字段集合与取值逐字段等价，
+    键顺序不是契约，仓库内无断言依赖它）。
 
 ## [1.8.0-beta.2] — 2026-10-11
 
@@ -559,7 +571,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，90 个测试文件 / **614 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，91 个测试文件 / **620 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。

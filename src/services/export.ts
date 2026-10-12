@@ -1,4 +1,5 @@
 import type { QueryEngine } from '../db/index.js';
+import { promptExportedColumnsFrom, type PromptExportedColumns } from '../prompt-columns.js';
 import { nowIso } from './auth.js';
 
 export const EXPORT_APP = 'promptmanager';
@@ -26,23 +27,16 @@ export interface ExportVersion {
   created_at: string;
 }
 
-export interface ExportPrompt {
-  id: number;
-  title: string;
-  user_prompt: string;
-  system_prompt: string;
-  notes: string;
-  folder_id: number | null;
-  /** FR-132：拖拽出来的顺序随导出 / 导入往返（老文件没有这一项 ⇒ 导入缺省 0）。 */
-  sort_order: number;
+/**
+ * 导出文件里的 prompt 条目。
+ * FR-138 / D-64：逐字段来自 DB 列的那部分**派生**自 `src/prompt-columns.ts`（`exported: true` 的列）；
+ * `tags`（关联表）与 `versions`（版本快照）不是列，单独声明。
+ * 注意 `version_no` 不在导出文件里 —— 当前版本号由 `versions` 的最大值表达。
+ */
+export type ExportPrompt = PromptExportedColumns & {
   tags: string[];
-  favorite: boolean;
-  /** FR-127 / D-59 ①：随导出 / 导入往返（导出必写，导入缺省 = 记住）。 */
-  remember_variables: boolean;
-  created_at: string;
-  updated_at: string;
   versions: ExportVersion[];
-}
+};
 
 export interface ExportFile {
   app: string;
@@ -108,18 +102,10 @@ export async function buildExport(qe: QueryEngine): Promise<ExportFile> {
     })),
     tags: tagRows.map((row) => ({ id: row.id, name: row.name })),
     prompts: promptRows.map((row) => ({
-      id: row.id,
-      title: row.title,
-      user_prompt: row.user_prompt,
-      system_prompt: row.system_prompt,
-      notes: row.notes,
-      folder_id: row.folder_id,
-      sort_order: row.sort_order,
+      // FR-138：列字段由列清单派生（含 favorite / remember_variables 的 0/1 → true/false、
+      // FR-132 的 sort_order）；tags / versions 不是列，单独补上。
+      ...promptExportedColumnsFrom(row),
       tags: tagsByPrompt.get(row.id) ?? [],
-      favorite: row.favorite === 1,
-      remember_variables: row.remember_variables === 1,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
       versions: versionsByPrompt.get(row.id) ?? [],
     })),
   };

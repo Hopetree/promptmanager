@@ -1,4 +1,5 @@
 import type { Generated, Selectable } from 'kysely';
+import type { PromptColumn, PromptColumnTsType, PromptGeneratedColumn } from '../prompt-columns.js';
 
 /** Kysely 表类型（列名与 migrations/001_init.sql 一致）。时间统一为 ISO 8601 UTC 字符串。 */
 
@@ -41,29 +42,21 @@ export interface TagsTable {
   updated_at: string;
 }
 
-export interface PromptsTable {
-  id: Generated<number>;
-  title: string;
-  user_prompt: string;
-  system_prompt: string;
-  notes: string;
-  folder_id: number | null;
-  favorite: number; // 0/1
-  /**
-   * FR-127 / D-59：是否记住这个提示词的变量值（1 = 记住，0 = 不记住）。列上有
-   * `NOT NULL DEFAULT 1`（迁移 008），故插入可省略 ⇒ 默认「记住」，存量行为一字不变。
-   * 注意：**变量值本身仍只存浏览器 localStorage**（`pm-vars:<id>`），本列只控制"要不要记"。
-   */
-  remember_variables: number; // 0/1
-  version_no: number;
-  /**
-   * FR-70 / D-28：自定义排序位。列上有 `NOT NULL DEFAULT 0`（迁移 003），故插入可省略
-   * （新建的 prompt 落在 0 → 排在既有 1..N 之前，与"最近更新"档下新条目置顶一致）。
-   */
-  sort_order: Generated<number>;
-  created_at: string;
-  updated_at: string;
-}
+/**
+ * FR-138 / D-64：**派生**自 `src/prompt-columns.ts` 的列清单，本文件不再手写字段表。
+ *
+ * 这里只做一件事：给清单里 `generated: true` 的列（`id` / `sort_order`，列上有 `DEFAULT`）套上
+ * kysely 的 `Generated<>` 标记 —— 这是**唯一无法干净派生的一层**（kysely 的列包装类型），
+ * 因此保留在此处，标记本身仍来自同一份清单（D-64 ②）。
+ *
+ * 列的语义注释（`favorite` 的 0/1、`remember_variables` 的 FR-127、`sort_order` 的 FR-70 等）
+ * 随列清单走：见 `src/prompt-columns.ts`。
+ */
+export type PromptsTable = {
+  [K in PromptColumn]: K extends PromptGeneratedColumn
+    ? Generated<PromptColumnTsType<K>>
+    : PromptColumnTsType<K>;
+};
 
 export interface PromptVersionsTable {
   id: Generated<number>;

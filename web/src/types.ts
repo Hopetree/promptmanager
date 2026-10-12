@@ -1,22 +1,12 @@
 /** 服务端契约类型（BRIEF §6.1 / §6.4；字段名固定，改了就会和 AC 对不上）。 */
 
-export interface Prompt {
-  id: number;
-  title: string;
-  user_prompt: string;
-  system_prompt: string;
-  notes: string;
-  folder_id: number | null;
-  tags: string[];
-  favorite: boolean;
-  /** FR-127：这个提示词是否记住填过的变量值（默认 true）。开关存在服务端，变量值仍只存 localStorage。 */
-  remember_variables: boolean;
-  created_at: string;
-  updated_at: string;
-  version_no: number;
-  use_count: number;
-  last_used_at: string | null;
-}
+import type { PromptEntity, PromptWritable as PromptWritableShape } from '../../src/prompt-columns.js';
+
+/**
+ * FR-138 / D-64：字段集**派生**自 `src/prompt-columns.ts`（服务端与前端共用同一份列清单）。
+ * 这里只做 type-only 引用 —— 构建时被抹掉，不进 bundle。
+ */
+export type Prompt = PromptEntity;
 
 export interface PromptListResponse {
   total: number;
@@ -25,18 +15,8 @@ export interface PromptListResponse {
   items: Prompt[];
 }
 
-/** POST/PUT 的可写字段（BRIEF §6.1） */
-export interface PromptWritable {
-  title?: string;
-  user_prompt?: string;
-  system_prompt?: string;
-  notes?: string;
-  folder_id?: number | null;
-  tags?: string[];
-  favorite?: boolean;
-  /** FR-127：省略 = 保持原值（PUT）/ 默认记住（POST）。 */
-  remember_variables?: boolean;
-}
+/** POST/PUT 的可写字段（BRIEF §6.1）—— 与 `Prompt` 派生自同一份清单。 */
+export type PromptWritable = PromptWritableShape;
 
 export interface Folder {
   id: number;
