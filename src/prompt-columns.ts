@@ -12,6 +12,7 @@
  * | 导出文件 | `src/services/export.ts` 的 `ExportPrompt` 与 `buildExport` 的逐字段映射 |
  * | 导入 | `src/services/import.ts` 的 `NormalizedPrompt` 与插入值 |
  * | HTTP 校验 schema | `src/server/routes/prompts.ts`（create / update **合一份**） |
+ * | 内容字段分类（FR-129） | `src/services/prompts.ts` 的 `CONTENT_FIELDS`（由 `content` 标记派生） |
  *
  * 为什么放在 `src/` 顶层：
  * - `tsconfig.json` 的 `rootDir` 是 `src`，服务端**必须**能 emit 它 ⇒ 不能放在 `web/`；
@@ -23,8 +24,15 @@
  *    各自单独声明（见 `PromptDerivedFields` / `PromptWritableExtraFields`）。
  * 2. kysely 的 `Generated<>` 包装层不在本文件里 —— 它只依赖 `sql` / `generated` 两个标记，
  *    由 `src/db/schema.ts` 自己包一层（本文件因此**零 import**，前端可以安全地 type-only 引用）。
+ * 3. `src/services/import.ts` 的归一化返回值仍是**逐字段字面量**（读文件 → 校验 → 组装），
+ *    但它被 `interface NormalizedPrompt extends PromptExportedColumns` **类型强制完整** ——
+ *    少一个字段编译不过，所以它不构成"第二份字段表"（不是派生，但也不会静默漂移）。
  *
- * ⚠️ 加一个字段要动哪些地方：`docs/development.md` §7。
+ * ⚠️ **编译器管不到的写路径**：`web/src/components/PromptEditor.tsx` 的表单与保存 payload 仍是手写的，
+ * 而 `PromptWritable` 的字段全是可选的 ⇒ 新加一个**可写**列时界面会**静默不发送它**。
+ * 这条路径由 `tests/stage66-field-source.test.ts` 的一条用例盯住（它读源码，断言 payload 覆盖全部可写列）。
+ *
+ * ⚠️ 加一个字段要动哪些地方：`docs/development.md` §7（含"编译器点名 5 个文件、但仍要动 21 个"的实测口径）。
  */
 
 /** DB 列的类型种类（决定 kysely 表类型）。 */
@@ -44,6 +52,8 @@ export interface PromptColumnSpec {
   readonly exported: boolean;
   /** 是否随 `POST /api/prompts` 与 `PUT /api/prompts/:id` 可写（HTTP 校验 schema 也按它派生） */
   readonly writable: boolean;
+  /** 是否算「内容字段」（FR-129 / D-60 ③）：改了它才产生新版本、才更新 `updated_at` */
+  readonly content?: boolean;
   /** 新建时的缺省值（只有 `writable` 列需要） */
   readonly default?: string | number | boolean | null;
   /** 可写列的 JSON Schema 片段（只有 `writable` 列需要） */
@@ -69,6 +79,7 @@ export const PROMPT_COLUMNS = {
     api: 'string',
     exported: true,
     writable: true,
+    content: true,
     default: '',
     schema: { type: 'string', maxLength: 500 },
   },
@@ -78,6 +89,7 @@ export const PROMPT_COLUMNS = {
     api: 'string',
     exported: true,
     writable: true,
+    content: true,
     default: '',
     schema: { type: 'string', maxLength: 200_000 },
   },
@@ -87,6 +99,7 @@ export const PROMPT_COLUMNS = {
     api: 'string',
     exported: true,
     writable: true,
+    content: true,
     default: '',
     schema: { type: 'string', maxLength: 200_000 },
   },
@@ -96,6 +109,7 @@ export const PROMPT_COLUMNS = {
     api: 'string',
     exported: true,
     writable: true,
+    content: true,
     default: '',
     schema: { type: 'string', maxLength: 200_000 },
   },
@@ -261,6 +275,27 @@ export const PROMPT_WRITABLE_COLUMN_NAMES = PROMPT_COLUMN_NAMES.filter(
 /** 导出文件里的列。 */
 export const PROMPT_EXPORTED_COLUMN_NAMES = PROMPT_COLUMN_NAMES.filter(
   (name): name is PromptExportedColumn => PROMPT_COLUMNS[name].exported,
+);
+
+/**
+ * **内容字段**的列（FR-129 / D-60 ③）：改了它才产生新版本、才更新 `updated_at`。
+ *
+ * 这条分类原先手写在 `src/services/prompts.ts` 里（`CONTENT_FIELDS`）—— 是第二份字段表：
+ * 往列清单加一个"内容字段"时，那份手写清单不会跟着长，字段会落库但**不触发版本留档**。
+ * 现在它由列清单的 `content` 标记派生（唯一来源原则，FR-138）。
+ */
+export type PromptContentColumn = {
+  [K in PromptColumn]: Spec<K> extends { content: true } ? K : never;
+}[PromptColumn];
+
+/** 内容字段清单（由列清单派生；顺序 = 声明顺序）。 */
+export const PROMPT_CONTENT_FIELDS = PROMPT_COLUMN_NAMES.filter(
+  (name): name is PromptContentColumn => {
+    // 列清单是 `as const` 的字面量联合：没标 `content` 的成员上取不到这个键，
+    // 因此先收宽到 `PromptColumnSpec`（`content` 是可选键）再读。
+    const spec: PromptColumnSpec = PROMPT_COLUMNS[name];
+    return spec.content === true;
+  },
 );
 
 /**

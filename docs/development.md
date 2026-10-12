@@ -151,33 +151,60 @@ bash -c 'systemd-analyze verify deploy/promptmanager.service; echo rc=$?'   # �
 
 Prompt 的字段集**只有一处声明**：[`../src/prompt-columns.ts`](../src/prompt-columns.ts) 里的
 `PROMPT_COLUMNS`（`as const` 的列清单，每列带 `sql` / `generated` / `api` / `exported` / `writable`
-与各自的 `default`、JSON Schema 片段）。DB 表类型、服务层实体类型、前端类型、导出/导入映射、
-HTTP 校验 schema 全部由它**派生** —— "漏一处就静默出错"（校验放行但落库忽略、导出静默丢字段）
-在结构上被堵住了。
+/ `content` 与各自的 `default`、JSON Schema 片段）。DB 表类型、服务层实体类型、前端类型、导出/导入映射、
+HTTP 校验 schema、内容字段分类全部由它**派生** —— "漏一处就静默出错"（校验放行但落库忽略、导出静默丢字段）
+在**合同 / 导出 / 导入**这条路径上被堵住了（唯一例外是界面写路径，见第 5 步）。
 
 **加一个字段，按这个顺序做：**
 
-1. **写进列清单** —— 在 `src/prompt-columns.ts` 的 `PROMPT_COLUMNS` 里加一条，6 个键都填。
-   契约字段名、DB 类型、能不能写、随不随导出走、缺省值、JSON Schema，都在这一条里。
+1. **写进列清单** —— 在 `src/prompt-columns.ts` 的 `PROMPT_COLUMNS` 里加一条，7 个键按需填。
+   契约字段名、DB 类型、能不能写、随不随导出走、算不算内容字段、缺省值、JSON Schema，都在这一条里。
 2. **加迁移** —— `migrations/` 里新建下一个编号的 `.sql`（编号 = 目录里最大号 + 1）。
    这一步**无法派生**：列必须真的存在。**已应用的迁移不要改。**
-3. **跑类型检查，让编译器点名剩下的地方**（本阶段的核心收益：从"靠人记住"变成"编译器点名"）：
+3. **跑类型检查，让编译器点名剩下的地方**（本阶段的核心收益：从"靠人记住"变成"编译器点名"）。
+   ⚠️ 必须跑**下面四条原始命令**，不要只跑 `npm run typecheck:tests`：那个脚本是
+   `build:server && tsc -p tsconfig.tests.json && tsc -p tsconfig.render-tests.json`，
+   **第一条失败就短路**，会把后面几条的错误全部藏起来（实测：加了 `pinned` 后它只报
+   `src/services/import.ts` 一条，看起来"就这一处"，其实还有 12 条没显示）。
 
    ```bash
-   npm run typecheck:web
-   npm run typecheck:tests
+   npm run typecheck:web                     # web/tsconfig.json
+   npm run build:server                      # tsc -p tsconfig.json（服务端 emit 顺带做）
+   npx tsc -p tsconfig.tests.json            # tests/**（含本阶段自己的等价性自证）
+   npx tsc -p tsconfig.render-tests.json     # tests/render/**
    ```
 
-   实测（阶段 66 的加字段演练，字段名 `pinned`，可写 + 随导出走）被点名的只有：
+   实测（阶段 66 的加字段演练，字段名 `pinned`，可写 + 随导出走）**编译器一共点名 5 个文件**：
 
-   | 文件 | 为什么必须改 |
-   | --- | --- |
-   | `src/services/import.ts` | 导出文件的解析/归一化 —— 新字段必须从文件里读出来，否则导入会静默丢掉它 |
-   | `web/src/components/Workspace.tsx` | `EMPTY_DRAFT` 字面量（新建草稿的缺省值） |
-   | `tests/render/*.test.ts` | 渲染级夹具里的 `makePrompt()` 字面量（字段出现在夹具里时） |
+   | 文件 | 条数 | 为什么必须改 |
+   | --- | --- | --- |
+   | `web/src/components/Workspace.tsx` | 1 | `EMPTY_DRAFT` 字面量（新建草稿的缺省值） |
+   | `src/services/import.ts` | 1 | 导出文件的解析/归一化 —— 新字段必须从文件里读出来，否则导入会静默丢掉它 |
+   | `tests/stage66-field-source.test.ts` | 10 | 本阶段自己的等价性自证：`Equals` 断言与新列清单不符（**这条会红是设计如此**） |
+   | `tests/render/smoke.test.ts` | 1 | 渲染级夹具里的 `makePrompt()` 字面量 |
+   | `tests/render/stage65-frontend-state.test.ts` | 1 | 同上 |
 
-4. **界面** —— 这个字段若要能在界面上改，界面本身仍是产品工作（表单控件 + 保存 payload），
-   派生帮不到你；但那已经不是"字段集漂移"问题了。
+4. **别把"编译器点名的 5 个"当成全部** —— 真加一个字段，今天仍然要动 **21 个文件**
+   （阶段 61 加 `remember_variables` 时是 **27** 个）。实测口径（同一次演练：列清单加 `pinned` +
+   新建一个迁移（演练用的编号是 `009_pinned`，本阶段不留文件），再逐项修到全绿）：
+
+   | 类别 | 数量 | 明细 |
+   | --- | --- | --- |
+   | 单一来源自身 | 1 | `src/prompt-columns.ts` |
+   | 迁移 | 1 | `migrations/` 里新建的那一个（列必须真的存在，无法派生） |
+   | 编译器点名 | 4 | 上表 5 个里扣掉自证用例（它算在下一类） |
+   | 守卫测试 | 13 | 把"迁移数 / schema 版本 / 导出键集合"写死的用例：`api-export`、`api-usage`、`cli-user`、`migrate`、`migrate-prompt-order`、`stage35-token-reveal`、`stage42-token-scope`、`stage50-usage-kind`、`stage60-variable-defaults`、`stage61-remember-variables`、`stage63-doc-alignment`、`stage64-data-safety`、`stage66-field-source` |
+   | 文档 | 2 | `AGENTS.md` §6 的迁移数 / schema 版本行、本文件的迁移行（两处都有测试盯着） |
+
+   也就是说：这次收敛**消除的是"静默漂移"**（漏改会编译失败，而不是悄悄丢字段），
+   **不是改动面** —— 那 13 个守卫测试与迁移计数本来就是**故意写死的绊线**，红了按新值更新即可，
+   不是维护负担。
+
+5. **界面** —— 这个字段若要能在界面上改，界面本身仍是产品工作（表单控件 + 保存 payload）。
+   ⚠️ 这是本阶段**唯一没被编译器保护**的写路径：`web/src/components/PromptEditor.tsx` 的
+   `EditorForm` 与保存 payload 仍是手写的，而 `PromptWritable` 的字段全是**可选**的 ⇒
+   新加一个**可写**列时界面会**静默不发送它**（编译通过、校验通过、值永远是缺省）。
+   已用 `tests/stage66-field-source.test.ts` 的「保存 payload 必须覆盖全部可写列」用例把它变成红灯。
 
 **不需要再手改的地方**（改前要一处一处跟着改，现在自动跟着走）：`src/db/schema.ts`（表类型）、
 `src/services/prompts.ts`（实体类型 / create 缺省 / PUT 子集）、`src/services/export.ts`（导出字段与映射）、
@@ -189,6 +216,8 @@ HTTP 校验 schema 全部由它**派生** —— "漏一处就静默出错"（�
   它套的是列清单给出的类型，`generated` 标记仍来自清单。
 - `tags`（关联表）与 `use_count` / `last_used_at`（取用聚合）**不是列**，在清单里单独声明。
 
-> 演练实测（阶段 66 / AC-128 ④⑤）：加一个"可写 + 随导出走"的布尔字段，**必须改的文件从阶段 61 的
-> 27 个降到 6 个**（列清单自身 1 + 迁移 1 + 类型检查点名 4）。原样输出见本地进度日志
+> 演练实测（阶段 66 / AC-128 ④⑤）：加一个"可写 + 随导出走"的布尔字段 —— 编译器点名 **5 个文件**，
+> 但真加一个字段今天仍要动 **21 个文件**（对照阶段 61 加 `remember_variables` 的 **27 个**）。
+> 收敛消除的是**静默漂移**（漏改会编译失败，而不是悄悄丢字段），不是改动面；那 13 个把"迁移数 /
+> schema 版本 / 导出键集合"写死的**守卫测试**是故意留的绊线，红了按新值更新即可。原样输出见库外进度日志
 > `tmp/dev-process/PROGRESS.md`。

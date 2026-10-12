@@ -9,11 +9,19 @@
 ### 变更（Changed）
 
 - **Prompt 字段集收敛为单一来源**（FR-138 / D-64，阶段 66）：新建 `src/prompt-columns.ts`，把
-  「Prompt 有哪些字段、每个字段的 SQL 类型 / 契约类型 / 是否可写 / 是否随导出走 / JSON Schema」
-  写成**一张 `as const` 列清单**，DB 表类型（`PromptsTable`）、服务层实体（`PromptObject`）、
-  前端类型（`Prompt` / `PromptWritable`）、导出 / 导入映射与 HTTP 校验 schema（create 与 update
-  合成一份）**全部由它派生**；原先 7 处各自手写的字段表不再存在。
-  - **加一个字段要动的文件数：27 → 6**（实测演练，见 `docs/development.md` §7）。
+  「Prompt 有哪些字段、每个字段的 SQL 类型 / 契约类型 / 是否可写 / 是否随导出走 / 算不算内容字段 /
+  JSON Schema」写成**一张 `as const` 列清单**，DB 表类型（`PromptsTable`）、服务层实体（`PromptObject`）、
+  前端类型（`Prompt` / `PromptWritable`）、导出 / 导入映射、HTTP 校验 schema（create 与 update 合成一份）
+  与内容字段分类（`CONTENT_FIELDS`）**全部由它派生**；改前 7 处各自手写的字段表（含版本留档分类）
+  不再存在（`src/services/import.ts` 的归一化字面量仍在，但被 `NormalizedPrompt` 类型强制完整，
+  不会静默漂移）。
+  - **加一个字段要动哪些地方**：**编译器点名 5 个文件**，但真加一个字段今天仍要动 **21 个文件**
+    （阶段 61 加 `remember_variables` 时是 27 个）。这 21 个里 13 个是把"迁移数 / schema 版本 /
+    导出键集合"写死的**守卫测试**，2 个是文档里的迁移行 —— 收敛**消除的是"静默漂移"**
+    （漏改会编译失败，而不是悄悄丢字段），**不是改动面**。完整口径见 `docs/development.md` §7。
+  - ⚠️ **界面写路径是唯一没被编译器保护的地方**：`web/src/components/PromptEditor.tsx` 的表单与保存
+    payload 仍手写，而 `PromptWritable` 字段全可选 ⇒ 新加**可写**列时界面会静默不发送它；
+    已由 `tests/stage66-field-source.test.ts` 的一条用例变成红灯。
   - **接口形状、导出 / 导入文件格式、DB schema、界面行为一律未变**（`docs/api.md` 一字未改）；
     **零迁移**、**零新增依赖**。属纯内部重构 ⇒ 按 [`docs/versioning.md`](docs/versioning.md) §1 为
     **PATCH 级**；因 `1.8.0` 尚未正式发布，并入同一个 `1.8.0`。
@@ -571,7 +579,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，91 个测试文件 / **620 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，91 个测试文件 / **624 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。

@@ -4,6 +4,7 @@ import { searchPrompts } from '../db/prompt-queries.js';
 import type { PromptRow } from '../db/schema.js';
 import { constraintKind, InvalidBodyError, NotFoundError, isConstraintError } from '../errors.js';
 import {
+  PROMPT_CONTENT_FIELDS,
   promptCreateColumns,
   promptEntityColumnsFrom,
   promptPatchColumns,
@@ -197,8 +198,11 @@ export async function listPrompts(qe: QueryEngine, params: ListPromptsParams): P
  * 只有它们的值**真的变了**（`!==`，不是"请求里带了这个字段"）才产生新版本、才更新 `updated_at`；
  * 其余可写字段（`folder_id` / `favorite` / `remember_variables` / 标签）改多少遍都不碰版本号
  * （BRIEF FR-129 ① / D-60 ③：这个边界**固定为 4 个，不新增也不减少**）。
+ *
+ * FR-138 / D-64：这份清单**由 `src/prompt-columns.ts` 的 `content` 标记派生**，不再手写
+ * （手写时往列清单加内容字段不会跟着长 ⇒ 字段落库但不产生版本留档）。
  */
-export const CONTENT_FIELDS = ['title', 'user_prompt', 'system_prompt', 'notes'] as const;
+export const CONTENT_FIELDS = PROMPT_CONTENT_FIELDS;
 
 export type ContentField = (typeof CONTENT_FIELDS)[number];
 

@@ -174,10 +174,11 @@ test('AC-117 ⑥⑨：表格视图与分栏视图完全没动；接口契约与�
   // 前端类型契约未改：Prompt 仍是 folder_id（没有新增 folder_name 字段）
   // 阶段 66（FR-138）：`Prompt` 的字段集改为派生自 `src/prompt-columns.ts`，声明搬到了那份共享列清单，
   // 因此这里改读列清单 —— 判据不变（folder_id 的契约侧类型仍是 number | null、没有 folder_name）。
+  // 注意 `[^}]*`：不跨对象边界，免得"别的列也变成 number-null"时误过（复核 nit）。
   const types = src('types.ts');
   const columns = readFileSync(path.join(ROOT, 'src', 'prompt-columns.ts'), 'utf8');
   assert.ok(
-    /folder_id: \{[\s\S]*?api: 'number-null'/.test(columns),
+    /folder_id: \{[^}]*api: 'number-null'/.test(columns),
     'Prompt.folder_id 语义未变（契约侧仍是 number | null）',
   );
   assert.ok(types.includes('export type Prompt = PromptEntity;'), 'Prompt 仍派生自共享列清单（FR-138）');

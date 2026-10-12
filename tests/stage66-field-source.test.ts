@@ -16,6 +16,7 @@ import type { Generated } from 'kysely';
 import {
   PROMPT_COLUMN_NAMES,
   PROMPT_COLUMNS,
+  PROMPT_CONTENT_FIELDS,
   PROMPT_ENTITY_COLUMN_NAMES,
   PROMPT_EXPORTED_COLUMN_NAMES,
   PROMPT_WRITABLE_COLUMN_NAMES,
@@ -354,4 +355,115 @@ test('AC-128 ⑬：文档里写清「加一个字段该动哪里」，且与本�
   for (const forced of ['src/services/import.ts', 'web/src/components/Workspace.tsx']) {
     assert.ok(development.includes(forced), `文档必须点名 ${forced}（演练实测被类型检查逼着改）`);
   }
+});
+
+// ─────────────────── AC-128 ⑬（返工 ①）：加字段口径必须与实测一致 ───────────────────
+//
+// 复核 finding（major）：原 §7 写"必须改的文件从 27 个降到 6 个"，并只给 `typecheck:web` +
+// `typecheck:tests` 两条命令。实测：① 编译器点名的是 5 个文件（漏了本文件自己）；
+// ② `typecheck:tests` = `build:server && tsc tests && tsc render-tests`，第一条失败就**短路**，
+// 只报 import.ts 一条，把另外 12 条藏起来 ⇒ 按文档操作会得到假全绿；
+// ③ 真加一个字段今天仍要动 21 个文件（13 个是故意写死的守卫测试），27 → 6 是苹果对橘子。
+
+test('AC-128 ⑬（返工 ①）：§7 的加字段口径与实测一致（编译器点名 5 / 仍要动 21 / 对照 27）', () => {
+  const development = read('docs/development.md');
+  // 四条原始命令一条都不能少（短路藏错的坑必须靠分开跑规避）
+  for (const command of [
+    'npm run typecheck:web',
+    'npm run build:server',
+    'npx tsc -p tsconfig.tests.json',
+    'npx tsc -p tsconfig.render-tests.json',
+  ]) {
+    assert.ok(development.includes(command), `§7 必须给出原始命令 ${command}`);
+  }
+  assert.ok(development.includes('短路'), '§7 必须警告 typecheck:tests 第一条失败就短路、会藏错');
+  // 编译器点名的 5 个文件，一个都不能漏（复核实测：含本文件自己 10 条）
+  for (const named of [
+    'src/services/import.ts',
+    'web/src/components/Workspace.tsx',
+    'tests/stage66-field-source.test.ts',
+    'tests/render/smoke.test.ts',
+    'tests/render/stage65-frontend-state.test.ts',
+  ]) {
+    assert.ok(development.includes(named), `§7 必须点名编译器点名的文件 ${named}`);
+  }
+  assert.ok(development.includes('21 个文件'), '§7 必须写清真加一个字段仍要动 21 个文件');
+  assert.ok(development.includes('27'), '§7 必须保留阶段 61 的对照数字 27');
+  assert.ok(development.includes('守卫测试'), '§7 必须说明 13 个守卫测试是故意写死的绊线');
+  assert.ok(development.includes('静默漂移'), '§7 必须点明收敛消除的是静默漂移、不是改动面');
+  assert.equal(
+    /27\s*个降到\s*6\s*个/.test(development),
+    false,
+    '§7 不得再出现「27 个降到 6 个」（复核已证伪）',
+  );
+  assert.ok(development.includes('界面'), '§7 必须点明界面写路径是唯一没被编译器保护的地方');
+});
+
+test('AC-128 ⑬（返工 ①，续）：CHANGELOG 的加字段口径与 §7 一致，不得再写 27 → 6', () => {
+  const changelog = read('CHANGELOG.md');
+  assert.equal(/27\s*(→|->)\s*6/.test(changelog), false, 'CHANGELOG 不得再写「27 → 6」');
+  assert.ok(changelog.includes('编译器点名 5 个文件'), 'CHANGELOG 必须写清编译器点名 5 个文件');
+  assert.ok(changelog.includes('21 个文件'), 'CHANGELOG 必须写清真加一个字段仍要动 21 个文件');
+  assert.ok(changelog.includes('27'), 'CHANGELOG 必须保留阶段 61 的对照数字 27');
+  assert.ok(changelog.includes('docs/development.md'), 'CHANGELOG 必须指到 §7 的完整口径');
+  assert.ok(changelog.includes('界面写路径'), 'CHANGELOG 必须点明界面写路径没被编译器保护');
+});
+
+// ─────────────────── AC-128 ⑭（返工 ①）：界面写路径的守卫 ───────────────────
+//
+// 复核 finding（minor）：`web/src/components/PromptEditor.tsx` 的 `EditorForm` 与保存 payload 仍手写，
+// 而 `PromptWritable` 的字段**全是可选的** ⇒ 往列清单加一个可写列时界面会**静默不发送它**
+// （编译通过、校验通过、值永远是缺省）。这是唯一没被编译器保护的写路径，必须由测试盯住。
+
+test('AC-128 ⑭（返工 ①）：界面保存 payload 覆盖全部可写列（唯一没被编译器保护的写路径）', () => {
+  const editor = read('web/src/components/PromptEditor.tsx');
+  const start = editor.indexOf('const payload: PromptWritable = {');
+  assert.ok(start >= 0, '必须能找到界面保存 payload 的声明（const payload: PromptWritable = {）');
+  const end = editor.indexOf('};', start);
+  assert.ok(end > start, '必须能找到 payload 的结尾');
+  const payload = editor.slice(start, end);
+  for (const name of [...PROMPT_WRITABLE_COLUMN_NAMES, 'tags']) {
+    assert.ok(
+      payload.includes(`${name}:`),
+      `保存 payload 必须覆盖可写字段 ${name}（否则界面会静默不发送它，编译期看不出来）`,
+    );
+  }
+  // 表单也得有对应字段，否则用户根本改不到它
+  const formStart = editor.indexOf('interface EditorForm {');
+  const formEnd = editor.indexOf('}', formStart);
+  assert.ok(formStart >= 0 && formEnd > formStart, '必须能找到 EditorForm 接口');
+  const form = editor.slice(formStart, formEnd);
+  for (const name of PROMPT_WRITABLE_COLUMN_NAMES) {
+    assert.match(
+      form,
+      new RegExp(`^\\s*${name}\\??:`, 'm'),
+      `EditorForm 必须声明可写字段 ${name}（界面表单是字段集的最后一个消费者）`,
+    );
+  }
+});
+
+// ─────────────────── AC-128 ⑮（返工 ①）：内容字段分类也由列清单派生 ───────────────────
+
+test('AC-128 ⑮（返工 ①）：内容字段分类由列清单派生（不再是第二份手写字段表）', () => {
+  const prompts = read('src/services/prompts.ts');
+  assert.equal(
+    /CONTENT_FIELDS = \[/.test(prompts),
+    false,
+    '不得再手写内容字段数组（手写时往列清单加内容字段不会跟着长 ⇒ 落库但不产生版本留档）',
+  );
+  assert.match(prompts, /export const CONTENT_FIELDS = PROMPT_CONTENT_FIELDS;/, '必须派生自列清单');
+  const columns = read('src/prompt-columns.ts');
+  assert.match(columns, /PROMPT_CONTENT_FIELDS = PROMPT_COLUMN_NAMES\.filter/, '必须从列名派生');
+  assert.match(columns, /const spec: PromptColumnSpec = PROMPT_COLUMNS\[name\]/, '必须读列清单里的那一列');
+  assert.match(columns, /spec\.content === true/, '必须按 content 标记过滤');
+  assert.deepEqual(
+    [...PROMPT_CONTENT_FIELDS],
+    ['title', 'user_prompt', 'system_prompt', 'notes'],
+    '内容字段必须恰是这 4 个（FR-129 / D-60 ③ 固定边界）',
+  );
+  assert.equal(
+    [...columns.matchAll(/content: true,/g)].length,
+    4,
+    '列清单里必须恰有 4 个列标了 content: true',
+  );
 });
