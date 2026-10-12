@@ -138,7 +138,7 @@ export default function VersionPanel({ promptId, refreshKey, onRollbackDone }: V
     try {
       /**
        * FR-129：回滚**不一定**产生新版本（回滚到与当前内容完全相同的那一版 ⇒ 不产生）。
-       * 所以提示必须按**服务端返回的** `version_no` 分支 —— 见 `pure.ts` 的 `rollbackNotice`。
+       * 所以提示必须按**服务端返回的** `version_no` 分支 —— 见 `web/src/notices.ts` 的 `rollbackNotice`。
        * `versions` 按 `version_no` 升序返回（见本文件上方注释），最后一版就是回滚前的当前版本。
        */
       const before = versions[versions.length - 1]?.version_no ?? refreshKey;

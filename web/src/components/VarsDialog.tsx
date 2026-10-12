@@ -16,7 +16,7 @@ interface VarsDialogProps {
   onRememberChange: (prompt: Prompt, remember: boolean) => void;
 }
 
-// FR-41e 第 2 条「自动记忆」的读写助手已提到 `web/src/pure.ts`
+// FR-41e 第 2 条「自动记忆」的读写助手在 `web/src/vars.ts`（阶段 70 从 pure.ts 拆出）
 // （`readRememberedVars` / `writeRememberedVars` / `removeRememberedVars`，键 `pm-vars:<id>`），
 // 这样"记忆"只有一份实现，且能在 node:test 里用内存版存储机械验证（D-59 ⑦：介质仍是 localStorage）。
 
@@ -63,7 +63,7 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
       // 这样预览会原样显示 `{{项目}}`（与服务端一致），而不是先看到占位符凭空消失。
       const initial = filledValues(response.variables, remembered);
       setValues(initial);
-      // ⚠️ 必须写**每个变量**（没记忆的写空串）——理由与回归测试见 `pure.ts` 的 `varsFormValues`。
+      // ⚠️ 必须写**每个变量**（没记忆的写空串）——理由与回归测试见 `web/src/vars.ts` 的 `varsFormValues`。
       form.setFieldsValue(varsFormValues(response.variables, initial));
     } catch (caught) {
       setError(describeError(caught));

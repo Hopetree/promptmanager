@@ -109,6 +109,10 @@ export function classifyApiRequest(method: string, path: string): AuthCategory {
  * **显式声明**查询（FR-149）：只有被上面四张表之一明确覆盖的路由才算"已分类"。
  * 与 `classifyApiRequest` 的区别：后者对未知路由也回一个类别（兜底），这里回 `null` ——
  * 机械检查据此判定"新加的端点忘了声明类别"。
+ * ⚠️ 边界：`SESSION_ONLY_PREFIXES` / `RESOURCE_READ_PREFIXES` / `RESOURCE_WRITE_PREFIXES` 是**前缀**表，
+ * 因此已声明命名空间下的新子路径（如 `GET /api/prompts/admin-dump`）会被该命名空间覆盖、不报错；
+ * 机械检查真正拦的是**没被任何表覆盖的新命名空间**（如 `/api/reports`、`/api/v2/prompts`）。
+ * 这与 AC-132 C10「有路由无法分类即失败」一致，且比改动前的纯前缀判定更严（改前连新命名空间都不拦）。
  */
 export function declaredCategory(method: string, path: string): AuthCategory | null {
   if (PUBLIC_API_PATHS.has(path)) return 'public';

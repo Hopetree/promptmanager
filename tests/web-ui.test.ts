@@ -102,7 +102,7 @@ test('Markdown 预览：直接调用服务端 /api/render/markdown（不重写�
 test('导入导出界面：两种模式 + FR-11b 文案与 merge 计数', () => {
   assertIn('components/ImportExportModal.tsx', /api\.exportAll\(/, '导出接口');
   assertIn('components/ImportExportModal.tsx', /api\.importAll\(/, '导入接口');
-  // FR-11b 的 replace 二次确认文案：常量在 pure.ts、必须被弹窗真的用上（删掉使用就红）
+  // FR-11b 的 replace 二次确认文案：常量在 web/src/import-file.ts、必须被弹窗真的用上（删掉使用就红）
   assertIn('import-file.ts', /REPLACE_WARNING = '将清空现有全部 prompt \/ 文件夹 \/ 标签 \/ 版本历史'/, 'FR-11b 文案定义');
   assertIn('components/ImportExportModal.tsx', /REPLACE_WARNING/, '弹窗必须使用 FR-11b 文案');
   // 用 App.useApp() 的 modal.confirm（能吃到 ConfigProvider 的主题/中文 locale），而不是静态 Modal.confirm

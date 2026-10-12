@@ -395,7 +395,7 @@ test('AC-123 ⑯⑰：missing 计数与「清空」按钮置灰 —— 纯函数
 test('AC-123 ⑧：打开弹窗要写进表单的值 —— 每个变量都有键（不记住 ⇒ 全是空串，清掉上次残留）', () => {
   // 回归守卫（对抗性复核 finding）：曾经只写「有记忆的那几个」，而 antd 的 `setFieldsValue`
   // **不会清空未提供的字段** ⇒ 不记住时输入框里留着上一次手打的字，看起来像"被预填了"。
-  // 组件里的 antd 表单跑不进 node:test，所以口径提成 `pure.ts` 的 `varsFormValues` 在这里机械验证。
+  // 组件里的 antd 表单跑不进 node:test，所以口径提成 `web/src/vars.ts` 的 `varsFormValues` 在这里机械验证。
   const all = varsFormValues(['项目', '语气'], {});
   assert.deepEqual(all, { 项目: '', 语气: '' }, '没有记忆 ⇒ 每个变量都必须显式写空串');
   assert.equal(Object.keys(all).length, 2, '键数必须等于变量数（不能只写有记忆的那几个）');

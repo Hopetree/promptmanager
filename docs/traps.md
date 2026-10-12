@@ -501,15 +501,23 @@ BRIEF，所以只记录、不修：
   但**没人分得清**它是"故意要 write"还是"忘了声明" —— 直到某天有人以为它是只读接口。
 - **做法**：分类**只有一处入口** `classifyApiRequest(method, path)`（闸门的 `onRequest` 调它），
   另有 `declaredCategory(method, path)` 回答"这个路由被某张声明表**明确**覆盖了吗"（未知 ⇒ `null`）。
-  `registerAuthGate` 在注册期用 `onRoute` 收集所有 `/api/*` 路由，在 `onReady` 断言**每个都被显式声明**，
+  `registerAuthGate` 在注册期用 `onRoute` 收集所有 `/api/*` 路由，在 `onReady` 断言**每个都被四张表覆盖**，
   否则服务**起不来**并点名 `METHOD /path`。于是"加端点忘了分类"从静默变成启动即红，
   不需要两处人肉同步。
+- **准确边界（对抗性复核更正）**：四张表里有三张是**前缀表**（`SESSION_ONLY_PREFIXES` /
+  `RESOURCE_READ_PREFIXES` / `RESOURCE_WRITE_PREFIXES`），所以断言盯的是「**新开命名空间**」，
+  不是「每一条子路径」—— `GET /api/prompts/admin-dump` 会被 `/api/prompts` 前缀自动算作资源读而
+  **不会**触发红；只有 `/api/reports`、`/api/webhooks`、`/api/v2/prompts` 这类没被任何前缀覆盖的
+  新命名空间才让服务起不来。这与 AC-132 C10 的"有路由无法分类即失败"一致，且比改前的纯前缀判定**更严**
+  （改前连新命名空间都不拦、全靠 fail-closed 兜底）。提交 `4b2d6c4` 标题里"每个 /api 路由必须显式声明"
+  是过宽的说法，以本条为准。
 - **⚠️ 兜底不许删**：`classifyApiRequest` 的最后一条仍是 **fail-closed 的 `resource_write`** ——
   机械检查只保证"必须声明"，运行时的安全兜底独立存在（声明表写漏了也不会放行只读令牌）。
 - **判据**（`tests/stage70-auth-classification.test.ts`）：① 真实应用的全部 `/api/*` 路由
   `category === null` 的数量为 **0**，且声明与运行时分类**逐条一致**；② 用裸 Fastify 注册
   `GET /api/undeclared-probe` ⇒ `app.ready()` 抛 `认证分类缺失（FR-149 / AC-132 C10）：GET /api/undeclared-probe`，
-  而换成 `/api/prompts`（已声明前缀）⇒ 正常就绪（证明拒绝的是"没声明"，不是"新端点"）；
+  而换成 `/api/prompts`（已被 `RESOURCE_READ_PREFIXES` 前缀覆盖）⇒ 正常就绪（证明拒绝的是
+  "没被任何声明表覆盖"，而不是"新端点"这个身份本身）；
   ③ 权限矩阵四类仍**逐条真发请求**实测（401 / `insufficient_scope` / `session_required` / 放行），
   不许只跑测试就宣布"没回归"。
 

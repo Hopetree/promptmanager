@@ -29,12 +29,18 @@
     逐字一致"，现在是"**根本不允许有第二份**，两侧都必须引用共享模块"。
 
 - **鉴权分类与路由注册同源 + 机械检查**（FR-149 / AC-132 C，阶段 70）：
-  - 分类**只有一处入口** `classifyApiRequest(method, path)`（`src/server/auth.ts`），认证闸门的
+  - 分类判定**只有一处入口** `classifyApiRequest(method, path)`（`src/server/auth.ts`），认证闸门的
     `onRequest` 调它，不再自己手写路径判断。
-  - 新增 `declaredCategory(method, path)`：回答"这个路由被四张声明表**明确**覆盖了吗"（未覆盖 ⇒ `null`）。
-    `registerAuthGate` 用 `onRoute` 收集所有 `/api/*` 路由、在 `onReady` 断言**每个都被显式声明** ——
-    新加一个没声明类别的端点，服务**起不来**并点名 `METHOD /path`（改前：分类表与注册表两处人肉同步，
-    新端点悄悄落进 fail-closed 兜底，没人分得清"故意要 write"还是"忘了声明"）。
+  - 新增 `declaredCategory(method, path)`：回答"这个路由被四张声明表**明确**覆盖了吗"（未覆盖 ⇒ `null`）——
+    它与 `classifyApiRequest` 用同一套表、同一分支顺序，二者的一致性由 `tests/stage70-auth-classification.test.ts`
+    的 C10 逐条比对钉住（41 条路由全部 `declaredCategory === classifyApiRequest`）。
+    `registerAuthGate` 用 `onRoute` 收集所有 `/api/*` 路由、在 `onReady` 断言**每个都被四张声明表覆盖** ——
+    新开一个没被任何表覆盖的 `/api/*` 命名空间，服务**起不来**并点名 `METHOD /path`（改前：分类表与
+    注册表两处人肉同步，新端点悄悄落进 fail-closed 兜底，没人分得清"故意要 write"还是"忘了声明"）。
+    ⚠️ 三张表是**前缀**表，所以已声明命名空间下的**新子路径**（如 `GET /api/prompts/admin-dump`）会被该
+    命名空间覆盖、不触发红；这道检查盯的是「新命名空间」，比改前更严（改前连新命名空间都不拦）。
+    提交 `4b2d6c4` 标题里"每个 /api 路由必须显式声明"是**过宽**的说法，以本段为准（提交信息不改写历史，
+    更正记录见 `tmp/dev-process/PROGRESS.md` §9.14）。
   - 实测：收集 **41** 条 `/api/*` 路由、未声明 **0** 条；`addHook('onRoute'|'onReady')` +
     分类 API 的出现次数 **0 → 10**；裸 Fastify 注册 `GET /api/undeclared-probe` ⇒
     `认证分类缺失（FR-149 / AC-132 C10）：GET /api/undeclared-probe`。

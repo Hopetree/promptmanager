@@ -138,7 +138,7 @@ test('AC-45 ① ②（v45 按断点修正）：档位顺序与默认档位分桌
     /export type UseViewMode = 'split' \| 'table' \| 'card'/.test(useView),
     'UseViewMode 必须只含 split / table / card',
   );
-  // 顺序与默认值的**单一真相源**是 pure.ts 的 viewModeOptions / defaultViewMode ⇒ 直接断言行为，
+  // 顺序与默认值的**单一真相源**是 web/src/view-mode.ts 的 viewModeOptions / defaultViewMode ⇒ 直接断言行为，
   // 而不是像 v19 那样断言"源码里 value: 'split' 出现在 value: 'card' 之前"（那会把移动端倒序判成错）。
   assert.deepEqual(
     viewModeOptions(false).map((option) => option.label),

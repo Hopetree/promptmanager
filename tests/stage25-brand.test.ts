@@ -1,5 +1,5 @@
 // 阶段 25 / FR-76 / D-31（BRIEF v32 §4 + §8 AC-76）：
-//   顶栏品牌文字 = `PromptM`（**只此一处**）；其余四处（<title>/登录页/关于页/pure.ts 错误文案）保持 `PromptManager`；
+//   顶栏品牌文字 = `PromptM`（**只此一处**）；其余四处（<title>/登录页/关于页/import-file.ts 错误文案）保持 `PromptManager`；
 //   导出契约值 `app: 'promptmanager'` 一字不动（显示名 ≠ 契约值）；图标 mark 与移动端行为不变。
 // 运行时段（桌面/移动视口 + 截图）见库外验收记录。
 import assert from 'node:assert/strict';

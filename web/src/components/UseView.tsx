@@ -658,7 +658,7 @@ export default function UseView({
           size="large"
           value={viewMode}
           onChange={(value) => onViewModeChange(value as UseViewMode)}
-          /* FR-92 ①：顺序按断点 —— 桌面 分栏/表格/卡片，移动端 卡片/表格/分栏（见 pure.ts viewModeOptions） */
+          /* FR-92 ①：顺序按断点 —— 桌面 分栏/表格/卡片，移动端 卡片/表格/分栏（见 web/src/view-mode.ts 的 viewModeOptions） */
           options={viewModeOptions(isMobile)}
           data-testid="pm-use-viewmode"
         />
