@@ -11,7 +11,7 @@
 import { byTestId, calls, element, mount, releaseLoaderPort, resetRoutes, route, waitFor, type Mounted } from './harness.ts';
 import assert from 'node:assert/strict';
 import { after, beforeEach, test } from 'node:test';
-import { act } from 'react';
+import { act, useState } from 'react';
 import { App as AntdApp } from 'antd';
 import type { TokenSummary } from '../../web/src/types.ts';
 
@@ -217,4 +217,59 @@ test('AC-130 ⑩（源码级）：TokenDrawer 不把明文写进任何 Web Stora
   assert.doesNotMatch(source, /localStorage|sessionStorage/, '明文组件不得碰 Web Storage（FR-142 / D-66 ④）');
   assert.match(source, /!cache\.has\(token\.id\)/, '预取必须跳过缓存里已有的行');
   assert.match(source, /plaintextsRef\.current = new Map\(\)/, '抽屉关闭要连 ref 里的缓存一起清');
+});
+
+test('AC-130 ⑩（返工①）：关闭抽屉时在途的预取必须作废 —— 关掉之后明文不许被写回内存', async () => {
+  const state: State = { tokens: [makeToken({ id: 1, name: '甲' })], nextId: 2 };
+  let release: (() => void) | null = null;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  // ⚠️ 顺序要紧：harness 的路由匹配取**第一条**命中 ⇒ 被"卡住"的 reveal 必须先注册，
+  // 否则 `installRoutes()` 里那条立即回包的 reveal 会先匹配上，根本测不到"在途"。
+  route('POST', /^\/api\/tokens\/\d+\/reveal$/, async (request) => {
+    await gate;
+    return { status: 200, body: { token: SECRET(Number(request.path.split('/')[3])) } };
+  });
+  installRoutes(state);
+
+  function Wrapper(): unknown {
+    const [open, setOpen] = useState(true);
+    return element(
+      AntdApp,
+      {},
+      element(
+        'div',
+        {},
+        element('button', { 'data-testid': 'pm-close', onClick: () => setOpen(false) }, '关闭'),
+        element('button', { 'data-testid': 'pm-reopen', onClick: () => setOpen(true) }, '重开'),
+        element(TokenDrawer, { open, onClose: () => setOpen(false) }),
+      ),
+    );
+  }
+
+  const mounted = await mount(element(Wrapper, {}));
+  try {
+    await waitFor(() => revealCalls().length === 1, '打开抽屉应发出一次预取');
+    await click('pm-close'); // 关闭：此时预取还在途中
+    await act(async () => {
+      release?.();
+      // 让被卡住的预取**真的跑完**（fetch → json 解析 → 写缓存都要走完），否则测不到"陈旧响应复活缓存"
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    // 陈旧响应即使回来了也不许复活缓存 ⇒ 重开必须**重新**取明文
+    await click('pm-reopen');
+    await waitFor(
+      () => revealCalls().length === 2,
+      `重开应重新 reveal（陈旧响应不得把明文写回内存），实测 ${JSON.stringify(revealCalls())}`,
+    );
+    assert.deepEqual(revealCalls(), [1, 1], '关闭时在途的预取作废 ⇒ 重开必须重新取明文');
+    assert.equal(
+      JSON.stringify(window.localStorage).includes('pm_secret_'),
+      false,
+      '明文不许落 localStorage',
+    );
+  } finally {
+    await mounted.unmount();
+  }
 });

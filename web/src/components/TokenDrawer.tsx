@@ -160,6 +160,12 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
   const [form] = Form.useForm<{ name: string; scope: 'read' | 'write' }>();
   /** 预取失败的 id（点「复制」时给出可读原因，而不是静默失败）。 */
   const prefetchFailed = useRef<Set<number>>(new Set());
+  /**
+   * FR-142：会话代号 —— 抽屉关闭（或重开）都会 +1，让**在途**的预取作废。
+   * 没有这道闸门时，「关闭抽屉清空缓存」与「请求返回后写回缓存」会竞态：
+   * 关掉之后明文仍可能被写回内存（对抗性复核指出的既有竞态）。
+   */
+  const sessionRef = useRef(0);
 
   const handleError = useCallback(
     (error: unknown): void => {
@@ -176,6 +182,7 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
    * 失败过的 id 记在 `prefetchFailed` 里，下一轮不再重试（点「复制」时给出可读原因）。
    */
   const fillPlaintexts = useCallback(async (items: TokenSummary[]): Promise<void> => {
+    const session = sessionRef.current;
     const cache = plaintextsRef.current;
     const missing = items.filter(
       (token) => token.revealable && !cache.has(token.id) && !prefetchFailed.current.has(token.id),
@@ -192,6 +199,8 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
         }
       }),
     );
+    // 抽屉已关闭或已重开 ⇒ 这批结果作废，**不许**把明文写回内存（FR-95「关闭即清空」）
+    if (sessionRef.current !== session) return;
     const next = new Map(cache);
     for (const entry of results) if (entry !== null) next.set(entry[0], entry[1]);
     plaintextsRef.current = next;
@@ -217,15 +226,20 @@ export default function TokenDrawer({ open, onClose, isMobile = false }: TokenDr
   }, [fillPlaintexts, handleError]);
 
   useEffect(() => {
-    if (open) void load();
+    if (open) {
+      sessionRef.current += 1; // 新会话：上一次关闭前在途的预取就此作废
+      void load();
+    }
   }, [open, load]);
 
   /**
    * FR-95 安全约束：**抽屉关闭即清空**预取缓存（明文不留在内存/DOM 里）。
    * 配合 Drawer 的 `destroyOnHidden`，关闭后页面文本里也搜不到明文。
+   * FR-142：同时把会话代号 +1 ⇒ 关闭前发出的预取请求返回后**不会**把明文写回内存。
    */
   useEffect(() => {
     if (!open) {
+      sessionRef.current += 1;
       plaintextsRef.current = new Map();
       setPlaintexts(new Map());
       prefetchFailed.current = new Set();
