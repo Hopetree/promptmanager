@@ -429,15 +429,17 @@ export default function UseView({
    * 带着筛选却一条不剩时，若仍写「还没有可用的 prompt」，用户会以为自己库是空的，
    * 于是去「新建」⇒ 产生重复数据。
    */
-  const hasActiveFilter = query !== '' || filters.folderId !== null || filters.tag !== null || filters.favorite;
+  const hasActiveFilter = filters.q !== '' || filters.folderId !== null || filters.tag !== null || filters.favorite;
   // "一条 prompt 都没有"（无搜索、无筛选）才显示品牌图形；只是筛不到时不显示
   const trulyEmpty = !hasActiveFilter;
   /** 空态文案：两处视图（卡片/表格、分栏）共用同一份，保证口径一致（AC-119 ⑥） */
   const emptyTitle = hasActiveFilter ? '没有匹配的条目' : '还没有可用的 prompt';
+  // N18 / FR-154：文案必须跟**当前生效的筛选**（`filters.q`，即这份结果对应的那次请求）同源，
+  // 不能用输入框里还没防抖生效的 `query` —— 否则"刚打完字"这一瞬，界面会用新词去描述旧结果。
   const emptyHint = hasActiveFilter
-    ? query === ''
+    ? filters.q === ''
       ? '当前筛选条件下没有条目，试试放宽筛选或清空搜索'
-      : `没有匹配「${query}」的条目`
+      : `没有匹配「${filters.q}」的条目`
     : '点右上角「新建」写一条';
   /** FR-74 ①：表格行拖拽（与卡片/分栏同一套 dnd-kit 与同一接口；同目录内生效） */
   const sensors = useSensors(
@@ -561,7 +563,9 @@ export default function UseView({
       );
     }
     if (error !== null) return <ErrorState message={error} onRetry={onRetry} />;
-    if (loading && data === null) return <LoadingState rows={4} label="正在读取 prompt…" />;
+    // FR-151 ② / N11 加重项：判据是"**有请求在飞**"，不是"还没拿到过数据" ——
+    // 只看 `data === null` 会让筛选/刷新期间静默展示上一次的旧结果。
+    if (loading) return <LoadingState rows={4} label="正在读取 prompt…" testid="pm-list-loading" />;
     if (viewMode === 'card') {
       if (ordered.length === 0) {
         return (

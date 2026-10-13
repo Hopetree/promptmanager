@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import { Alert, Button, Collapse, Flex, List, Modal, Space, Tag, Typography, theme } from 'antd';
 import { useCallback, useEffect, useState } from 'react';
+import { useViewportBands } from '../breakpoints.ts';
 import { PM_META } from '../pm-meta';
 
 interface AboutModalProps {
@@ -55,6 +56,8 @@ function ExtLink({ href, children }: { href: string; children: React.ReactNode }
  */
 export default function AboutModal({ open, onClose }: AboutModalProps) {
   const { token } = theme.useToken();
+  // FR-154：断点判断只有 `breakpoints.ts` 一个来源（原先这里自己按 768px 阈值判过）
+  const { isMobile } = useViewportBands();
   const [health, setHealth] = useState<HealthBody | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -205,7 +208,7 @@ export default function AboutModal({ open, onClose }: AboutModalProps) {
             与 ② pm-about-links 的锚点写法一致。只加属性与容器，不改行为与文案。 */}
         <div data-testid="pm-about-usage-maintain">
           <Collapse
-            defaultActiveKey={isNarrowHint() ? [] : ['usage']}
+            defaultActiveKey={isMobile ? [] : ['usage']}
             items={[
               {
                 key: 'usage',
@@ -286,14 +289,6 @@ export default function AboutModal({ open, onClose }: AboutModalProps) {
       </Flex>
     </Modal>
   );
-}
-
-/**
- * 移动端默认折叠「使用 / 维护」区（AC-120 ⑭）：窄屏下弹窗本来就偏高要滚动，
- * 再默认展开两个长分区会更高。判断只看**视口宽度**，不涉及任何数据。
- */
-function isNarrowHint(): boolean {
-  return typeof window !== 'undefined' && window.innerWidth < 768;
 }
 
 /** 出处与去向区：图标 + 名称 + 值，逐行排列（窄屏也能读）。 */

@@ -1,6 +1,7 @@
 import { CloudDownloadOutlined, CloudUploadOutlined, LinkOutlined } from '@ant-design/icons';
 import { Alert, App as AntdApp, Button, Card, Descriptions, Flex, Form, Input, Modal, Segmented, Space, Typography } from 'antd';
-import { useCallback, useEffect, useState } from 'react';
+import type { InputRef } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, api, describeError } from '../api';
 import type { SyncConfigView, SyncPushResult, SyncTestResult } from '../types';
 import { usageHistoryNotice } from '../notices.ts';
@@ -55,6 +56,17 @@ export default function SyncModal({ open, onClose, onPulled }: SyncModalProps) {
   const [test, setTest] = useState<SyncTestResult | null>(null);
   const [plan, setPlan] = useState<SyncPushResult | null>(null);
   const [mode, setMode] = useState<'merge' | 'replace'>('merge');
+  /**
+   * FR-153 / AC-133 C10：令牌输入框的 DOM 引用。
+   * `form.setFieldValue('token', undefined)` 只清受控值，某些浏览器（或自动填充）仍会把明文留在
+   * DOM 的 `value` 上，所以失败路径与关闭路径都**连 DOM 一起清**。
+   */
+  const tokenRef = useRef<InputRef | null>(null);
+
+  const clearToken = useCallback((): void => {
+    form.setFieldValue('token', undefined);
+    if (tokenRef.current?.input != null) tokenRef.current.input.value = '';
+  }, [form]);
 
   const applyConfig = useCallback(
     (view: SyncConfigView): void => {
@@ -102,6 +114,8 @@ export default function SyncModal({ open, onClose, onPulled }: SyncModalProps) {
       setPlan(null);
       message.success('同步配置已保存（令牌加密存储，界面不再显示明文）');
     } catch (error) {
+      // FR-153：保存失败时**不留明文** —— 失败后用户往往要改别的字段再重试，令牌不该一直躺在表单里
+      clearToken();
       message.error(explain(error));
     } finally {
       setSaving(false);
@@ -227,11 +241,17 @@ export default function SyncModal({ open, onClose, onPulled }: SyncModalProps) {
 
   const target = config !== null && config.configured ? `${config.repo}@${config.branch}:${config.path}` : null;
 
+  /** FR-153：关闭也好、点「关闭」按钮也好，都要把明文令牌清掉（关闭路径同样是泄露面） */
+  const closeModal = (): void => {
+    clearToken();
+    onClose();
+  };
+
   return (
     <Modal
       open={open}
-      onCancel={onClose}
-      onOk={onClose}
+      onCancel={closeModal}
+      onOk={closeModal}
       okText="关闭"
       cancelButtonProps={{ style: { display: 'none' } }}
       title="远程数据同步"
@@ -280,6 +300,7 @@ export default function SyncModal({ open, onClose, onPulled }: SyncModalProps) {
             }
           >
             <Input.Password
+              ref={tokenRef}
               placeholder={config !== null && config.token_set ? '留空沿用已保存的令牌' : 'github_pat_…'}
               data-testid="sync-token"
               autoComplete="new-password"

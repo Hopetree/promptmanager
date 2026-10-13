@@ -34,7 +34,12 @@ test('AC-114 ①②（源码级）：复制路径**不再**为拿正文而 GET `
     '无变量分支应直接复制入参里的 user_prompt',
   );
   // 含变量分支：仍走 render（**保留那一次取用**，不是"完全不记"）
-  assert.ok(/api\.render\(prompt\.id, values\)/.test(copy), '含变量分支必须仍走服务端 render（记一次）');
+  assert.ok(/api\.render\(promptId, values\)/.test(copy), '含变量分支必须仍走服务端 render（记一次）');
+  // 阶段 71（FR-151 ④ / AC-133 A4）：不再收"捕获时刻的 prompt 对象"，只按 id 现取现渲染
+  assert.ok(
+    /copyRendered: \(promptId: number, values: Record<string, string>\)/.test(copy),
+    'copyRendered 只收 promptId（不接受捕获时刻的 Prompt 对象）',
+  );
   assert.ok(/copyRendered/.test(copy), 'copyRendered 仍在');
 });
 

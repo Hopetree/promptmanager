@@ -14,7 +14,12 @@ export { writeClipboard };
 export interface PromptCopier {
   copyText: (text: string, label?: string) => Promise<boolean>;
   copyPrompt: (prompt: Prompt) => Promise<void>;
-  copyRendered: (prompt: Prompt, values: Record<string, string>) => Promise<void>;
+  /**
+   * FR-151 ④ / AC-133 A4：**只收 id，不收 prompt 对象**。
+   * 原先形参是调用时刻捕获的 `Prompt` 对象 —— 弹窗开着的时候列表/详情刷新会换掉单一数据源里的
+   * 那条，旧对象就是"捕获时刻的快照"。现在调用方每次现取 id，正文与变量都以 id 为准。
+   */
+  copyRendered: (promptId: number, values: Record<string, string>) => Promise<void>;
   varsPrompt: Prompt | null;
   closeVars: () => void;
   busyId: number | null;
@@ -91,10 +96,10 @@ export function usePromptCopy(resolvePrompt: (id: number) => Prompt | null): Pro
   );
 
   const copyRendered = useCallback(
-    async (prompt: Prompt, values: Record<string, string>): Promise<void> => {
-      setBusyId(prompt.id);
+    async (promptId: number, values: Record<string, string>): Promise<void> => {
+      setBusyId(promptId);
       try {
-        const rendered = await api.render(prompt.id, values); // 记一次 session 取用（FR-19）
+        const rendered = await api.render(promptId, values); // 记一次 session 取用（FR-19）
         await copyText(rendered.user_prompt, '渲染结果');
         setVarsPromptId(null);
       } catch (error) {

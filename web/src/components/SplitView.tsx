@@ -78,7 +78,8 @@ export default function SplitView({
 
   const list = ((): React.ReactNode => {
     if (error !== null) return <ErrorState message={error} onRetry={onRetry} />;
-    if (loading && data === null) return <LoadingState rows={6} label="正在读取 prompt…" />;
+    // FR-151 ②：与卡片/表格同一口径 —— "有请求在飞"就给加载态，不是"还没加载过"才给
+    if (loading) return <LoadingState rows={6} label="正在读取 prompt…" testid="pm-list-loading" />;
     if (items.length === 0) {
       return <EmptyState title={emptyTitle} hint={emptyHint} withBrandIcon={emptyWithBrandIcon} />;
     }

@@ -197,6 +197,19 @@ async function runAction(cdp, action) {
     await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
     return;
   }
+  if (action.type === 'key') {
+    // 真实按键（走 CDP 输入管线，落在**当前焦点元素**上）：Esc / Tab 这类"键盘语义"验收要用
+    // （阶段 71 FR-152 的 typing 守卫就是"输入控件里按 Esc"的语义，JS 合成事件覆盖面不够）。
+    const keys = {
+      key: action.key,
+      code: action.code ?? action.key,
+      windowsVirtualKeyCode: action.keyCode ?? 0,
+      nativeVirtualKeyCode: action.keyCode ?? 0,
+    };
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...keys });
+    await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...keys });
+    return;
+  }
   if (action.type === 'file') {
     // 给 <input type=file> 装一个真实文件（导入界面 FR-11b 的证据要用真文件走真解析）
     await cdp.send('DOM.enable');

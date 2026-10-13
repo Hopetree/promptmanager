@@ -14,7 +14,6 @@ import {
   Card,
   Flex,
   Form,
-  Grid,
   Input,
   Popconfirm,
   Segmented,
@@ -28,6 +27,7 @@ import {
 import type { ReactNode } from 'react';
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, describeError } from '../api';
+import { useViewportBands } from '../breakpoints.ts';
 import { buildFolderTree } from '../folders-util.ts';
 import { formatDateTime } from '../format.ts';
 import { removeRememberedVars } from '../vars.ts';
@@ -60,6 +60,11 @@ interface PromptEditorProps {
   fullscreen: boolean;
   /** FR-62：切换全屏（同一个按钮进出） */
   onToggleFullscreen: () => void;
+  /**
+   * FR-152 / AC-133 B6：把"有没有未保存的修改"上报给外层 —— 切换 / 关闭 / beforeunload
+   * 都由 `Workspace` 统一保护（编辑器自己不可能拦住左栏列表点击）。
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 interface EditorForm {
@@ -72,6 +77,23 @@ interface EditorForm {
   favorite: boolean;
   /** FR-127：是否记住这个提示词的变量值（开关存服务端；变量值本身仍只存 localStorage）。 */
   remember_variables: boolean;
+}
+
+/**
+ * FR-152：表单内容的稳定指纹 —— 用来判断"改了没有"。
+ * 只比这 8 个**能保存的**字段，`tags` 排序后再比（顺序不是内容）。
+ */
+function serializeForm(values: Partial<EditorForm> | undefined): string {
+  return JSON.stringify({
+    title: values?.title ?? '',
+    user_prompt: values?.user_prompt ?? '',
+    system_prompt: values?.system_prompt ?? '',
+    notes: values?.notes ?? '',
+    folder_id: values?.folder_id ?? null,
+    tags: [...(values?.tags ?? [])].sort(),
+    favorite: values?.favorite ?? false,
+    remember_variables: values?.remember_variables ?? true,
+  });
 }
 
 /**
@@ -95,27 +117,50 @@ export default function PromptEditor({
   onCopyText,
   fullscreen,
   onToggleFullscreen,
+  onDirtyChange,
 }: PromptEditorProps) {
   const { message } = AntdApp.useApp();
   const { token } = theme.useToken();
-  const screens = Grid.useBreakpoint();
   const [form] = Form.useForm<EditorForm>();
   const [submitting, setSubmitting] = useState(false);
   const [versionRefreshKey, setVersionRefreshKey] = useState(0);
+  /** FR-152：表单里有未保存的修改（与"干净基线"逐字段比对，不靠"有没有按过键"） */
+  const [dirty, setDirty] = useState(false);
   /** FR-62：窄屏 / 移动端全屏退化为单栏时的「编辑 / 预览」二选一 */
   const [fsPane, setFsPane] = useState<'edit' | 'preview'>('edit');
 
+  /**
+   * FR-154：断点判断单一来源（`breakpoints.ts`）—— `undefined` 表示"还没测量"，与"窄"分开。
+   * 原先这里自己按 1200px 阈值判过一次，"还没测量"被当成窄（初始化那一帧会闪成单栏）。
+   */
+  const { isNarrow } = useViewportBands();
+
   // 768–1200px（无 xl）：全屏也只放一栏（FR-62 的"窄屏不横向溢出"，FR-63 未改）
-  const narrow = !isMobile && (screens.xl === undefined ? window.innerWidth < 1200 : !screens.xl);
+  const narrow = isNarrow;
   const singleColumn = fullscreen && (isMobile || narrow);
 
   // FR-63：编辑器全屏是**应用内全屏** —— 页面永远不会进入浏览器全屏态
   //（不碰任何 Fullscreen API，AC-63 ① 会断言浏览器全屏元素恒为空），
   // 只隐藏内部左栏并把剩余空间 1:1 分给编辑栏与右栏。
 
+  /** FR-152：干净基线指纹 —— 程序化载入 / 保存成功时刷新，用户改动后与之比对 */
+  const cleanRef = useRef<string>('');
+  /** 回调身份不参与依赖：只保留最新引用，避免父层每次渲染都让下行 effect 重跑 */
+  const onDirtyChangeRef = useRef(onDirtyChange);
+  useEffect(() => {
+    onDirtyChangeRef.current = onDirtyChange;
+  }, [onDirtyChange]);
+
+  /** 记下"当前内容 = 干净"，并把 dirty 状态同步给外层（FR-152） */
+  const markClean = useCallback((values: Partial<EditorForm>): void => {
+    cleanRef.current = serializeForm(values);
+    setDirty(false);
+    onDirtyChangeRef.current?.(false);
+  }, []);
+
   const fill = useCallback(
     (source: Prompt) => {
-      form.setFieldsValue({
+      const values: EditorForm = {
         title: source.title,
         user_prompt: source.user_prompt,
         system_prompt: source.system_prompt,
@@ -124,7 +169,12 @@ export default function PromptEditor({
         tags: source.tags,
         favorite: source.favorite,
         remember_variables: source.remember_variables,
-      });
+      };
+      form.setFieldsValue(values);
+      // FR-152：**程序化载入不算用户的修改**（setFieldsValue 不触发 onValuesChange，这里再显式刷基线）
+      cleanRef.current = serializeForm(values);
+      setDirty(false);
+      onDirtyChangeRef.current?.(false);
     },
     [form],
   );
@@ -194,6 +244,8 @@ export default function PromptEditor({
       if (payload.remember_variables === false) removeRememberedVars(updated.id);
       onSaved(updated);
       setVersionRefreshKey((key) => key + 1);
+      // FR-152：保存成功 = 当前内容已落库，基线随之刷新（否则之后切条目会误报"有未保存修改"）
+      markClean(values);
       message.success(`已保存（v${String(updated.version_no)}）`);
     } catch (error) {
       message.error(describeError(error));
@@ -230,10 +282,26 @@ export default function PromptEditor({
             <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>
               v{prompt.version_no} · 更新于 {formatDateTime(prompt.updated_at)} · 取用 {prompt.use_count}
             </Typography.Text>
+            {/* FR-152 / AC-133 B9：草稿徽标的覆盖面必须包含"改了一半的既有 prompt" */}
+            {dirty ? (
+              <Typography.Text style={{ fontSize: 11, color: token.colorWarning }} data-testid="editor-dirty-badge">
+                有未保存的修改
+              </Typography.Text>
+            ) : null}
           </>
         )}
       </Flex>
-      <Form<EditorForm> form={form} layout="vertical" requiredMark={false}>
+      <Form<EditorForm>
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        onValuesChange={(_changed, allValues) => {
+          // FR-152：任何用户改动都要在第一时间让外层知道（切换 / 关闭前才来得及确认）
+          const nextDirty = serializeForm(allValues) !== cleanRef.current;
+          setDirty(nextDirty);
+          onDirtyChangeRef.current?.(nextDirty);
+        }}
+      >
         <Form.Item name="title" label="标题" style={{ marginBottom: 12 }}>
           <Input placeholder="例如：代码评审助手" data-testid="editor-title" />
         </Form.Item>

@@ -145,6 +145,34 @@ export async function mount(element: ReactElement): Promise<Mounted> {
   };
 }
 
+/**
+ * 挂载登记表：**一条用例在断言中途失败时没有机会 `unmount()`**，那棵 DOM 会留在
+ * `document.body` 里，下一条用例的 `document.querySelector` 就会命中上一条的树 ——
+ * 表现成莫名其妙的"等待超时 / 断言错位"（阶段 71 实测踩到过）。
+ *
+ * 用法：文件级 `const { mountTracked, unmountAll } = mountRegistry();` +
+ * `afterEach(unmountAll)`，然后用 `mountTracked` 代替 `mount`。
+ */
+export function mountRegistry(): {
+  mountTracked: (element: ReactElement) => Promise<Mounted>;
+  unmountAll: () => Promise<void>;
+} {
+  const mounted: Mounted[] = [];
+  return {
+    async mountTracked(el: ReactElement): Promise<Mounted> {
+      const handle = await mount(el);
+      mounted.push(handle);
+      return handle;
+    },
+    async unmountAll(): Promise<void> {
+      while (mounted.length > 0) {
+        const handle = mounted.pop();
+        if (handle !== undefined) await handle.unmount();
+      }
+    },
+  };
+}
+
 /** 渲染一个元素（`mount` 的简写，元素用 `createElement` 造，测试文件因此不必是 `.tsx`）。 */
 export function element(
   type: unknown,

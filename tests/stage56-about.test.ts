@@ -176,8 +176,11 @@ test('AC-120 ⑬：「使用」区 7 条与当前界面实际交互一致', () =
 // ══════════════ ⑭ 移动端默认折叠 ══════════════
 
 test('AC-120 ⑭：移动端「使用 / 维护」默认折叠（PC 默认展开使用）', () => {
-  assert.match(about, /defaultActiveKey=\{isNarrowHint\(\) \? \[\] : \['usage'\]\}/,
+  assert.match(about, /defaultActiveKey=\{isMobile \? \[\] : \['usage'\]\}/,
     '折叠默认值应按视口宽度决定：窄屏全折叠，宽屏展开「使用」');
-  assert.match(about, /function isNarrowHint\(\): boolean \{\s*return typeof window !== 'undefined' && window\.innerWidth < 768;/,
-    'isNarrowHint 判据应是视口宽度 < 768，且不依赖任何数据');
+  // 阶段 71（FR-154 / AC-133 D13）：判据改为唯一断点来源（不再是 AboutModal 自己写 768px）
+  assert.match(about, /const \{ isMobile \} = useViewportBands\(\)/,
+    'isMobile 必须来自唯一断点来源 useViewportBands()');
+  assert.doesNotMatch(about, /window\.innerWidth/,
+    'AboutModal 不得再自己写断点（唯一来源在 breakpoints.ts）');
 });

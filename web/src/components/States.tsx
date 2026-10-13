@@ -49,12 +49,14 @@ export function EmptyState({ title, hint, actionLabel, onAction, withBrandIcon =
 interface LoadingStateProps {
   rows?: number;
   label?: string;
+  /** FR-151 ②：加载态要能被渲染级测试断言（"有请求在飞"时界面不是静默展示旧结果） */
+  testid?: string;
 }
 
-export function LoadingState({ rows = 8, label = '正在读取…' }: LoadingStateProps) {
+export function LoadingState({ rows = 8, label = '正在读取…', testid }: LoadingStateProps) {
   const { token } = theme.useToken();
   return (
-    <div style={{ padding: '12px 16px' }}>
+    <div style={{ padding: '12px 16px' }} data-testid={testid}>
       <Typography.Text style={{ fontSize: 12, color: token.colorTextTertiary }}>{label}</Typography.Text>
       <Flex vertical gap={10} style={{ marginTop: 10 }}>
         {Array.from({ length: rows }, (_, index) => (

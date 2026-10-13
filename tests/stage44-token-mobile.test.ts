@@ -66,7 +66,20 @@ test('AC-108 ②（源码级）：移动端把创建表单改成竖排，且 `is
   const usage = /<LazyTokenDrawer[\s\S]*?\/>/.exec(workspace)?.[0] ?? '';
   assert.ok(usage !== '', '必须能定位到 Workspace 里的 LazyTokenDrawer');
   assert.ok(/isMobile=\{isMobile\}/.test(usage), 'Workspace 必须把 isMobile 下发给令牌抽屉');
-  assert.ok(/const isMobile = screens\.md === undefined/.test(workspace), 'isMobile 仍来自 Grid.useBreakpoint（与 SplitView 同款断点）');
+  // 阶段 71（FR-154 / AC-133 D13）改造：断点判断收敛到唯一来源 `web/src/breakpoints.ts`，
+  // 判据意图不变（仍是 antd Grid.useBreakpoint，与 SplitView 同款断点），并**加强**为"唯一来源 + 明确 measured"。
+  assert.ok(
+    /const \{ isMobile, isNarrow \} = useViewportBands\(\)/.test(workspace),
+    'isMobile 必须由唯一断点来源 useViewportBands() 提供（不再是 Workspace 自己算）',
+  );
+  assert.ok(
+    /Grid\.useBreakpoint\(\)/.test(read('web/src/breakpoints.ts')),
+    '唯一断点来源内部仍用 antd Grid.useBreakpoint（与 SplitView 同款断点）',
+  );
+  assert.ok(
+    /screens\.md === undefined/.test(read('web/src/breakpoints.ts')),
+    'undefined（还没测量）必须在唯一来源里显式兜底，而不是被当成"窄"',
+  );
 });
 
 test('AC-108 ③（源码级）：Alert 描述里不再有 Markdown 星号，其余文字不变', () => {

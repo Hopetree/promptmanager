@@ -114,7 +114,8 @@ test('响应式 + 亮暗跟随系统（antd theme.algorithm / Grid.useBreakpoint
   assertIn('theme.ts', /darkAlgorithm/, 'antd 暗色算法');
   assertIn('theme.ts', /defaultAlgorithm/, 'antd 亮色算法');
   assertIn('use-prefers-dark.ts', /prefers-color-scheme/, '跟随系统');
-  assertIn('components/Workspace.tsx', /useBreakpoint\(\)/, 'antd 响应式断点');
+  // 阶段 71（FR-154 / AC-133 D13）：断点判断只有一个来源 —— antd 断点仍在，但只在 breakpoints.ts 里取
+  assertIn('breakpoints.ts', /useBreakpoint\(\)/, 'antd 响应式断点（唯一来源）');
 });
 
 test('AC-20 ②：源码里不出现原生表单/表格标签', () => {
@@ -166,6 +167,7 @@ test('AC-29 ①：theme.token 与 theme.components 都被定制（不是只有 a
 });
 
 test('FR-40b 移动端：卡片列表 + 抽屉编辑（不是横向溢出表格）', () => {
-  assertIn('components/Workspace.tsx', /useBreakpoint\(\)/, '响应式断点');
+  assertIn('breakpoints.ts', /useBreakpoint\(\)/, '响应式断点（唯一来源）');
   assertIn('components/Workspace.tsx', 'isMobile', '必须按断点分流移动端形态');
+  assertIn('components/Workspace.tsx', 'useViewportBands()', '断点只能从唯一来源取');
 });

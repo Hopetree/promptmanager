@@ -84,9 +84,11 @@ test('AC-119 ②：口径本身（COUNTED_KINDS）没被动过', () => {
 // ══════════════ ② FR-120 空态区分 ══════════════
 
 test('AC-119 ②⑥：空态按「是否带筛选」判定，两处视图共用同一份文案', () => {
-  // 判定依据必须是「有没有搜索/筛选条件」，不是靠 items.length 猜
-  assert.match(useView, /const hasActiveFilter = query !== '' \|\| filters\.folderId !== null \|\| filters\.tag !== null \|\| filters\.favorite;/,
-    '必须按搜索/筛选条件判定空态（hasActiveFilter）');
+  // 判定依据必须是「有没有搜索/筛选条件」，不是靠 items.length 猜。
+  // 阶段 71（FR-154 / AC-133 D14，评审 N17）：搜索框**当前生效**的条件是 `filters.q`（`query` 是未防抖
+  // 的输入中间态）—— 空态文案必须与结果同源，否则防抖窗口里文案会和列表打架。
+  assert.match(useView, /const hasActiveFilter = filters\.q !== '' \|\| filters\.folderId !== null \|\| filters\.tag !== null \|\| filters\.favorite;/,
+    '必须按搜索/筛选条件判定空态（hasActiveFilter，且搜索用生效中的 filters.q）');
   assert.match(useView, /const trulyEmpty = !hasActiveFilter;/, 'trulyEmpty 应由 hasActiveFilter 推导，避免两套口径');
 
   // 两套文案：有筛选 → 「没有匹配的条目」；无筛选 → 保留原句

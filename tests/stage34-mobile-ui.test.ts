@@ -60,10 +60,14 @@ test('FR-92 ②：默认档位按断点（移动 card / 桌面 split），且只
     /readPref<UseViewMode>\('pm-view-mode', defaultViewMode\(isMobile\), \['split', 'table', 'card'\]\)/.test(workspace),
     'Workspace 必须以 defaultViewMode(isMobile) 为 fallback，且 allowed 集合不变',
   );
-  // readPref 的实现必须是"存储里有且合法才用存储值"（否则"不覆盖已有偏好"就不成立）
-  const readPrefBody = workspace.slice(workspace.indexOf('function readPref'), workspace.indexOf('function readBoolPref'));
+  // readPref 的实现必须是"存储里有且合法才用存储值"（否则"不覆盖已有偏好"就不成立）。
+  // 阶段 71：实现搬到唯一来源 `web/src/prefs.ts`（Workspace 行数棘轮 + 只留一处实现），判据不变。
+  const prefs = src('prefs.ts');
+  assert.ok(/function readPref/.test(prefs), 'readPref 必须在唯一来源 web/src/prefs.ts 里');
+  const readPrefBody = prefs.slice(prefs.indexOf('function readPref'), prefs.indexOf('function readBoolPref'));
   assert.ok(/localStorage\.getItem\(key\)/.test(readPrefBody), 'readPref 必须读 localStorage');
   assert.ok(/includes\(raw\)/.test(readPrefBody), 'readPref 必须校验取值在 allowed 内（非法/旧值回退 fallback）');
+  assert.ok(/from '\.\.\/prefs\.ts'/.test(workspace), 'Workspace 必须从唯一来源取偏好读写');
 });
 
 test('FR-92 ③：取值集合不变（仍是 split/table/card，不新增第四个档位），键名不变', () => {

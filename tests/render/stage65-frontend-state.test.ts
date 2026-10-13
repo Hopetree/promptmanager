@@ -302,9 +302,16 @@ test('AC-127 B5：切到另一条 prompt ⇒ 表单必须重新填充（该重�
     await mounted.settle();
 
     await click('pm-editor-list-item-2');
+    // 阶段 71（FR-152 / AC-133 B6）：有未保存修改时**换条目必须先确认**，不允许静默丢弃。
+    // 所以这里先断言"确认出现了"，点「放弃修改」之后才轮到"重填成第二条"（判据只加强，不削弱）。
+    await waitFor(
+      () => document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null,
+      '有未保存修改时换条目前必须先出现未保存确认',
+    );
+    await click('pm-unsaved-discard');
     await waitFor(
       () => valueOf('editor-user-prompt') === '正文二',
-      '换成第二条后，表单必须重填成第二条的正文',
+      '确认放弃后，表单必须重填成第二条的正文',
     );
   } finally {
     await mounted.unmount();

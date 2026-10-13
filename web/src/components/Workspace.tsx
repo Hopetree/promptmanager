@@ -1,10 +1,12 @@
-import { App as AntdApp, Button, Card, Drawer, Flex, Grid, Input, Layout, List, Typography, theme } from 'antd';
+import { App as AntdApp, Button, Card, Drawer, Flex, Input, Layout, List, Typography, theme } from 'antd';
 import { ArrowLeftOutlined, StarFilled, StarOutlined } from '@ant-design/icons';
 import type { CSSProperties } from 'react';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { api, describeError } from '../api';
+import { useViewportBands } from '../breakpoints.ts';
 import { formatListDateTime, orderPrompts } from '../format.ts';
 import { defaultViewMode } from '../view-mode.ts';
+import { readBoolPref, readPref, writePref } from '../prefs.ts';
 import type { Folder, Prompt, PromptListFilters, PromptListResponse, Tag } from '../types';
 import type { ThemeMode } from '../theme-mode';
 import {
@@ -22,7 +24,10 @@ import LazyFallback from './LazyFallback';
 import PromptDetail, { type PromptMetaPatch } from './PromptDetail';
 import SidebarPanel from './SidebarPanel';
 import UseView, { type UseSort, type UseViewMode } from './UseView';
+import UnsavedDialog from './UnsavedDialog';
 import { usePromptCopy } from '../use-copy';
+import { useLatestRequests } from '../use-latest-requests.ts';
+import { useUnsavedGuard } from '../use-unsaved-guard.ts';
 
 interface WorkspaceProps {
   themeMode: ThemeMode;
@@ -51,31 +56,6 @@ const EMPTY_DRAFT: Prompt = {
   last_used_at: null,
 };
 
-/** 本地偏好（视图/排序/收藏置顶都记住；不新增接口）。v17（FR-43）起界面只有一套，没有模式开关。 */
-function readPref<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw !== null && (allowed as readonly string[]).includes(raw) ? (raw as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-function readBoolPref(key: string, fallback: boolean): boolean {
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw === null ? fallback : raw === '1';
-  } catch {
-    return fallback;
-  }
-}
-function writePref(key: string, value: string): void {
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    /* 隐私模式下写不进就算了 */
-  }
-}
-
 /**
  * 工作区（FR-43 / D-21 / FR-46 / FR-48）：**只有一个主界面**——使用优先的三档视图（分栏 / 表格 / 卡片）。
  * 管理动作（编辑 / 删除）落在表格行内与分栏右栏的详情面里（D-22），编辑页自身也有删除；
@@ -85,10 +65,19 @@ function writePref(key: string, value: string): void {
 export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: WorkspaceProps) {
   const { message } = AntdApp.useApp();
   const { token } = theme.useToken();
-  const screens = Grid.useBreakpoint();
-  const isMobile = screens.md === undefined ? window.innerWidth < 768 : !screens.md;
-  // 768–1200px：保留「中栏 + 右栏」，左栏收成抽屉（FR-46）；≥1200 三栏同屏
-  const isNarrow = !isMobile && (screens.xl === undefined ? window.innerWidth < 1200 : !screens.xl);
+  // FR-154 / AC-133 D13：断点判断只有 `breakpoints.ts` 一个来源（`undefined` = 还没测量 ≠ 窄）
+  const { isMobile, isNarrow } = useViewportBands();
+  // FR-151 ①：三条加载路径（列表 / 编辑器 / 详情）只认"最后一次发出者赢"（N11 / N12）
+  const req = useLatestRequests();
+  // FR-152：未保存编辑的保护 —— 任何"切换 / 关闭"都要先过它（B6 / B7 / B8）
+  const {
+    asking: discardOpen,
+    reportDirty,
+    requestLeave,
+    keepEditing,
+    discardChanges,
+    reset: resetGuard,
+  } = useUnsavedGuard();
 
   const [view, setView] = useState<'list' | 'editor'>('list');
   const [useSort, setUseSort] = useState<UseSort>(() =>
@@ -192,6 +181,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   );
 
   const loadList = useCallback(async (): Promise<void> => {
+    // FR-151 ①：先领序号；旧响应回来时序号已被超越 ⇒ 整段丢弃（连同加载态）
+    const seq = req.begin('list');
     setLoading(true);
     try {
       const result = await api.listPrompts({
@@ -205,6 +196,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         // FR-141：顺手把全部文件夹的条目数带回来（替代原先"每个文件夹各发一次请求"的 N+1）
         includeFolderCounts: true,
       });
+      if (!req.isLatest('list', seq)) return;
       mergePrompts(result.items);
       setListIds(result.items.map((prompt) => prompt.id));
       setTotal(result.total);
@@ -214,11 +206,12 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       }
       setListError(null);
     } catch (error) {
+      if (!req.isLatest('list', seq)) return;
       setListError(describeError(error));
     } finally {
-      setLoading(false);
+      if (req.isLatest('list', seq)) setLoading(false);
     }
-  }, [filters, mergePrompts]);
+  }, [filters, mergePrompts, req]);
 
   const loadFolders = useCallback(async (): Promise<void> => {
     try {
@@ -344,14 +337,18 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     setEditingId(null);
     setEditorOpen(false);
     setEditorFullscreen(false);
+    resetGuard();
     setView('list');
-  }, []);
+  }, [resetGuard]);
 
   const openEditor = useCallback(
     async (id: number, origin: 'detail' | 'list' = 'list'): Promise<void> => {
+      // FR-151 ①：连点两条时只有最后发起的这次才准写回（慢的那条不得把编辑器换回旧条目）
+      const seq = req.begin('editor');
       try {
         // 走 GET /api/prompts/:id：按 FR-19 记一次 session 取用，并拿到最新 use_count
         const prompt = await api.getPrompt(id);
+        if (!req.isLatest('editor', seq)) return;
         mergePrompts(prompt);
         setDraft(null);
         setEditingId(prompt.id);
@@ -360,10 +357,11 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         if (isMobile) setEditorOpen(true);
         else setView('editor');
       } catch (error) {
+        if (!req.isLatest('editor', seq)) return;
         notify(error);
       }
     },
-    [isMobile, mergePrompts, notify],
+    [isMobile, mergePrompts, notify, req],
   );
 
   /** FR-55：从编辑器回到"详情"（分栏右栏 / 详情弹层），而不是回列表。 */
@@ -379,17 +377,21 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
 
   const openDetail = useCallback(
     async (prompt: Prompt): Promise<void> => {
+      // FR-151 ①：详情同样"最后一次发出者赢"（连点两条时右栏必须是后点的那条）
+      const seq = req.begin('detail');
       try {
         // 打开详情 = FR-19 的一次 session 取用
         const fresh = await api.getPrompt(prompt.id);
+        if (!req.isLatest('detail', seq)) return;
         mergePrompts(fresh);
         if (!isMobile && viewMode === 'split') setSelectedId(fresh.id);
         else setDetailId(fresh.id);
       } catch (error) {
+        if (!req.isLatest('detail', seq)) return;
         notify(error);
       }
     },
-    [isMobile, mergePrompts, notify, viewMode],
+    [isMobile, mergePrompts, notify, req, viewMode],
   );
 
   /** FR-51：点 logo = 回主页 —— 视图回分栏、清搜索与全部筛选、取消选中、回到列表顶部。 */
@@ -560,6 +562,10 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         target !== null &&
         (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable === true);
 
+      // FR-152 / AC-133 B8：输入控件里的按键一律交还控件（**含 Esc**）。这一句原先写在
+      // Escape 分支之后 ⇒ textarea 里按 Esc 会直接关掉编辑器、未保存内容没了。必须先判。
+      if (typing) return;
+
       if (event.key === 'Escape') {
         // FR-62 退出路径 ②：全屏时 Esc **只退全屏**——不关编辑器、不丢未保存内容、不触发"返回"
         if (editorFullscreen) {
@@ -570,8 +576,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           setDetailId(null);
           return;
         }
-        if (overlayOpen) return;
-        if (view === 'editor' || editorOpen) closeEditor();
+        if (overlayOpen || discardOpen) return;
+        if (view === 'editor' || editorOpen) requestLeave(closeEditor);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && (event.key === 'k' || event.key === 'K')) {
@@ -580,7 +586,6 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         window.setTimeout(focusSearch, 60);
         return;
       }
-      if (typing) return;
       if (event.key === '/') {
         event.preventDefault();
         if (view !== 'list') setView('list');
@@ -602,7 +607,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeIndex, closeEditor, copier, data, detail, editorFullscreen, editorOpen, focusSearch, overlayOpen, view]);
+  }, [activeIndex, closeEditor, copier, data, detail, discardOpen, editorFullscreen, editorOpen, focusSearch, overlayOpen, requestLeave, view]);
 
   const folderName = (id: number | null): string => {
     if (id === null) return '未归类';
@@ -615,7 +620,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
       size="small"
       title={
         <Flex align="center" gap={6}>
-          <Button type="text" size="small" icon={<ArrowLeftOutlined />} onClick={closeEditor} aria-label="返回列表" />
+          <Button type="text" size="small" icon={<ArrowLeftOutlined />} onClick={() => requestLeave(closeEditor)} aria-label="返回列表" />
           <Typography.Text style={{ fontSize: 12, fontWeight: 600 }}>Prompt 列表</Typography.Text>
         </Flex>
       }
@@ -635,7 +640,11 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         locale={{ emptyText: '没有匹配的 prompt' }}
         renderItem={(prompt) => (
           <List.Item
-            onClick={() => void openEditor(prompt.id)}
+            onClick={() => {
+              // FR-152：换条目 = 离开当前编辑内容（点当前这条则什么都不做）
+              if (prompt.id === editing?.id && !isNew) return;
+              requestLeave(() => void openEditor(prompt.id));
+            }}
             style={{
               cursor: 'pointer',
               padding: '8px 6px',
@@ -702,7 +711,8 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           tags={tags}
           isMobile={isMobile}
           left={isMobile ? undefined : editorList}
-          onClose={closeEditor}
+          onClose={() => requestLeave(closeEditor)}
+          onDirtyChange={reportDirty}
           onBackToDetail={backToDetail}
           onSaved={(prompt) => {
             // FR-136 ②：把服务端回包写进**单一数据源** ⇒ 列表 / 分栏右栏 / 详情立刻是同一份最新数据
@@ -814,7 +824,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           open={editorOpen}
           placement="right"
           width="100%"
-          onClose={closeEditor}
+          onClose={() => requestLeave(closeEditor)}
           /* FR-62：全屏时 Esc 归"退出全屏"管，抽屉不得抢走 Esc 去关编辑器 */
           keyboard={!editorFullscreen}
           closable={!editorFullscreen}
@@ -909,11 +919,13 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             prompt={copier.varsPrompt}
             busy={copier.busyId !== null}
             onCancel={copier.closeVars}
-            onConfirm={(prompt, values) => void copier.copyRendered(prompt, values)}
+            onConfirm={(prompt, values) => void copier.copyRendered(prompt.id, values)}
             onRememberChange={(prompt, remember) => void setRememberVariables(prompt, remember)}
           />
         </Suspense>
       )}
+      {/* FR-152：未保存编辑的确认（只在打开时挂载，见 `UnsavedDialog`） */}
+      <UnsavedDialog open={discardOpen} onKeep={keepEditing} onDiscard={discardChanges} />
     </Layout>
   );
 }

@@ -134,6 +134,12 @@
       "stage": 70,
       "delta": 10,
       "note": "FR-148 收尾（去掉误置的小节注释横幅）后再测：+10 B"
+    },
+    {
+      "id": "STAGE71",
+      "stage": 71,
+      "delta": 982,
+      "note": "阶段 71（FR-151~FR-154 / AC-133）：竞态保序 + 未保存编辑保护 + 凭据失败清理 + 断点单一来源，新增 4 个前端模块（breakpoints / prefs / use-latest-requests / use-unsaved-guard）与 UnsavedDialog，实测比改前多 982 B"
     }
   ]
 }

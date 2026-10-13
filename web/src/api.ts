@@ -236,16 +236,46 @@ export const api = {
 };
 
 /**
+ * FR-153 / AC-133 C12：把服务端的**字段级明细**翻成一行中文。
+ * ajv / `InvalidBodyError` 给的是 `details: [{ path, message }]`（可能没有顶层 `message`），
+ * 以前这里整段被吞掉、用户只看到 `HTTP 400 invalid_body`，不知道到底哪个字段错了。
+ */
+function detailsText(details: unknown): string | null {
+  if (!Array.isArray(details)) return null;
+  const parts: string[] = [];
+  for (const item of details) {
+    if (typeof item === 'string') {
+      if (item !== '') parts.push(item);
+      continue;
+    }
+    if (item !== null && typeof item === 'object') {
+      const record = item as { path?: unknown; message?: unknown };
+      const message = typeof record.message === 'string' ? record.message : '';
+      if (message === '') continue;
+      const path = typeof record.path === 'string' && record.path !== '' ? record.path : '';
+      parts.push(path === '' ? message : `${path}：${message}`);
+    }
+  }
+  return parts.length === 0 ? null : parts.join('；');
+}
+
+/**
  * 统一的用户可读错误文案。
  * FR-130 起**不再判 401**（会话失效的单点判断在 `request()` 里），这里只把服务端的错误码翻成人话 ——
  * `unauthorized` 那条就是用户掉登录态时看到的那句，各调用点的通用分支负责显示它。
+ *
+ * FR-153 / AC-133 C12：顺序是 **服务端 `message` → 已知错误码 → 字段级 `details` → 兜底 `error.message`**。
+ * 服务端比前端更清楚"哪一步错了、下一步怎么办"（`SyncModal` 的 `explain()` 原先就是唯一这么做的地方）。
  */
 export function describeError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.serverMessage !== undefined && error.serverMessage !== '') return error.serverMessage;
     if (error.code === 'rate_limited') return '尝试过于频繁，请稍后再试（登录失败次数超过阈值）';
     if (error.code === 'invalid_credentials') return '用户名或密码不正确';
     if (error.code === 'unauthorized') return '会话已失效，请重新登录';
     if (error.code === 'folder_not_empty') return '文件夹下还有子文件夹或 prompt，不能删除';
+    const details = detailsText(error.details);
+    if (details !== null) return details;
     return error.message;
   }
   return error instanceof Error ? error.message : String(error);
