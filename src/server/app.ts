@@ -138,7 +138,13 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
   // FR-156 / AC-134 B8：与配置校验、cookie secure 共用同一判据。
   const hsts = isHttpsOrigin(config.publicOrigin);
 
-  app.addHook('onSend', async (_request, reply, payload) => {
+  app.addHook('onSend', async (request, reply, payload) => {
+    /**
+     * FR-159 / AC-134 E19：`/api/*` 的响应禁止共享缓存。
+     * 理由：API 响应里可能带提示词正文、令牌脱敏形状与用量统计；中间代理 / 浏览器 / 公司网关
+     * 缓存它们既泄露正文又会让"改了看不到"。只覆盖 `/api/*` —— 静态资源照旧可缓存。
+     */
+    if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
     reply.header('x-content-type-options', 'nosniff');
     reply.header('x-frame-options', 'DENY');
     reply.header('referrer-policy', 'strict-origin-when-cross-origin');

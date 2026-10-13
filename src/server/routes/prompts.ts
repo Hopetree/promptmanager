@@ -199,7 +199,9 @@ export function registerPromptRoutes(app: FastifyInstance): void {
      */
     const principal = currentPrincipal(request);
     await recordUsage(app.qe, id, principal.channel, principal.tokenId ?? null, 'view');
-    return (await getPrompt(app.qe, id)) ?? prompt;
+    // FR-159 / AC-134 E18：直接返回已取到的对象 —— `recordUsage` 只写 usage_events，绝不改 prompts 行，
+    // 所以"再取一次拿最新值"没有任何意义（纯粹多一条 SELECT）。
+    return prompt;
   });
 
   app.put('/api/prompts/:id', { schema: { body: promptWritableSchema } }, async (request) => {
