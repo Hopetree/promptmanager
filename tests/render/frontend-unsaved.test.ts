@@ -49,11 +49,14 @@ function install(): void {
   route('POST', /^\/api\/render\/markdown$/, () => ({ status: 200, body: { html: '<p>m</p>' } }));
 }
 
-/** 分栏 → 右栏「编辑」→ 把正文改成 TYPED（半半未保存）。 */
-async function openEditorAndType(): Promise<Mounted> {
+/**
+ * 分栏 → 右栏「编辑」→ 把正文改成 TYPED（改了一半未保存）。
+ * ⚠️ 右栏「编辑」走的是 `openEditor(id, 'detail')` ⇒ **origin === 'detail'**（返工 ① 要覆盖的就是这条路）。
+ */
+async function openEditorAndType(onSignedOut: () => void = () => undefined): Promise<Mounted> {
   const mounted = await mountTracked(
     element(ConfigProvider, { theme: { token: { motion: false } } }, element(AntdApp, {}, element(Workspace, {
-      themeMode: 'light', onCycleTheme: () => undefined, onSignedOut: () => undefined,
+      themeMode: 'light', onCycleTheme: () => undefined, onSignedOut,
     }))),
   );
   await waitFor(() => document.querySelectorAll('[data-testid="pm-split-item"]').length === 2, '分栏 2 条', 3000);
@@ -238,4 +241,126 @@ test('常驻（C11）：界面往 localStorage 写的键只有白名单，没有
   }
   // 阴性对照必须真的走过了写路径：挂载 + 进编辑器后至少要落一个偏好键（否则"没违规"是假的）
   assert.ok(keys.includes('pm-view-mode'), `没有任何偏好键落盘 —— 这条检查没覆盖到真实路径：${keys.join(',')}`);
+});
+
+// ---------------------------------------------------------------------------------------------
+// 返工 ①（2026-10-13）：`origin === 'detail'` 的「返回详情」这条路漏了闸 —— host_manger 真浏览器复现：
+// 改完内容点「返回详情」没有任何确认、编辑器直接关闭、服务端正文仍是原值（FR-152 / AC-133 B7 第四条路径）。
+// 下面 6 条覆盖：editor-back 按钮、面包屑条目名、「继续编辑 / 放弃修改」闭环、以及同类的
+// 「新建」「logo 回主页」「登出」三条也会把编辑器内容换掉/卸载的路径（一并堵住）。
+// ---------------------------------------------------------------------------------------------
+
+/** 返回按钮文案就是 `origin` 的证据：从详情进来必须是「返回详情」。 */
+function backButtonText(): string {
+  return document.querySelector<HTMLElement>('[data-testid="editor-back"]')?.textContent?.trim() ?? '(no-back)';
+}
+
+async function settle(ms = 80): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+}
+
+async function clickTestId(testid: string): Promise<void> {
+  const node = document.querySelector<HTMLElement>(`[data-testid="${testid}"]`);
+  assert.ok(node !== null, `找不到 [data-testid="${testid}"]`);
+  await act(async () => {
+    node.click();
+  });
+  await settle();
+}
+
+test('返工 ①：从详情进编辑器 → 改 → 点「返回详情」必须出现确认（不许静默丢弃）', async () => {
+  install();
+  await openEditorAndType();
+  assert.equal(
+    backButtonText(),
+    '返回详情',
+    '前置不成立：返回按钮不是「返回详情」⇒ 本条没走到 origin === detail 的那条路',
+  );
+  await clickTestId('editor-back');
+  const body = editorBody();
+  assert.ok(
+    document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null,
+    `「返回详情」既没有保存也没有出现确认（未保存内容被静默丢弃）：editor=${JSON.stringify(body)}`,
+  );
+  assert.equal(body.includes(TYPED), true, '「返回详情」后未保存内容已经没了');
+});
+
+test('返工 ①：面包屑里的条目名同样必须出现确认（编辑器内第二个返回入口）', async () => {
+  install();
+  await openEditorAndType();
+  const crumbs = document.querySelectorAll<HTMLAnchorElement>('.ant-breadcrumb a');
+  const titleCrumb = crumbs[crumbs.length - 1];
+  assert.ok(titleCrumb !== undefined, '找不到面包屑里的条目名');
+  await act(async () => {
+    titleCrumb.click();
+  });
+  await settle();
+  assert.ok(
+    document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null,
+    `面包屑返回既没有保存也没有出现确认：editor=${JSON.stringify(editorBody())}`,
+  );
+  assert.equal(editorBody().includes(TYPED), true, '面包屑返回后未保存内容已经没了');
+});
+
+test('返工 ①：「继续编辑」⇒ 内容还在；再点返回并「放弃修改」⇒ 才离开', async () => {
+  install();
+  await openEditorAndType();
+  await clickTestId('editor-back');
+  await clickTestId('pm-unsaved-keep');
+  assert.equal(document.querySelector('[data-testid="pm-unsaved-confirm"]'), null, '选「继续编辑」后确认弹窗没关');
+  assert.ok(document.querySelector('[data-testid="editor-user-prompt"]') !== null, '选「继续编辑」后编辑器却没了');
+  assert.equal(editorBody().includes(TYPED), true, '选「继续编辑」后未保存内容没了');
+
+  await clickTestId('editor-back');
+  assert.ok(document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null, '第二次点返回没有出现确认');
+  await clickTestId('pm-unsaved-discard');
+  await waitFor(
+    () => document.querySelector('[data-testid="editor-user-prompt"]') === null,
+    '选「放弃修改」后编辑器才关闭',
+    3000,
+  );
+  await waitFor(() => document.querySelector('[data-testid="pm-detail-edit"]') !== null, '放弃后回到详情', 3000);
+  assert.equal(
+    calls.some((call) => (call.method === 'PUT' || call.method === 'POST') && call.path.startsWith('/api/prompts/1')),
+    false,
+    '「放弃修改」不得偷偷保存',
+  );
+});
+
+test('返工 ①：编辑器里点「新建」也必须确认（同一类静默丢弃）', async () => {
+  install();
+  await openEditorAndType();
+  await clickTestId('header-new');
+  assert.ok(
+    document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null,
+    `点「新建」把未保存内容换掉了却没有确认：editor=${JSON.stringify(editorBody())}`,
+  );
+  assert.equal(editorBody().includes(TYPED), true, '点「新建」后未保存内容没了');
+});
+
+test('返工 ①：编辑器里点 logo 回主页也必须确认', async () => {
+  install();
+  await openEditorAndType();
+  await clickTestId('pm-brand-text');
+  assert.ok(
+    document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null,
+    `点 logo 回主页丢掉了未保存内容却没有确认：editor=${JSON.stringify(editorBody())}`,
+  );
+  assert.equal(editorBody().includes(TYPED), true, '点 logo 后未保存内容没了');
+});
+
+test('返工 ①：编辑器里点「登出」必须先确认，放弃前不得登出', async () => {
+  install();
+  route('POST', /^\/api\/logout$/, () => ({ status: 200, body: { ok: true } }));
+  let signedOut = 0;
+  await openEditorAndType(() => {
+    signedOut += 1;
+  });
+  await clickTestId('header-logout');
+  assert.equal(signedOut, 0, '有未保存修改时点「登出」直接登出了（未保存内容静默丢失）');
+  assert.ok(document.querySelector('[data-testid="pm-unsaved-confirm"]') !== null, '点「登出」没有出现确认');
+  await clickTestId('pm-unsaved-discard');
+  await waitFor(() => signedOut === 1, '选「放弃修改」后才真的登出', 3000);
 });

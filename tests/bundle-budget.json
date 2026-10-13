@@ -140,6 +140,12 @@
       "stage": 71,
       "delta": 982,
       "note": "阶段 71（FR-151~FR-154 / AC-133）：竞态保序 + 未保存编辑保护 + 凭据失败清理 + 断点单一来源，新增 4 个前端模块（breakpoints / prefs / use-latest-requests / use-unsaved-guard）与 UnsavedDialog，实测比改前多 982 B"
+    },
+    {
+      "id": "STAGE71",
+      "stage": 71,
+      "delta": 5,
+      "note": "返工 ①：把 4 处离开编辑器回调（返回详情/新建/logo/登出）接进 useUnsavedGuard（+4 行属性），实测比上一笔记账多 5 B"
     }
   ]
 }

@@ -695,6 +695,9 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
     />
   );
 
+  // 返工 ①（FR-152 / AC-133 B7）：编辑器**内**所有"离开 / 切换"入口都必须过 `requestLeave` ——
+  // `editor-back`（列表来源）与面包屑条目名走 `onClose`，`editor-back`（详情来源）走 `onBackToDetail`。
+  // 之前 `onBackToDetail` 是裸传，于是"从详情进编辑器 → 改 → 点返回详情"会静默丢弃（host_manger 复现）。
   const editorNode =
     editing === null ? (
       <Card>
@@ -713,7 +716,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
           left={isMobile ? undefined : editorList}
           onClose={() => requestLeave(closeEditor)}
           onDirtyChange={reportDirty}
-          onBackToDetail={backToDetail}
+          onBackToDetail={() => requestLeave(backToDetail)}
           onSaved={(prompt) => {
             // FR-136 ②：把服务端回包写进**单一数据源** ⇒ 列表 / 分栏右栏 / 详情立刻是同一份最新数据
             setIsNew(false);
@@ -735,21 +738,23 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
+      {/* 返工 ①（FR-152 / AC-133 B7）：头部这三条同样会把编辑器内容换掉（新建）或整个工作区卸载
+          （logo 回主页 / 登出）⇒ 与编辑器内的离开路径一样过 `requestLeave`，细节见 PROGRESS §9.16 审计表。 */}
       <AppHeader
         themeMode={themeMode}
         onCycleTheme={onCycleTheme}
         isMobile={isMobile}
         showFilters={isMobile || isNarrow}
         onOpenFilters={() => setSiderOpen(true)}
-        onCreate={createPrompt}
+        onCreate={() => requestLeave(createPrompt)}
         onOpenUsage={() => setUsageOpen(true)}
         onOpenTokens={() => setTokensOpen(true)}
         onOpenImportExport={() => setImportExportOpen(true)}
         onOpenSync={() => setSyncOpen(true)}
         onOpenSettings={() => setAboutOpen(true)}
         onOpenPassword={() => setPasswordOpen(true)}
-        onLogout={logout}
-        onGoHome={goHome}
+        onLogout={() => requestLeave(logout)}
+        onGoHome={() => requestLeave(goHome)}
       />
 
       {/*
