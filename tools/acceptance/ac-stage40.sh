@@ -206,11 +206,23 @@ if [ "$ONLY" = "all" ] || [ "$ONLY" = "regress" ]; then
   # 最大编号 —— 迁移漏跑、文件被删、版本漂移都会红，且永不随阶段数过期。
   MIG_MAX_FILE=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
   eq "schema 版本 == migrations/ 里最大编号（不再拿固定 v4/v5 当代理量）" "$MIG_MAX_FILE" "$(q 'SELECT MAX(version) FROM schema_migrations;')"
-  eq "TOKEN_ENC_KEY 未入仓库（grep 源码只有解析处）" "true" "$(python3 -c "
-import subprocess
-out = subprocess.run(['grep','-rl','TOKEN_ENC_KEY','src/'], capture_output=True, text=True).stdout.split()
-print('true' if out == ['src/services/token-crypto.ts'] else 'false')
+  # 阶段 40 的本意是「**密钥材料不入仓库**」，不是「只有 token-crypto.ts 能提到这个名字」——
+  # 后续阶段合法地在**错误提示文案**里提到它（如 `src/server/routes/sync.ts` 的"加密密钥不可用"提示），
+  # 旧的 `out == ['src/services/token-crypto.ts']` 是阶段快照、必然随代码演进恒红（第三轮审视 S1）。
+  # 改成不变式：① env 变量名只被**读取**，不存在字面量赋值；② 读取点只有一个（单一来源）；
+  #            ③ 仓库里没有任何密钥文件被 git 跟踪。
+  eq "TOKEN_ENC_KEY 只被读取（env / process.env），不存在字面量赋值" "true" "$(python3 -c "
+import re, subprocess
+hits = subprocess.run(['grep','-rn','TOKEN_ENC_KEY','src/'], capture_output=True, text=True).stdout.splitlines()
+bad = [h for h in hits
+       if re.search(r'TOKEN_ENC_KEY\s*=\s*[^=]', h)
+       and 'TOKEN_ENC_KEY_FILE' not in h
+       and \"env['TOKEN_ENC_KEY']\" not in h
+       and 'process.env.TOKEN_ENC_KEY' not in h]
+print('true' if not bad else 'false: ' + str(bad))
 ")"
+  eq "TOKEN_ENC_KEY 只有一个读取点（env['TOKEN_ENC_KEY']，单一来源）" 1 "$(grep -rc "env\['TOKEN_ENC_KEY'\]" src/ | awk -F: '{s+=$2} END {print s+0}')"
+  eq "仓库里没有任何密钥文件被 git 跟踪（token-enc.key / _env/）" "" "$(git ls-files | grep -E 'token-enc\.key|^_env/' || true)"
   eq "全仓 createToken 调用点仍是两处（CLI + HTTP 路由）" 2 "$(grep -rc 'createToken(' src/server/cli.ts src/server/routes/tokens.ts | awk -F: '{s+=$2} END {print s}')"
 fi
 

@@ -174,13 +174,26 @@ async function main() {
     out.clipboard_matches_expected = String(out.clipboard) === EXPECT && EXPECT !== '';
 
     // 旧令牌那条：应显示"不可查看"提示（而不是复制按钮）
+    // 第三轮审视 S1：阶段 35 之后 TokenDrawer 把提示移到了「最后使用」列的 `pm-token-use-<id>`
+    // （`—` + `title=UNREVEALABLE_HINT`），旧选择器 `pm-token-unrevealable-<id>` 早已不存在 ⇒ 恒红。
+    // 现在按**不变式**断言：提示元素在 + title 非空 + 文本是 `—`，且**没有**复制按钮。
     out.legacy_hint_present = await cdp.evaluate(
-      `document.querySelector('[data-testid="pm-token-unrevealable-${LEGACY_ID}"]') !== null`,
+      `(() => {
+         const n = document.querySelector('[data-testid="pm-token-use-${LEGACY_ID}"]');
+         return n !== null && (n.getAttribute('title') ?? '').length > 0 && n.textContent.trim() === '—';
+       })()`,
     );
     out.legacy_hint_text = await cdp.evaluate(
-      `document.querySelector('[data-testid="pm-token-unrevealable-${LEGACY_ID}"]')?.innerText.trim() ?? null`,
+      `document.querySelector('[data-testid="pm-token-use-${LEGACY_ID}"]')?.getAttribute('title') ?? null`,
     );
-    out.rows = await cdp.evaluate(`document.querySelectorAll('.pm-tokens .ant-drawer-body table tbody tr').length`);
+    out.legacy_copy_absent = await cdp.evaluate(
+      `document.querySelector('[data-testid="pm-token-copy-${LEGACY_ID}"]') === null`,
+    );
+    // antd 6 的 Table 会额外渲染一行 `.ant-table-measure-row`（列宽测量），只数数据行。
+    out.rows = await cdp.evaluate(
+      `document.querySelectorAll('.pm-tokens .ant-drawer-body table tbody tr.ant-table-row').length`,
+    );
+    out.rows_all = await cdp.evaluate(`document.querySelectorAll('.pm-tokens .ant-drawer-body table tbody tr').length`);
     out.success_toast = await cdp.evaluate(
       `document.querySelector('.ant-message')?.innerText.trim() ?? null`,
     );

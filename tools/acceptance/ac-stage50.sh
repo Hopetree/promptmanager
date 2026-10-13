@@ -85,7 +85,10 @@ BEFORE_KINDCOL=$(sqlite3 "$LDB" "SELECT COUNT(*) FROM pragma_table_info('usage_e
 echo "  \$ 迁移前：记录 $BEFORE_ROWS 条，kind 列存在数 = $BEFORE_KINDCOL"
 eq "⑨ 迁移前没有 kind 列" 0 "$BEFORE_KINDCOL"
 DATA_DIR="$LEGACY" npm run migrate 2>&1 | grep -v '^$' | tail -1 | sed 's/^/    /'
-eq "⑨ 迁移输出 ok: schema at v6" 1 "$(DATA_DIR="$LEGACY" npm run migrate 2>&1 | grep -c 'ok: schema at v6')"
+# 旧版写死 `ok: schema at v6`（阶段 50 的快照）⇒ 后续阶段每加一个迁移就恒红（第三轮审视 S1）。
+# 改成不变式：迁移输出必须报告 **migrations/ 目录里的最大编号**，且幂等（跑两次同值）。
+MIG_MAX=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "⑨ 迁移输出 ok: schema at v$MIG_MAX（= migrations/ 最大编号，不再是固定 v6）" 1 "$(DATA_DIR="$LEGACY" npm run migrate 2>&1 | grep -c "ok: schema at v$MIG_MAX")"
 eq "⑨ 迁移后 kind 列出现" 1 "$(sqlite3 "$LDB" "SELECT COUNT(*) FROM pragma_table_info('usage_events') WHERE name='kind';")"
 eq "⑨ 迁移后**行数不变**" "$BEFORE_ROWS" "$(sqlite3 "$LDB" "SELECT COUNT(*) FROM usage_events;")"
 echo "  \$ 迁移后按 kind 分布："

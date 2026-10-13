@@ -47,6 +47,11 @@ SRV_PID=''
 JAR="$AC_DIR/jar.txt"
 FIX="$AC_DIR/fixtures.json"
 PLAN_PC="$AC_DIR/plan-pc.json"
+# ⚠️ 排序约束（第三轮审视 S1 实测）：**结束时仍有未保存修改**（dirty ⇒ beforeunload 被挂上）的那一张
+# 必须是**该 ui-shot 进程的最后一张**，否则下一次 `Page.navigate` 会被 beforeunload 拦住，30s 后
+# 报 `CDP 超时：Page.navigate`（同一坑见 ac-stage71-rework.sh:308-310）。阶段 65 写这个脚本时还没有
+# 未保存保护（阶段 71 才加），所以这里把「改正文点收藏」拆成独立的计划/独立进程。
+PLAN_PC_DIRTY="$AC_DIR/plan-pc-dirty.json"
 PLAN_MOBILE="$AC_DIR/plan-mobile.json"
 cleanup() {
   if [ -n "$SRV_PID" ]; then
@@ -66,10 +71,12 @@ echo "  端口 $PORT 空闲；API 层 base=$BASE；浏览器段 baseUrl=$LAN_BAS
 [ -f tools/tsx-loader.mjs ] || die "缺 tools/tsx-loader.mjs（渲染级测试的 .tsx 加载钩子）"
 [ -f tsconfig.render-tests.json ] || die "缺 tsconfig.render-tests.json"
 [ -f tests/render/harness.ts ] || die "缺 tests/render/harness.ts"
-ls migrations/009_*.sql >/dev/null 2>&1 && die "本阶段零迁移，却出现了 009_*.sql"
+# 旧版写死「migrations/ 仍 8 个、不存在 009_*.sql」（阶段 65 的快照）—— 后续每加一个迁移就恒红（第三轮审视 S1）。
+# 改成不变式：迁移文件编号连续（文件数 == 最大编号）。"本阶段未新增迁移"是 git 历史事实，在 HEAD 无法重验。
 MIG_COUNT=$(ls migrations/*.sql | wc -l | tr -d ' ')
-[ "$MIG_COUNT" = "8" ] || die "migrations 应仍为 8 个，实际 $MIG_COUNT"
-echo "  ✅ 零迁移：migrations/ 仍 8 个文件，无 009"
+MIG_MAX=$(ls migrations/*.sql | sed -E 's#.*/([0-9]+)_.*#\1#' | sort -n | tail -1)
+[ "$MIG_COUNT" = "$((10#$MIG_MAX))" ] || die "迁移文件编号不连续：$MIG_COUNT 个文件，最大编号 $MIG_MAX"
+echo "  ✅ 零迁移（不变式）：migrations/ $MIG_COUNT 个文件、编号连续到 v$((10#$MIG_MAX))（本阶段未新增迁移属 git 历史事实）"
 
 line "1. 源码级：收敛是否真的落地（AC-127 D11 / D12 / D13 / A1 / A3）"
 WS='web/src/components/Workspace.tsx'
@@ -114,8 +121,10 @@ RENDER_OUT=$(node --test "tests/render/*.test.ts" 2>&1) || { printf '%s\n' "$REN
 printf '%s\n' "$RENDER_OUT" | grep -E '^ℹ (tests|pass|fail)'
 printf '%s\n' "$RENDER_OUT" | grep -q '^ℹ fail 0' || die "渲染级测试有失败"
 RENDER_CASES=$(printf '%s\n' "$RENDER_OUT" | grep '^ℹ tests ' | awk '{print $3}')
-[ "$RENDER_CASES" = "7" ] || die "渲染级用例数应为 7，实际 $RENDER_CASES"
-echo "  ✅ tests/render 7/7 全绿（A1 挂载冒烟 / B4 改正文点收藏不丢 / B7 点星标后收藏开关同步 / B5 换条目必须重填 / B6 回滚后重取 / C8 保存后右栏是新正文 / C9 收藏四视图一致）"
+# 旧版要求"恰好 7 条"（阶段 65 的快照）⇒ 后续阶段每加一条渲染级用例就恒红（第三轮审视 S1）。
+# 改成**下界**（与 ac-stage52.sh 的用例数口径一致：只增不减），并且仍然要求全绿。
+[ "$RENDER_CASES" -ge 7 ] || die "渲染级用例数不应少于阶段 65 基线 7，实际 $RENDER_CASES"
+echo "  ✅ tests/render $RENDER_CASES/$RENDER_CASES 全绿（≥ 阶段 65 基线 7，只增不减；A1 挂载冒烟 / B4 改正文点收藏不丢 / B7 点星标后收藏开关同步 / B5 换条目必须重填 / B6 回滚后重取 / C8 保存后右栏是新正文 / C9 收藏四视图一致）"
 
 line "2. 起临时服务（DATA_DIR=$AC_DIR，自起自停，不碰生产数据）"
 printf '%s\n' "$AC_PW" | DATA_DIR="$AC_DIR" node bin/pm.mjs user set-password --username admin >/dev/null || die "建库/设口令失败"
@@ -196,10 +205,10 @@ CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-hea
 OUT_ABS="$ROOT/$OUT_DIR"
 DUMP_ABS="$ROOT/$DUMP_DIR"
 
-python3 - "$LAN_BASE" "$LAN_IP" "$SID" "$CHROME" "$OUT_ABS" "$DUMP_ABS" "$PLAN_PC" "$PLAN_MOBILE" "$FIX" <<'PY' || die "计划生成失败"
+python3 - "$LAN_BASE" "$LAN_IP" "$SID" "$CHROME" "$OUT_ABS" "$DUMP_ABS" "$PLAN_PC" "$PLAN_PC_DIRTY" "$PLAN_MOBILE" "$FIX" <<'PY' || die "计划生成失败"
 import json, sys
 
-base, lan_ip, sid, chrome, out_dir, dumps_dir, plan_pc, plan_mobile, fix_path = sys.argv[1:10]
+base, lan_ip, sid, chrome, out_dir, dumps_dir, plan_pc, plan_pc_dirty, plan_mobile, fix_path = sys.argv[1:11]
 fixture = json.load(open(fix_path, encoding='utf-8'))
 pid = fixture['id']
 title = fixture['title']
@@ -342,13 +351,14 @@ def write(path, shots):
               open(path, 'w', encoding='utf-8'), ensure_ascii=False)
 
 
-write(plan_pc, [shot_edit_fav, shot_save_detail, shot_rollback, shot_fav_split])
+write(plan_pc_dirty, [shot_edit_fav])
+write(plan_pc, [shot_save_detail, shot_rollback, shot_fav_split])
 write(plan_mobile, [shot_mobile])
-print(f'  两份计划已生成（PC 4 shot + 移动 1 shot；baseUrl={base}）')
+print(f'  三份计划已生成（PC-dirty 1 shot + PC 3 shot + 移动 1 shot；baseUrl={base}）')
 PY
 
 : > "$DUMP_DIR/probes.txt"
-for P in "$PLAN_PC" "$PLAN_MOBILE"; do
+for P in "$PLAN_PC_DIRTY" "$PLAN_PC" "$PLAN_MOBILE"; do
   echo "--- $(basename "$P") ---"
   PLAN_OUT=$(node tools/ui-shot.mjs "$P" 2>&1) || { printf '%s\n' "$PLAN_OUT" | tail -30; die "ui-shot 失败：$P"; }
   printf '%s\n' "$PLAN_OUT" | grep -E '^(SHOT|PROBE|ANT_CLASSES)'

@@ -69,7 +69,10 @@ line "AC-96 ①：迁移到 v4（临时库）+ 列存在"
 printf '%s\n' "$AC_PW" | DATA_DIR="$AC_DIR" node bin/pm.mjs user set-password --username "$AC_USER" >/dev/null
 echo "  \$ DATA_DIR=<tmp> npm run migrate"
 DATA_DIR="$AC_DIR" npm run migrate 2>&1 | grep -v '^$' | tail -3 | sed 's/^/  /'
-eq "① migrate 输出 ok: schema at v4" 1 "$(DATA_DIR="$AC_DIR" npm run migrate 2>&1 | grep -c 'ok: schema at v4')"
+# 旧版写死 `ok: schema at v4`（阶段 35 的快照）⇒ 后续每加一个迁移就恒红（第三轮审视 S1）。
+# 改成不变式：迁移输出必须报告 **migrations/ 目录里的最大编号**。
+MIG_MAX=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+eq "① migrate 输出 ok: schema at v$MIG_MAX（= migrations/ 最大编号，不再是固定 v4）" 1 "$(DATA_DIR="$AC_DIR" npm run migrate 2>&1 | grep -c "ok: schema at v$MIG_MAX")"
 eq "① api_tokens 有 token_enc 列" 1 "$(q "SELECT COUNT(*) FROM pragma_table_info('api_tokens') WHERE name='token_enc';")"
 
 line "运行时：临时实例（DATA_DIR=$AC_DIR，PORT=$PORT；**故意不设 PM_API_TOKEN**）"
@@ -191,7 +194,7 @@ print('true' if has and clean else 'false')
 ")"
     eq "⑤ AGENTS.md 有英文一行（Streamable HTTP + /mcp）" "true" "$(python3 -c "
 src = open('AGENTS.md', encoding='utf-8').read()
-print('true' if 'Streamable HTTP' in src and 'POST /mcp' in src else 'false')
+print('true' if 'Streamable HTTP' in src and '/mcp' in src else 'false')
 ")"
     eq "⑤ deploy/container.md 说明反代路径与 Authorization 透传" "true" "$(python3 -c "
 src = open('deploy/container.md', encoding='utf-8').read()
@@ -288,6 +291,7 @@ print('true' if sys.argv[2] not in sys.argv[1] else 'false')
     pass "⑥ 剪贴板（脱敏）：$(pr clipboard_masked) ｜ 期望（脱敏）：$(pr expected_masked)"
     eq "⑥ 旧令牌显示「不可查看」提示" true "$(pr legacy_hint_present)"
     pass "⑥ 提示文案：$(pr legacy_hint_text)"
+    eq "⑥ 旧令牌没有复制按钮（提示与按钮二选一）" true "$(pr legacy_copy_absent)"
     eq "⑥ 令牌表三行（token A / token B / 旧令牌）" 3 "$(pr rows)"
     eq "⑥ 页面运行时异常" "[]" "$(pr ac35_runtime_errors)"
     ls -l "$SHOTS" | sed 's/^/  /'

@@ -1,12 +1,21 @@
 #!/usr/bin/env bash
 # 阶段 33 验收自检（FR-89 / AC-91）：GitHub Actions 构建镜像并推送 Docker Hub。
 #
-#   AC-91 ① YAML 静态断言（真解析，不是 grep 文本）：触发条件 / permissions / 五个官方 action 的 pin /
-#            镜像名引用 DOCKERHUB_USERNAME / 登录引用 DOCKERHUB_TOKEN；**负向断言**：无 echo+secrets、
-#            无 set -x、无明文 token/用户名、无 pull_request_target
-#   AC-91 ② 与 106 现行构建的一致性：context/Dockerfile/platform/tag 方案对照
+#   AC-91 ① YAML 静态断言（真解析，不是 grep 文本）：触发条件（tag `v*` / **无**分支触发 /
+#            workflow_dispatch）/ permissions / 五个官方 action 的**顺序与 pin 形态** / 镜像名引用
+#            DOCKERHUB_USERNAME / 登录引用 DOCKERHUB_TOKEN / **三处「是否正式版」判定逐字符一致**；
+#            **负向断言**：无 echo+secrets、无 set -x、无明文 token/用户名、无 pull_request_target
+#   AC-91 ② 与 106 现行构建的一致性：context/Dockerfile/platform/tag 方案对照（tag 规则按声明**手算**：
+#            正式版 → `X.Y.Z` + `X.Y` + `latest`；预发布 → 只 `X.Y.Z` + `X.Y`，**不加 latest**）
 #   AC-91 ③ 等价构建：打印 host_manger 在 106 的实测结论（本机无 Docker，不由我产生该证据）
 #   AC-91 ④ 端到端实跑：**待用户配 secrets 后由 host_manger 触发** —— 本脚本只记录状态，不判通过
+#
+# ⚠️ 断言口径（2026-10-13 第三轮项目审视收口）：**只锁不变量，不锁阶段快照**。
+#    · action 的版本号由 Dependabot 维护 ⇒ 断言「是官方 action、按序、pin 到 `@v<数字>`」，不锁具体大版本
+#      （旧版快照写死 `@v4/@v3/@v3`，Dependabot 一升就假红）；
+#    · 分支推送已于 2026-09-30 取消 ⇒ 断言「不再挂分支触发」，而不是旧快照的 `push.branches: ['main']`；
+#    · tag 规则数从 4 条变 3 条（`type=ref,event=branch` 随分支触发一起删掉）⇒ 断言「恰好三条声明」。
+#    这样脚本在 HEAD 常绿，同时**比旧版更严**：新增「三处正式版判定必须逐字符一致」与「预发布不加 latest」。
 #
 # 本脚本**不需要 Docker、不起服务、不联网**（≈1 秒）；`python3` + `pyyaml` 已在本机可用。
 # 用法：bash tools/acceptance/ac-stage33.sh
@@ -29,7 +38,7 @@ else
   pass "$WF 存在（$(wc -l <"$WF") 行）"
   echo "  \$ python3 -c \"import yaml; d=yaml.safe_load(open('$WF'))\"   # 真解析"
   OUT=$(python3 - "$WF" <<'PY'
-import io, sys, yaml
+import io, re, sys, yaml
 
 path = sys.argv[1]
 raw = io.open(path, encoding='utf-8').read()
@@ -49,25 +58,26 @@ def check(cond, label):
 # --- 触发条件 ---
 push = (on or {}).get('push') or {}
 check(sorted(push.get('tags') or []) == ['v*'], f"push.tags == ['v*']（实际 {push.get('tags')}）")
-check(sorted(push.get('branches') or []) == ['main'], f"push.branches == ['main']（实际 {push.get('branches')}）")
+check('branches' not in push,
+      f"不再挂分支触发（2026-09-30 用户要求去掉：分支推送不跑本 workflow；实际 {push.get('branches')}）")
 check('workflow_dispatch' in on, 'workflow_dispatch 存在（手动补跑）')
 check('pull_request' not in on and 'pull_request_target' not in on, '未挂 pull_request / pull_request_target')
 
 # --- 权限最小化 ---
 check(doc.get('permissions') == {'contents': 'read'}, f"permissions == contents: read（实际 {doc.get('permissions')}）")
 
-# --- 五个官方 action 都 pin 到大版本 ---
+# --- 五个官方 action：顺序 + pin 形态（大版本号由 Dependabot 维护，不锁具体版本）---
 steps = doc['jobs']['build']['steps']
 uses = [s.get('uses') for s in steps if s.get('uses')]
-expected = [
-    'actions/checkout@v4',
-    'docker/setup-buildx-action@v3',
-    'docker/login-action@v3',
-    'docker/metadata-action@v5',
-    'docker/build-push-action@v6',
+expected_names = [
+    'actions/checkout',
+    'docker/setup-buildx-action',
+    'docker/login-action',
+    'docker/metadata-action',
+    'docker/build-push-action',
 ]
-check(uses == expected, f'五个 action 的 uses 顺序与 pin 完全符合（实际 {uses}）')
-check(all('@' in u and u.split('@')[1].startswith('v') and u.split('@')[1][1:].isdigit() for u in uses),
+check([u.split('@')[0] for u in uses] == expected_names, f'五个官方 action 按序（实际 {uses}）')
+check(all('@' in u and re.fullmatch(r'v[0-9]+', u.split('@')[1]) for u in uses),
       '每个 uses 都 pin 到 @v<数字>（无 @main / 无浮动引用）')
 
 # --- 镜像名与登录凭据 ---
@@ -88,8 +98,25 @@ check(bw.get('context') == '.', f"context == '.'（实际 {bw.get('context')!r}�
 check(bw.get('file') == 'Dockerfile', f"file == 'Dockerfile'（实际 {bw.get('file')!r}）")
 check('target' not in bw, '未指定自定义 target（与 106 的等价命令一致）')
 check(bw.get('platforms') == 'linux/amd64', f"platforms == linux/amd64（实际 {bw.get('platforms')!r}）")
-check(bw.get('push') == "${{ startsWith(github.ref, 'refs/tags/v') }}",
-      'push 只在 tag v* 时为真（main 只构建不推送）')
+
+# --- 「是否正式版」判定：登录 if / metadata 的 latest enable / build 的 push **三处必须逐字符一致** ---
+#     （workflow 自己的注释写明"同样的判定出现三处，改一处必须三处同改"；这里把它变成可执行断言）
+def norm_decision(expr):
+    return re.sub(r'\s+', '', str(expr).replace('${{', ' ').replace('}}', ' '))
+
+latest_match = re.search(r'value=latest,enable=\$\{\{\s*(.*?)\s*\}\}', str(meta['with'].get('tags') or ''), re.S)
+login_if = login.get('if')
+push_expr = bw.get('push')
+check(login_if is not None and latest_match is not None and push_expr is not None,
+      '三处「是否正式版」判定都存在（登录 if / latest enable / build push）')
+if login_if is not None and latest_match is not None and push_expr is not None:
+    a = norm_decision(login_if)
+    b = norm_decision(latest_match.group(1))
+    c = norm_decision(push_expr)
+    check(a == b == c, '三处判定逐字符一致（改一处必须三处同改）')
+    check(a.startswith("startsWith(github.ref,'refs/tags/v')"), '判定以「tag v*」为前提')
+    for suffix in ('-alpha.', '-beta.', '-rc.', '-pre.', '-dev.', '-nightly.', '-next.', '-canary.'):
+        check(f"!contains(github.ref,'{suffix}')" in a, f'判定排除预发布后缀 {suffix}（预发布不推送、不加 latest）')
 
 # --- 负向断言（安全红线）---
 # ⚠️ 口径：**注释行不算**。"注释里描述这条规则"不是违规 —— 首版断言把注释里的 `set -x` 与
@@ -121,27 +148,39 @@ fi
 line "AC-91 ②：与 106 现行构建的一致性 + tag 方案（按 metadata-action 规则手算，不是跑 action）"
 echo "  \$ grep -n 'type=\\|flavor\\|platforms\\|context\\|file:' $WF"
 grep -n 'type=\|flavor\|platforms\|context\|file:' "$WF" | sed 's/^/  /'
-eq "② tag 规则 4 条（semver / major.minor / raw latest / ref branch）" 4 "$(grep -c '^            type=' "$WF")"
+eq "② tag 规则恰好 3 条（semver / major.minor / raw latest；分支规则已随分支触发一起删除）" 3 "$(grep -c '^            type=' "$WF")"
+eq "② 分支规则 type=ref,event=branch 已不存在（分支推送不触发本 workflow）" 0 "$(grep -c 'type=ref,event=branch' "$WF")"
 TAGS=$(python3 - <<'PY'
 # 按 workflow 里声明的规则**手算** tag（metadata-action 无法在本机跑：它是 Docker action）
-# 规则：type=semver,pattern={{version}} / {{major}}.{{minor}} / type=raw,value=latest(enable=tag v*) / type=ref,event=branch
+# 规则：type=semver,pattern={{version}} / {{major}}.{{minor}} / type=raw,value=latest(enable=正式版 tag v*)
+#       分支推送**不再触发**本 workflow ⇒ 分支 ref 不产出任何 tag
+def is_release(ref):
+    suffixes = ('-alpha.', '-beta.', '-rc.', '-pre.', '-dev.', '-nightly.', '-next.', '-canary.')
+    return ref.startswith('refs/tags/v') and not any(s in ref for s in suffixes)
+
 def tags_for(ref):
     out = []
     if ref.startswith('refs/tags/v'):
         ver = ref[len('refs/tags/v'):]
         parts = ver.split('.')
         if len(parts) >= 2:
-            out += [ver, f'{parts[0]}.{parts[1]}', 'latest']
-    elif ref.startswith('refs/heads/'):
-        out.append(ref[len('refs/heads/'):])
+            out += [ver, f'{parts[0]}.{parts[1]}']
+        if is_release(ref):
+            out.append('latest')
     return out
-print('refs/tags/v1.0.1 ->', ','.join(tags_for('refs/tags/v1.0.1')))
-print('refs/heads/main ->', ','.join(tags_for('refs/heads/main')))
+def fmt(ref):
+    tags = tags_for(ref)
+    return f'{ref} ->' + (f' {",".join(tags)}' if tags else '')
+
+print(fmt('refs/tags/v1.0.1'))
+print(fmt('refs/tags/v2.2.2-beta.1'))
+print(fmt('refs/heads/main'))
 PY
 )
 echo "$TAGS" | sed 's/^/  /'
-eq "② 推 v1.0.1 产出 1.0.1 + 1.0 + latest" "refs/tags/v1.0.1 -> 1.0.1,1.0,latest" "$(printf '%s\n' "$TAGS" | head -1)"
-eq "② main 分支只算本地 tag（且 push=false ⇒ 不推送）" "refs/heads/main -> main" "$(printf '%s\n' "$TAGS" | tail -1)"
+eq "② 推 v1.0.1（正式版）产出 1.0.1 + 1.0 + latest" "refs/tags/v1.0.1 -> 1.0.1,1.0,latest" "$(printf '%s\n' "$TAGS" | sed -n '1p')"
+eq "② 推 v2.2.2-beta.1（预发布）产出 2.2.2-beta.1 + 2.2，且**不加 latest**" "refs/tags/v2.2.2-beta.1 -> 2.2.2-beta.1,2.2" "$(printf '%s\n' "$TAGS" | sed -n '2p')"
+eq "② main 分支推送不触发本 workflow ⇒ 不产出 tag" "refs/heads/main ->" "$(printf '%s\n' "$TAGS" | sed -n '3p')"
 cat <<'TXT' | sed 's/^/  /'
   对照表（workflow 参数 ↔ 106 现行命令）：
     context      = .            ↔  docker build -t promptmanager:1.0.1 .   （末尾的 . 就是 context）

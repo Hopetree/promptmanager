@@ -142,13 +142,15 @@ db.close();
 MJS
 node "$ROOT/var/stage69/checks.mjs" "$ROOT" "$AC_DIR/legacy" || die "迁移校验链路不符"
 
-line "2. 真 CLI：DATA_DIR 指向上面的存量库 ⇒ 幂等输出 ok: schema at v10"
+# 版本号从 migrations/ 目录派生（旧版写死 v10：加下一个迁移就恒红；第三轮审视 S1）
+MIG_MAX=$(ls migrations/*.sql | sed -E 's#^migrations/0*([0-9]+).*#\1#' | sort -n | tail -1)
+line "2. 真 CLI：DATA_DIR 指向上面的存量库 ⇒ 幂等输出 ok: schema at v$MIG_MAX"
 DATA_DIR="$AC_DIR/legacy" node bin/pm.mjs migrate > "$AC_DIR/cli-1.txt" 2>&1 || die "CLI migrate 失败"
 DATA_DIR="$AC_DIR/legacy" node bin/pm.mjs migrate > "$AC_DIR/cli-2.txt" 2>&1 || die "CLI migrate 第二次失败"
 echo "  第一次：$(cat "$AC_DIR/cli-1.txt")"
 echo "  第二次：$(cat "$AC_DIR/cli-2.txt")"
-grep -q '^ok: schema at v10$' "$AC_DIR/cli-1.txt" || die "第一次输出不是 ok: schema at v10"
-grep -q '^ok: schema at v10$' "$AC_DIR/cli-2.txt" || die "第二次输出不是 ok: schema at v10"
+grep -q "^ok: schema at v$MIG_MAX\$" "$AC_DIR/cli-1.txt" || die "第一次输出不是 ok: schema at v$MIG_MAX"
+grep -q "^ok: schema at v$MIG_MAX\$" "$AC_DIR/cli-2.txt" || die "第二次输出不是 ok: schema at v$MIG_MAX"
 
 line "3. 起临时服务（DATA_DIR = 已迁移的库）+ 真登录 + 接口冒烟"
 printf '%s\n' "$AC_PW" | DATA_DIR="$AC_DIR/legacy" node bin/pm.mjs user set-password --username admin >/dev/null || die "set-password 失败"
