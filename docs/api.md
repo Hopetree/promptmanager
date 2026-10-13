@@ -57,7 +57,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 | `DATA_DIR` | `<项目>/data` | 数据目录，内含 `pm.db`（SQLite，WAL）与 `media/` |
 | `CORS_ORIGINS` | 空（关闭） | CORS 精确白名单，逗号分隔（如 `https://prompt.home.local`）；**禁止 `*`**（写 `*` 启动即报错）；留空 = 完全没有 CORS 头 |
 | `TRUST_PROXY` | 空（关闭） | **仅确有反代时**设 `1`：来源 IP 取 `X-Forwarded-For`。关闭时伪造 XFF **不影响**登录限流 |
-| `PUBLIC_ORIGIN` | 空（不设） | **公网 HTTPS 形态**填公开地址（如 `https://prompt.example.com`）→ 会话 cookie 追加 `Secure`；**内网 HTTP 必须留空** |
+| `PUBLIC_ORIGIN` | 空（不设） | **公网 HTTPS 形态**填公开地址（如 `https://prompt.example.com`）→ 会话 cookie 追加 `Secure`、下发 HSTS；**只接受 `https://`**（写 `http://…` 启动即报错并说明怎么改），**内网 HTTP 必须留空** |
 | `SESSION_TTL_HOURS` | `720` | 会话有效期（服务端会话，过期即失效） |
 | `LOGIN_MAX_FAILURES` | `5` | 登录失败阈值（窗口内按 `username + 来源 IP` 计；达阈值后第 6 次 `429` + `Retry-After`） |
 | `LOGIN_WINDOW_SECONDS` | `60` | 登录失败统计窗口（窗口过期自动解锁；登录成功清除该键失败记录） |

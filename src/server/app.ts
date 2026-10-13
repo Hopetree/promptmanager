@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import type { FastifyError, FastifyInstance } from 'fastify';
-import type { AppConfig } from '../config.js';
+import { isHttpsOrigin, type AppConfig } from '../config.js';
 import { prepareDatabase, type Db, type QueryEngine } from '../db/index.js';
 import { ConflictError, InvalidBodyError, InvalidImportError, NotFoundError, SyncError } from '../errors.js';
 import { registerMcpHttpRoutes } from '../mcp/http.js';
@@ -135,7 +135,8 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     "frame-ancestors 'none'",
   ].join('; ');
   // HSTS 只在确认对外是 HTTPS 时下发（内网 HTTP 加了会让浏览器把 http 也强制跳 https）。
-  const hsts = config.publicOrigin !== undefined && config.publicOrigin.startsWith('https://');
+  // FR-156 / AC-134 B8：与配置校验、cookie secure 共用同一判据。
+  const hsts = isHttpsOrigin(config.publicOrigin);
 
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('x-content-type-options', 'nosniff');

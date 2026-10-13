@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { AppConfig } from '../../config.js';
+import { isHttpsOrigin, type AppConfig } from '../../config.js';
 import {
   attemptLogin,
   changePassword,
@@ -81,8 +81,9 @@ export function registerAuthRoutes(app: FastifyInstance, config: AppConfig): voi
           httpOnly: true,
           sameSite: 'lax',
           expires: new Date(expiresAt),
-          // D-18 / AC-28：公网（HTTPS 反代）形态才加 Secure；内网 HTTP 形态不得加，否则登不上
-          ...(config.publicOrigin === undefined ? {} : { secure: true }),
+          // D-18 / AC-28 / FR-156：公网（HTTPS 反代）形态才加 Secure；内网 HTTP 形态不得加，否则登不上。
+          // 判据与配置校验、HSTS 共用 `isHttpsOrigin`（AC-134 B8：三处一套逻辑）。
+          ...(isHttpsOrigin(config.publicOrigin) ? { secure: true } : {}),
         })
         .code(200)
         .send({ ok: true, username: outcome.username });

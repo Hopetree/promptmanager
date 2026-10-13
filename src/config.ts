@@ -109,14 +109,35 @@ function readTrustProxy(env: Record<string, string | undefined>): boolean {
   throw new Error(`配置错误：TRUST_PROXY 只接受 1/true/yes/on 或 0/false/no/off，实际 "${raw}"`);
 }
 
-/** PUBLIC_ORIGIN：形如 https://host[:port] 的精确 origin（不带路径）；空 = 未设置。 */
+/**
+ * PUBLIC_ORIGIN：形如 `https://host[:port]` 的精确 origin（不带路径）；空 = 未设置。
+ *
+ * FR-156 / AC-134 B：**只接受 https**。历史实现允许 `http://`，而 cookie 的 `secure` 只判断
+ * "设了没设"、HSTS 又自己写了一遍 scheme 判断 ⇒ `PUBLIC_ORIGIN=http://…` 时出现
+ * 「登录返回 200，但浏览器不回传 Secure cookie」的静默失败。内网 HTTP 的正确形态是**留空**
+ * （同步的实例地址有 request Host 兜底，能力不受影响）。
+ */
 function readPublicOrigin(env: Record<string, string | undefined>): string | undefined {
   const raw = readString(env, 'PUBLIC_ORIGIN');
   if (raw === undefined) return undefined;
-  if (!/^https?:\/\/[^/\s]+$/.test(raw)) {
-    throw new Error(`配置错误：PUBLIC_ORIGIN 必须是形如 https://host[:port] 的 origin（不带路径），实际 "${raw}"`);
+  if (!/^https:\/\/[^/\s]+$/.test(raw)) {
+    throw new Error(
+      `配置错误：PUBLIC_ORIGIN 只接受 https://host[:port] 形态（不带路径），实际 "${raw}"。` +
+        '公网 HTTPS 反代请填公开地址（cookie 会自动加 Secure 并下发 HSTS）；' +
+        '内网 HTTP 访问请把 PUBLIC_ORIGIN 留空。',
+    );
   }
   return raw;
+}
+
+/**
+ * 「对外是 HTTPS」的**唯一判据**（FR-156 / AC-134 B8）。
+ *
+ * 三处必须共用它，不许各自判断：① `readPublicOrigin` 的配置校验 ② 登录 cookie 的 `secure`
+ * （`src/server/routes/auth.ts`）③ HSTS 响应头（`src/server/app.ts`）。
+ */
+export function isHttpsOrigin(origin: string | undefined): boolean {
+  return origin !== undefined && origin.startsWith('https://');
 }
 
 /** SYNC_GITHUB_API_BASE：远程同步的 API 基地址（测试指向本地桩）；非法值抛错，不静默回退。 */

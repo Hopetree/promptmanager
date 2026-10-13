@@ -160,7 +160,7 @@ printf '%s\n' '新口令' | docker exec -i promptmanager node bin/pm.mjs user se
 `DATA_DIR` 下的 `pm.db` + `media/`。Docker 形态默认 `/data`（对应你挂载的宿主目录）；源码形态默认项目下的 `data/`。
 
 **放在反向代理后面要注意什么？**
-只在确有反代时设这两个变量；**内网 HTTP 直连时都留空**（设了 `PUBLIC_ORIGIN` 会让 cookie 带 `Secure`，HTTP 下反而登录不上）：
+只在确有反代时设这两个变量；**内网 HTTP 直连时都留空**。`PUBLIC_ORIGIN` **只接受 `https://`**（写 `http://…` 启动即报错，报错里会说明改法）：内网 HTTP 下若设了它，cookie 会带 `Secure` 而浏览器不回传，表现为「登录成功但会话不保持」——这正是拒绝 `http://` 的原因。
 
 ```bash
 TRUST_PROXY=1                              # 来源 IP 取 X-Forwarded-For（登录限流按真实来源计）

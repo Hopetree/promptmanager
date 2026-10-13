@@ -116,7 +116,7 @@ sqlite3 /var/lib/promptmanager/pm.db 'select count(*) from sessions;'   # 可选
 | 变量 | 内网直连（默认） | 公网反代 | 说明 |
 | --- | --- | --- | --- |
 | `TRUST_PROXY` | 留空（= 关闭） | `1` | 关闭时来源 IP 取 socket 地址，**伪造 `X-Forwarded-For` 不影响登录限流**；开启后来源 IP 取 XFF（限流按真实客户端计） |
-| `PUBLIC_ORIGIN` | 留空 | `https://<你的公网域名>` | 设置后会话 cookie 追加 `Secure`；**留空时不得加**（否则内网 HTTP 登录不上） |
+| `PUBLIC_ORIGIN` | 留空 | `https://<你的公网域名>` | 设置后会话 cookie 追加 `Secure`、下发 HSTS；**只接受 `https://`**（写 `http://…` 启动即报错）；**留空时不得加 Secure**（否则内网 HTTP 登录不上） |
 | `CORS_ORIGINS` | 留空（同源） | 需要跨域时填精确 origin，逗号分隔 | **禁止 `*`**；不写 `Access-Control-Allow-Credentials`；留空时完全没有 CORS 头 |
 
 ### 3.1 内网直连（HTTP，最简单）
