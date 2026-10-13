@@ -1,7 +1,7 @@
 import { createTwoFilesPatch } from 'diff';
 import type { QueryEngine } from '../db/index.js';
 import { pruneVersions, selectVersion, selectVersions, type PromptVersionRow } from '../db/prompt-versions.js';
-import { InvalidBodyError, NotFoundError } from '../errors.js';
+import { InvalidBodyError, NotFoundError, constraintKind, isConstraintError } from '../errors.js';
 import { nowIso } from './auth.js';
 import { getPrompt, hasContentChange, type PromptObject } from './prompts.js';
 
@@ -91,53 +91,85 @@ export async function rollbackToVersion(
   const snapshot = await selectVersion(qe, promptId, versionNo);
   if (snapshot === undefined) throw new NotFoundError();
 
-  const current = await qe
-    .selectFrom('prompts')
-    .select(['version_no', 'updated_at', 'title', 'user_prompt', 'system_prompt', 'notes'])
-    .where('id', '=', promptId)
-    .executeTakeFirstOrThrow();
-
   const restored = {
     title: snapshot.title,
     user_prompt: snapshot.user_prompt,
     system_prompt: snapshot.system_prompt,
     notes: snapshot.notes,
   };
-  // FR-129 ②：判据是"值真的变了"——回到与当前完全相同的内容不产生新版本
-  const contentChanged = hasContentChange(current, restored);
-  const nextVersionNo = contentChanged ? current.version_no + 1 : current.version_no;
   const now = nowIso();
 
-  await qe.transaction().execute(async (trx) => {
-    await trx
-      .updateTable('prompts')
-      .set({
-        ...restored,
-        version_no: nextVersionNo,
-        updated_at: contentChanged ? now : current.updated_at,
-      })
-      .where('id', '=', promptId)
-      .execute();
+  try {
+    await qe.transaction().execute(async (trx) => {
+      /**
+       * FR-158 / AC-134 D15（N6）：**读-算-写必须在同一个事务里**。
+       *
+       * 以前 `current` 在事务外读、`nextVersionNo` 在事务外算，事务里才写：两个并发回滚会双双
+       * 算出同一个 `version_no`，后到者撞 `prompt_versions(prompt_id, version_no)` 的唯一约束
+       * —— 抛的是裸 SqliteError（500），而这次回滚已经丢了。读放在事务内，`version_no` 就取自
+       * 写锁下的最新值。
+       */
+      const current = await trx
+        .selectFrom('prompts')
+        .select(['version_no', 'updated_at', 'title', 'user_prompt', 'system_prompt', 'notes'])
+        .where('id', '=', promptId)
+        .executeTakeFirstOrThrow();
 
-    if (!contentChanged) return;
+      // FR-129 ②：判据是"值真的变了"——回到与当前完全相同的内容不产生新版本
+      const contentChanged = hasContentChange(current, restored);
+      const nextVersionNo = contentChanged ? current.version_no + 1 : current.version_no;
 
-    await trx
-      .insertInto('prompt_versions')
-      .values({
-        prompt_id: promptId,
-        version_no: nextVersionNo,
-        title: restored.title,
-        user_prompt: restored.user_prompt,
-        system_prompt: restored.system_prompt,
-        notes: restored.notes,
-        created_at: now,
-      })
-      .execute();
+      await trx
+        .updateTable('prompts')
+        .set({
+          ...restored,
+          version_no: nextVersionNo,
+          updated_at: contentChanged ? now : current.updated_at,
+        })
+        .where('id', '=', promptId)
+        .execute();
 
-    // FR-86：回滚 = 恢复内容 + **生成新版本**，所以也是"产生新版本之后"的写入点 ⇒ 同样裁剪（仍 ≤10）。
-    // 注意语义边界：回滚到**已被裁剪掉**的版本会先在 `selectVersion` 处 404，走不到这里（既有语义不变）。
-    await pruneVersions(trx as QueryEngine, promptId);
-  });
+      if (!contentChanged) return;
+
+      await trx
+        .insertInto('prompt_versions')
+        .values({
+          prompt_id: promptId,
+          version_no: nextVersionNo,
+          title: restored.title,
+          user_prompt: restored.user_prompt,
+          system_prompt: restored.system_prompt,
+          notes: restored.notes,
+          created_at: now,
+        })
+        .execute();
+
+      // FR-86：回滚 = 恢复内容 + **生成新版本**，所以也是"产生新版本之后"的写入点 ⇒ 同样裁剪（仍 ≤10）。
+      // 注意语义边界：回滚到**已被裁剪掉**的版本会先在 `selectVersion` 处 404，走不到这里（既有语义不变）。
+      await pruneVersions(trx as QueryEngine, promptId);
+    });
+  } catch (error) {
+    if (isConstraintError(error)) {
+      /**
+       * FR-158 / AC-134 D15：**复用 FR-135（阶段 64）建立的同一套分类设施**（`constraintKind()`），
+       * 不另造一套 —— 同一类冲突在 `updatePrompt` 与回滚里必须给出同一种口径的 4xx。
+       */
+      const kind = constraintKind(error);
+      if (kind === 'unique') {
+        throw new InvalidBodyError([
+          { path: 'body', message: '这条提示词正被另一个写入占用（版本号冲突），请重试' },
+        ]);
+      }
+      if (kind === 'foreign_key') {
+        throw new InvalidBodyError([
+          { path: 'body', message: '回滚引用了不存在的记录（数据可能已被删除），请刷新后重试' },
+        ]);
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      throw new InvalidBodyError([{ path: 'body', message: `数据约束冲突：${message}` }]);
+    }
+    throw error;
+  }
 
   const prompt = await getPrompt(qe, promptId);
   if (prompt === null) throw new NotFoundError();

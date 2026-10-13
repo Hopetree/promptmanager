@@ -78,7 +78,14 @@ export async function renameTag(qe: QueryEngine, id: number, rawName: string | u
 
   const target = await qe.selectFrom('tags').selectAll().where('name', '=', name).executeTakeFirst();
   if (target === undefined) {
-    await qe.updateTable('tags').set({ name, updated_at: nowIso() }).where('id', '=', id).execute();
+    try {
+      await qe.updateTable('tags').set({ name, updated_at: nowIso() }).where('id', '=', id).execute();
+    } catch (error) {
+      // FR-158 / AC-134 D16（N7）：预检（"目标名字有没有人用"）与写入之间有窗口 ——
+      // 两个标签同时改名到同一个名字时，后到者会撞 `tags.name` 的唯一约束。
+      // 这里复用与 createTag **同一个** translateConstraint，给出"标签名已存在"的 400，而不是裸 500。
+      translateConstraint(error);
+    }
     return { id, name, count: await countForTag(qe, id) };
   }
 
