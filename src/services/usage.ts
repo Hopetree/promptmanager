@@ -22,6 +22,41 @@ export type UsageKind = 'view' | 'copy' | 'mcp';
 export const COUNTED_KINDS: readonly UsageKind[] = ['copy', 'mcp'];
 
 /**
+ * FR-159 / AC-134 E20（N9）：**`view` 留痕的上限**（每个 prompt 保留的最新条数）。
+ *
+ * 为什么需要上限：`view` 行**没有任何读取方**（只有测试），却随"打开详情"的次数线性增长；
+ * 保留它们只是为了不丢"谁在什么时候看过"的审计线索（D-50 ①）—— 所以"留最近 100 条"足够，
+ * 而 `copy`/`mcp` 行是"取用次数"的事实来源，**永不裁剪**。
+ */
+export const VIEW_KEEP_LIMIT = 100;
+
+/**
+ * 把某个 prompt 超限的 `view` 行裁掉（一次调用裁干净，不是"每次只删一条"）。
+ *
+ * 只碰 `kind = 'view'`：`copy`/`mcp` 一行不动。走 `idx_usage_events_prompt(prompt_id, used_at)`，
+ * 每次只取"最新的 LIMIT+1 条 id" ⇒ 读放大是常数，删除是一条按 id 的 IN。
+ */
+async function pruneViewEvents(qe: QueryEngine, promptId: number): Promise<void> {
+  const newest = await qe
+    .selectFrom('usage_events')
+    .select('id')
+    .where('prompt_id', '=', promptId)
+    .where('kind', '=', 'view')
+    .orderBy('used_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(VIEW_KEEP_LIMIT + 1)
+    .execute();
+  if (newest.length <= VIEW_KEEP_LIMIT) return;
+  const keep = newest.slice(0, VIEW_KEEP_LIMIT).map((row) => row.id);
+  await qe
+    .deleteFrom('usage_events')
+    .where('prompt_id', '=', promptId)
+    .where('kind', '=', 'view')
+    .where('id', 'not in', keep)
+    .execute();
+}
+
+/**
  * FR-133：**计入取用的过滤片段工厂** —— 口径的**唯一来源**。
  *
  * 以前这个过滤是四处**手写**的 SQL 字面量（`usageStatsFor` / `usageSummary` 的 total·channels·by_token /
@@ -92,6 +127,8 @@ export async function recordUsage(
     .insertInto('usage_events')
     .values({ prompt_id: promptId, channel, used_at: nowIso(), token_id: tokenId, kind })
     .execute();
+  // FR-159 / AC-134 E20：view 留痕有上限；copy/mcp 不裁
+  if (kind === 'view') await pruneViewEvents(qe, promptId);
 }
 
 /** 批量取若干 prompt 的 {use_count, last_used_at}（列表路径另走 JOIN，避免 N+1）。 */

@@ -333,6 +333,23 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # �
 > 迁移 `006_usage-kind.sql` 给 `usage_events` 加了 `kind`（缺省 `copy`），**存量记录一律置 `copy`** ——
 > 历史不重算、老数字不变（历史里混着一些"打开"记录属既成事实，无法回溯区分）。
 
+**`view` 留痕的策略与上限（FR-159 / AC-134 E20，明文决定）**
+
+- **策略**：每次 `GET /api/prompts/:id` 记一条 `kind='view'`（FR-114 的有意设计 —— 不丢"谁在什么时候看过"的审计线索），
+  **不计入任何取用计数**；列表/搜索**不记任何记录**。
+- **上限**：**每个 prompt 最多保留 100 条 `view`**（`VIEW_KEEP_LIMIT`，`src/services/usage.ts`）。
+  写 `view` 时顺带裁剪该 prompt 超出的旧行（一次裁干净；走 `idx_usage_events_prompt`，读放大是常数）。
+  **`copy` / `mcp` 行永不裁剪** —— 它们是"取用 N 次"的事实来源，少一行就少一次真实取用。
+- **运维想整体清掉留痕**：`DELETE FROM usage_events WHERE kind='view';`（不影响任何对外计数 —— 计数只看 `copy`/`mcp`）。
+  导出/导入不携带 usage，所以这条清理不会影响备份语义。
+
+**`X-PM-Channel: mcp` 自报的取舍（FR-159 / AC-134 E20，明文决定：保留现状）**
+
+- 该头**只对 Bearer 生效**（cookie 恒为 `session`），且由**客户端自报** —— 任何令牌都能声明自己是 mcp。
+- 它的作用**只有用量归因**：决定 `by_channel.mcp` 与 `kind='mcp'`（都计入取用）。
+- **没有任何授权效果**：不会放宽 scope 检查、不会让只读令牌拿到写权限，MCP 三个工具本身也全是只读。
+  ⇒ 因此**不收紧**（收紧需要一个客户端身份凭证，收益为零、复杂度不小），把这条决定写在这里。
+
 ```bash
 curl -s -H "Authorization: Bearer pm_…" 'http://127.0.0.1:8767/api/usage/summary?days=7'
 curl -s -H "Authorization: Bearer pm_…" 'http://127.0.0.1:8767/api/prompts?sort=recent_used'   # 最近使用在前
