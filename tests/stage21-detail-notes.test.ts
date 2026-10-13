@@ -21,7 +21,12 @@ test('AC-69 ①③：锚点存在、纯文本渲染、位置在标题行与 pm-d
   const block = detail.slice(notesAt, notesAt + 400);
   assert.equal(block.includes('dangerouslySetInnerHTML'), false, '备注行不得注入 HTML');
   assert.equal(block.includes('MarkdownPreview'), false, '备注行不得走 Markdown 渲染');
-  assert.ok(/\{prompt\.notes\}|>\s*\{[^}]*notes[^}]*\}\s*</.test(block) || block.includes('notes'), '备注行渲染的是备注文本本身');
+  // 渲染的是备注文本本身：必须是**子节点位置**的 `{prompt.notes}`（不能只在 `title=` 属性里出现，
+  // 否则"把子节点换成常量"这种真回归不会被发现 —— 第三轮审视 S3）
+  assert.ok(
+    />\s*\{\s*prompt\.notes\s*\}\s*<\/Typography\.Paragraph>/.test(block),
+    '备注行渲染的是备注文本本身（子节点 {prompt.notes}）',
+  );
 });
 
 test('AC-69 ④：空备注整行不渲染（不占位）', () => {

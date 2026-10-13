@@ -16,13 +16,19 @@ test('AC-71 ①：中栏条目只渲染 标题 + 备注（不再有正文摘要�
   const itemBlock = split.slice(itemAt, split.indexOf('</SortableList>'));
   assert.ok(itemBlock.includes('prompt.title'), '要有标题');
   assert.ok(itemBlock.includes('pm-split-notes'), '要有备注区');
-  assert.ok(itemBlock.includes('prompt.notes'), '备注区渲染的是 notes');
+  // 备注区渲染的是 notes：必须是**子节点位置**的 `{prompt.notes}`（`title=` 属性里也有同一个表达式，
+  // 只查字符串出现会被属性掩盖 —— 第三轮审视 S3）
+  assert.ok(
+    /\{\s*prompt\.notes\s*\}\s*<\/div>/.test(itemBlock),
+    '备注区渲染的是 notes（子节点 {prompt.notes}）',
+  );
   for (const banned of ['promptExcerpt', 'version_no', 'use_count', 'updated_at', 'folderName', 'extractVariablesLocal']) {
     assert.equal(itemBlock.includes(banned), false, `中栏条目不得再出现 ${banned}`);
   }
   // 收藏星标与拖拽手柄保留（FR-57 / FR-70）
   assert.ok(itemBlock.includes('FavoriteStar'), '收藏星标保留');
-  assert.ok(itemBlock.includes('handle'), '拖拽手柄保留');
+  // 手柄必须**真的渲染出来**：解构里就有 `handle`，只查 `includes('handle')` 是同义反复（S3）
+  assert.ok(/>\s*\{handle\}\s*<\/span>/.test(itemBlock), '拖拽手柄保留（渲染出 {handle}，不是只在解构里）');
 });
 
 test('AC-71 ②：备注区固定两行（-webkit-line-clamp: 2 + 最小高度 = 2 行，空备注不塌陷）', () => {

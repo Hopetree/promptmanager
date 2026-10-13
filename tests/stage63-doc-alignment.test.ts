@@ -180,7 +180,8 @@ const RENDER_TEST_CASES = RENDER_TEST_FILES.reduce(
   (total, name) => total + (readSource(path.join('tests', 'render', name)).match(/^test\(/gm) ?? []).length,
   0,
 );
-const RENDER_TEST_FLOOR = { files: 15, cases: 53 };
+// 下界随渲染级用例增长而抬（阶段 71 返工②：新增 tests/render/keyboard-shortcuts.test.ts 后抬到 17/64）。
+const RENDER_TEST_FLOOR = { files: 17, cases: 64 };
 
 test('阶段73 ⑬k：tests/render/** 有文件数与用例数下界绊线（删掉任一渲染测试必红）', () => {
   assert.ok(
