@@ -165,6 +165,38 @@ test('阶段63 ⑬g：测试文件数与用例数等于现场实测（AGENTS.md 
   assert.match(changelog, new RegExp(`\`node:test\`，${files} 个测试文件 / \\*\\*${cases} 个用例\\*\\*`));
 });
 
+/**
+ * 阶段 73（FR-160 / AC-135 A3，N20）：`tests/render/**` 也要被绊线覆盖。
+ *
+ * 背景：上面 ⑬g 的 `readdirSync(tests)` 是**非递归**的 ⇒ `tests/render/` 下的用例一个都不在计数里。
+ * 评审删掉 `tests/render/stage68-token-prefetch.test.ts` 后 `npm test` 仍然全绿。
+ * 这里给渲染级一套**独立的文件数 / 用例数下界**：删掉任意一个渲染测试文件（或任意一个 `test(` 块）
+ * 都会让下界破掉 ⇒ 门禁变红。下界不是精确值：新增渲染测试不必改这里。
+ */
+const RENDER_TEST_FILES = readdirSync(path.join(ROOT, 'tests', 'render')).filter((name) =>
+  name.endsWith('.test.ts'),
+);
+const RENDER_TEST_CASES = RENDER_TEST_FILES.reduce(
+  (total, name) => total + (readSource(path.join('tests', 'render', name)).match(/^test\(/gm) ?? []).length,
+  0,
+);
+const RENDER_TEST_FLOOR = { files: 15, cases: 53 };
+
+test('阶段73 ⑬k：tests/render/** 有文件数与用例数下界绊线（删掉任一渲染测试必红）', () => {
+  assert.ok(
+    RENDER_TEST_FILES.length >= RENDER_TEST_FLOOR.files,
+    `tests/render/ 的测试文件数 ${String(RENDER_TEST_FILES.length)} 低于下界 ${String(RENDER_TEST_FLOOR.files)} —— 渲染级用例被删了`,
+  );
+  assert.ok(
+    RENDER_TEST_CASES >= RENDER_TEST_FLOOR.cases,
+    `tests/render/ 的用例数 ${String(RENDER_TEST_CASES)} 低于下界 ${String(RENDER_TEST_FLOOR.cases)} —— 渲染级用例被删了`,
+  );
+  for (const name of RENDER_TEST_FILES) {
+    const cases = (readSource(path.join('tests', 'render', name)).match(/^test\(/gm) ?? []).length;
+    assert.ok(cases > 0, `tests/render/${name} 一个用例都没有（空文件等于被删）`);
+  }
+});
+
 test('阶段63 ⑬h：质量门步数与检查器一致（文档说九步，脚本文件头列 ⓪①①b①c①d②③④⑤）', () => {
   // 文件头的步骤表**就是注释**：这条守的是"文档写全了"，所以按 AC-129 A2 的例外走 readRaw。
   const ciRaw = readRaw('tools/ci-check.sh');

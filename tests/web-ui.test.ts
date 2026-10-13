@@ -53,22 +53,40 @@ test('列表页：查询参数由 buildPromptListQuery 生成（行为断言）+
   assertIn('components/UseView.tsx', /Pagination|pagination/, 'antd 分页');
 });
 
-test('编辑器：标题/用户提示词/系统提示词/备注/文件夹/标签/收藏/记住变量值 八个可写字段齐全', () => {
-  for (const key of [
-    'title',
-    'user_prompt',
-    'system_prompt',
-    'notes',
-    'folder_id',
-    'tags',
-    'favorite',
-    'remember_variables',
-  ]) {
-    assertIn('components/PromptEditor.tsx', key, `编辑器缺少字段 ${key}`);
+/**
+ * 阶段 73（FR-160 / AC-135 A1，N19）：八字段断言从**裸子串**改成**结构断言**。
+ *
+ * 原来只是 `assertIn('components/PromptEditor.tsx', key)` —— 字段名出现在注释或类型里就能过，
+ * 评审在副本里删掉**唯一的** `<Form.Item name="tags"><Select mode="tags">` 后 `npm test` 仍全绿。
+ * 现在每个字段都要求：**存在 `<Form.Item name="X">` 块**，且**块内**是该字段应有的控件类型与标签文本。
+ * 渲染级半边（真实挂载后数 DOM）在 `tests/render/editor-fields.test.ts`。
+ */
+const EDITOR_FIELD_CONTROLS: readonly { name: string; label: string; control: RegExp }[] = [
+  { name: 'title', label: '标题', control: /<Input[\s>]/ },
+  { name: 'user_prompt', label: '用户提示词（user_prompt）', control: /<Input\.TextArea/ },
+  { name: 'system_prompt', label: '系统提示词（system_prompt）', control: /<Input\.TextArea/ },
+  { name: 'notes', label: '备注（notes）', control: /<Input\.TextArea/ },
+  { name: 'folder_id', label: '文件夹', control: /<TreeSelect/ },
+  { name: 'tags', label: '标签', control: /<Select[\s>]/ },
+  { name: 'favorite', label: '收藏（置顶到列表）', control: /<Switch[\s>]/ },
+  { name: 'remember_variables', label: '记住变量值（下次自动填充）', control: /<Switch[\s>]/ },
+];
+
+test('编辑器：八个可写字段都绑在 Form.Item 上且控件类型正确（结构断言，删控件必红）', () => {
+  const source = src('components/PromptEditor.tsx');
+  const items = [...source.matchAll(/<Form\.Item\b[\s\S]*?<\/Form\.Item>/g)].map((match) => match[0]);
+  assert.equal(
+    items.length,
+    EDITOR_FIELD_CONTROLS.length,
+    '编辑器表单的 Form.Item 数量必须等于八个可写字段',
+  );
+  for (const field of EDITOR_FIELD_CONTROLS) {
+    const block = items.find((item) => new RegExp(`name="${field.name}"`).test(item));
+    assert.ok(block !== undefined, `编辑器缺少字段「${field.name}」的 Form.Item`);
+    assert.match(block, field.control, `字段「${field.name}」的 Form.Item 里没有 ${String(field.control)}`);
+    assert.ok(block.includes(field.label), `字段「${field.name}」的 Form.Item 标签里没有「${field.label}」`);
   }
-  assertIn('components/PromptEditor.tsx', /Input\.TextArea/, 'antd Input.TextArea');
-  assertIn('components/PromptEditor.tsx', /TreeSelect/, 'antd TreeSelect（文件夹）');
-  assertIn('components/PromptEditor.tsx', /<Switch[\s>]/, 'antd Switch（收藏）');
+  assertIn('components/PromptEditor.tsx', /mode="tags"/, '标签控件必须是 antd Select 的多选（mode="tags"）');
 });
 
 test('版本面板：列表 / diff / 回滚三个动作都在', () => {
