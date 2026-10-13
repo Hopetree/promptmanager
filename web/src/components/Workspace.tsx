@@ -729,7 +729,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             closeEditor();
             refresh();
           }}
-          onCopyText={(text, label) => void copier.copyText(text, label)}
+          onCopySource={(text, label) => void copier.copySource(text, label)}
           fullscreen={editorFullscreen}
           onToggleFullscreen={() => setEditorFullscreen((value) => !value)}
         />
@@ -789,6 +789,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
             activeIndex={activeIndex}
             onActiveIndexChange={setActiveIndex}
             onCopy={(prompt) => void copier.copyPrompt(prompt)}
+            onCopySource={(text, label) => void copier.copySource(text, label)}
             onOpenDetail={(prompt) => void openDetail(prompt)}
             onEdit={(prompt) => void openEditor(prompt.id, 'list')}
             onEditDetail={(prompt) => void openEditor(prompt.id, 'detail')}
@@ -895,6 +896,7 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
         busy={copier.busyId !== null}
         onClose={() => setDetailId(null)}
         onCopy={(prompt) => void copier.copyPrompt(prompt)}
+        onCopySource={(text, label) => void copier.copySource(text, label)}
         onDelete={(prompt) => {
           setDetailId(null);
           void removePrompt(prompt);

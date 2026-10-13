@@ -330,6 +330,12 @@ curl -s -b /tmp/pm-jar -X POST http://127.0.0.1:8767/api/tokens/1/reveal     # �
 写 usage **不产生版本、不改 `updated_at`**；**usage 不参与导入导出**（但 `replace` 导入清库前会在本地
 留一份取用历史备份，见 §3.11 的 `usage_history`）。
 
+> **前端「复制源码」（FR-165 / AC-136，口径 A1）：纯本地动作，不发任何请求、不计入取用。**
+> 详情页正文区工具行与编辑器字段标题旁各有「复制源码」入口，复制的是**当前字段的模板原文**（`{{变量}}` 原样，
+> 编辑器用表单当前值）；它**不调** `POST /api/prompts/:id/copy`、**不走** `/api/render*`，因此
+> **复制前后 `use_count` 不变**。与「复制提示词」（含变量时走 `render` 并记一次 `copy`）是**并列的两个动作**，
+> 语义互不影响。判据：`tests/render/source-copy.test.ts`（点击前后零请求）、`tests/source-copy-contract.test.ts`（实现块内无 `api.`）。
+
 > 迁移 `006_usage-kind.sql` 给 `usage_events` 加了 `kind`（缺省 `copy`），**存量记录一律置 `copy`** ——
 > 历史不重算、老数字不变（历史里混着一些"打开"记录属既成事实，无法回溯区分）。
 

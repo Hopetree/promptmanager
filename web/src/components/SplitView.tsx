@@ -28,6 +28,12 @@ interface SplitViewProps {
   onSelect: (prompt: Prompt) => void;
   busy: boolean;
   onCopy: (prompt: Prompt) => void;
+  /**
+   * FR-165 / AC-136（A1/B1）：右栏详情面的「复制源码」—— **零网络、零记账**，
+   * 复制的是**当前页签字段**的模板原文。右栏与详情弹层共用同一个 `PromptDetailPanel`，
+   * 所以两个入口必须在**同一处**接线（少接一个就会出现"点不动/报错"）。
+   */
+  onCopySource: (text: string, label: string) => void;
   onDelete: (prompt: Prompt) => void;
   onEdit: (prompt: Prompt) => void;
   /** 右栏详情面的「去编辑」：来源是**详情**（FR-55 返回详情） */
@@ -66,6 +72,7 @@ export default function SplitView({
   onSelect,
   busy,
   onCopy,
+  onCopySource,
   onDelete,
   onEditDetail,
   onReload,
@@ -169,6 +176,7 @@ export default function SplitView({
               prompt={selected}
               busy={busy}
               onCopy={onCopy}
+              onCopySource={onCopySource}
               onDelete={onDelete}
               onEdit={onEditDetail}
               onReload={onReload}

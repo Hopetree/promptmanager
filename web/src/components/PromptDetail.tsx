@@ -27,6 +27,12 @@ export interface PromptDetailPanelProps {
   busy: boolean;
   /** 复制提示词（含变量时由调用方弹填值对话框） */
   onCopy: (prompt: Prompt) => void;
+  /**
+   * FR-165 / AC-136（口径 A1 / B1）：复制**当前字段的模板原文**（`{{变量}}` 原样）——
+   * **低等级、零网络、零记账**。位置固定在**正文区工具行**（`pm-detail-fields`，与「预览 / 源码」同排），
+   * 与底部主操作条里的「复制提示词」分开（用户明确要求"不要跟提示词复制放到相同的地方"）。
+   */
+  onCopySource: (text: string, label: string) => void;
   /** 删除（危险色 + 二次确认；testid 用 pm-detail-delete，**不以 pm-delete- 开头**） */
   onDelete: (prompt: Prompt) => void;
   /** 去编辑（打开编辑器改这一条） */
@@ -61,6 +67,7 @@ export function PromptDetailPanel({
   prompt,
   busy,
   onCopy,
+  onCopySource,
   onDelete,
   onEdit,
   onReload,
@@ -222,6 +229,19 @@ export function PromptDetailPanel({
               {fullscreen ? '退出全屏' : '全屏展开'}
             </Button>
           )}
+          {/* FR-165 / AC-136 ①：源码复制与「预览 / 源码」同排（**正文区工具行**）——
+              用户明确"不要跟提示词复制放到相同的地方"，而底部主操作条才是「复制提示词」的位置。
+              等级（A1）：`type="text"` 次要形态，明显弱于 primary 的「复制提示词」。
+              内容（B1）：复制**当前页签字段**的原文，`{{变量}}` 原样保留。 */}
+          <Button
+            size="small"
+            type="text"
+            icon={<CopyOutlined />}
+            onClick={() => onCopySource(fieldText, '源码')}
+            data-testid="pm-detail-copy-source"
+          >
+            复制源码
+          </Button>
         </Flex>
 
         <div data-testid="pm-detail-body">
@@ -340,6 +360,7 @@ export default function PromptDetail({
   busy,
   onClose,
   onCopy,
+  onCopySource,
   onDelete,
   onEdit,
   onReload,
@@ -357,6 +378,7 @@ export default function PromptDetail({
       busy={busy}
       isMobile={isMobile}
       onCopy={onCopy}
+      onCopySource={onCopySource}
       onDelete={onDelete}
       onEdit={onEdit}
       onReload={onReload}

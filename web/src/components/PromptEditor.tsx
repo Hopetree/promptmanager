@@ -54,8 +54,11 @@ interface PromptEditorProps {
   onBackToDetail: () => void;
   onSaved: (prompt: Prompt) => void;
   onDeleted: (id: number) => void;
-  /** 复制一段文本（编辑器内直接复制，不必先打开变量面板） */
-  onCopyText: (text: string, label: string) => void;
+  /**
+   * FR-165 / AC-136（口径 A1 / B1）：复制**字段源码**（当前编辑框内容，未保存的改动也算）——
+   * **零网络、零记账**。改的是**可发现性**（按钮带可见文字「复制源码」），不是语义。
+   */
+  onCopySource: (text: string, label: string) => void;
   /** FR-62：全屏态（状态由 Workspace 持有，便于 Esc 与外壳隐藏统一处理） */
   fullscreen: boolean;
   /** FR-62：切换全屏（同一个按钮进出） */
@@ -114,7 +117,7 @@ export default function PromptEditor({
   onBackToDetail,
   onSaved,
   onDeleted,
-  onCopyText,
+  onCopySource,
   fullscreen,
   onToggleFullscreen,
   onDirtyChange,
@@ -311,13 +314,17 @@ export default function PromptEditor({
           label={
             <AntdSpace size={6}>
               <span>用户提示词（user_prompt）</span>
+              {/* FR-165 / AC-136 ②：改的是**可发现性** —— 原来是无文字图标（基本发现不了），
+                  现在带可见文字「复制源码」；语义不变：复制的仍是**表单当前值**（未保存的改动也算）。 */}
               <Button
                 type="text"
                 size="small"
                 icon={<CopyOutlined />}
                 data-testid="editor-copy-user"
-                onClick={() => onCopyText(String(form.getFieldValue('user_prompt') ?? ''), '用户提示词')}
-              />
+                onClick={() => onCopySource(String(form.getFieldValue('user_prompt') ?? ''), '用户提示词源码')}
+              >
+                复制源码
+              </Button>
             </AntdSpace>
           }
         >
@@ -340,8 +347,10 @@ export default function PromptEditor({
                 size="small"
                 icon={<CopyOutlined />}
                 data-testid="editor-copy-system"
-                onClick={() => onCopyText(String(form.getFieldValue('system_prompt') ?? ''), '系统提示词')}
-              />
+                onClick={() => onCopySource(String(form.getFieldValue('system_prompt') ?? ''), '系统提示词源码')}
+              >
+                复制源码
+              </Button>
             </AntdSpace>
           }
         >

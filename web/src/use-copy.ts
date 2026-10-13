@@ -13,6 +13,13 @@ export { writeClipboard };
 
 export interface PromptCopier {
   copyText: (text: string, label?: string) => Promise<boolean>;
+  /**
+   * FR-165 / AC-136（口径 **A1**）：复制**源码**（模板原文）—— **零网络、零记账**。
+   *
+   * 与 `copyPrompt`（「复制提示词」）**并列**、互不影响：后者含变量时走 `/api/render*` 并记一次取用，
+   * 而本入口只写剪贴板 —— 用户明确「这个等级比较低」，且"搬运模板"不等于"使用提示词"。
+   */
+  copySource: (text: string, label?: string) => Promise<boolean>;
   copyPrompt: (prompt: Prompt) => Promise<void>;
   /**
    * FR-151 ④ / AC-133 A4：**只收 id，不收 prompt 对象**。
@@ -66,6 +73,19 @@ export function usePromptCopy(resolvePrompt: (id: number) => Prompt | null): Pro
     [message],
   );
 
+  /**
+   * FR-165 / AC-136（口径 **A1** 拍板）：复制**源码**（模板原文）。
+   *
+   * ⚠️ **本函数块内绝不允许出现任何 `api.` 调用**（既不是 `recordCopy`，也不是 `render`）——
+   * 用户明确「这个等级比较低」："搬运模板"不等于"使用提示词"，计入会让「取用 N 次」虚高。
+   * 判据：`tests/source-copy-contract.test.ts` 直接扫描本函数块内不得出现 `api.`；
+   * `tests/render/source-copy.test.ts` 断言点击前后 `calls` 长度不变（零网络）。
+   */
+  const copySource = useCallback(
+    async (text: string, label = '源码'): Promise<boolean> => copyText(text, label),
+    [copyText],
+  );
+
   const copyPrompt = useCallback(
     async (prompt: Prompt): Promise<void> => {
       if (hasVariables(prompt.user_prompt, prompt.system_prompt)) {
@@ -113,6 +133,7 @@ export function usePromptCopy(resolvePrompt: (id: number) => Prompt | null): Pro
 
   return {
     copyText,
+    copySource,
     copyPrompt,
     copyRendered,
     varsPrompt: varsPromptId === null ? null : resolvePrompt(varsPromptId),

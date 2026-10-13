@@ -110,6 +110,11 @@ interface UseViewProps {
   activeIndex: number;
   onActiveIndexChange: (index: number) => void;
   onCopy: (prompt: Prompt) => void;
+  /**
+   * FR-165 / AC-136（A1/B1）：分栏右栏详情面的「复制源码」—— 原样透传给 `SplitView` → `PromptDetailPanel`。
+   * **零网络、零记账**；列表 / 卡片自己**不加**这个入口（口径 C1）。
+   */
+  onCopySource: (text: string, label: string) => void;
   onOpenDetail: (prompt: Prompt) => void;
   /** 编辑（打开编辑器）——表格行内的轻量管理入口（来源 = 列表） */
   onEdit: (prompt: Prompt) => void;
@@ -159,6 +164,7 @@ export default function UseView({
   activeIndex,
   onActiveIndexChange,
   onCopy,
+  onCopySource,
   onOpenDetail,
   onEdit,
   onEditDetail,
@@ -552,6 +558,7 @@ export default function UseView({
           onSelect={onSelect}
           busy={busyId !== null}
           onCopy={onCopy}
+          onCopySource={onCopySource}
           onDelete={onDelete}
           onEdit={onEdit}
           onEditDetail={onEditDetail}
