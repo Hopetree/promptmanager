@@ -98,8 +98,8 @@ After changing code you **must** run `npm test` and `bash tools/ci-check.sh` bef
 
 | Goal | Command | Verified output / pass criterion |
 | --- | --- | --- |
-| Install deps | `npm ci --cache var/cache/npm` | rc=0; 209 entries in `node_modules`. **Without `--cache` it fails with EROFS** (pitfall 3). The trailing `npm warn allow-scripts ... better-sqlite3@13.0.3 (install: node-gyp rebuild)` is **expected** (pitfall 9). |
-| Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` = 470985 B (no `larger than 500 kB` warning). |
+| Install deps | `npm ci --cache var/cache/npm` | rc=0; `node_modules` populated (the entry count varies with the lockfile). **Without `--cache` it fails with EROFS** (pitfall 3). The trailing `npm warn allow-scripts ... better-sqlite3@13.0.3 (install: node-gyp rebuild)` is **expected** (pitfall 9). |
+| Full build | `npm run build` | rc=0 -> `dist/server` + `dist/web`; largest chunk `vendor-antd-*.js` stays under the 500 KB budget - step ⑤ is the gate. |
 | Server build only | `npm run build:server` | rc=0. The CLI and `node --test` both load from `dist/**` (pitfall 8). |
 | Web build only | `npm run build:web` | rc=0. |
 | Full test suite | `npm test` | rc=0; `fail 0` (= build + typecheck:tests + `node --test "tests/**/*.test.ts"`). |
@@ -177,8 +177,8 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 - **Screenshot tiers**:
   - **key page shots → `docs/shots/`** - exactly one set of 8 (`01-login`, `02-split`, `03-table`,
     `04-cards`, `05-editor`, `06-detail`, `07-mobile`, `08-dark`);
-  - **process shots → `tmp/shots/`**;
-  - anything replaced is **archived (moved) to `tmp/shots-archive/`** - never left behind in `docs/`.
+  - **process shots → `tmp/ui-shots/shots/`** (the tool's default);
+  - anything replaced is **archived (moved) to `tmp/shots-archive/docs-shots/`** - never left in `docs/`.
 - **Tool conventions**: `bash tools/ui-shots.sh` defaults to `tmp/ui-shots/shots/` (self-check, not
   committed); only `--key` writes the single key set into `docs/shots/`, and it first archives the previous
   set. Rationale and measurements: [`traps.md` section 12](traps.md#12-文档与截图的落点).
@@ -314,20 +314,20 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
    `src/services/markdown.ts:12` runs `new JSDOM('')` at module load; a fully started server reaches
    VmRSS ~204 MB. When several test files load jsdom concurrently they create memory pressure, which shows
    up as a **file-level `test failed`** (not an assertion error). Evidence: `src/services/markdown.ts:12`,
-   `README.md` ("Known limitations"), `docs/traps.md` section 11.
+   `docs/traps.md` section 11 (the measured values).
 7. **The `folder_id` filter includes all descendants; it is not an exact match.**
    `GET /api/prompts?folder_id=X` returns prompts in X and every folder beneath it (the same scope the
    sidebar counts use). This is intentional, not a bug. Evidence: `src/db/prompt-queries.ts:16,44`
-   (`descendantFolderIds`), `tests/api-folder-inclusive.test.ts`, `README.md` ("Known limitations", folders).
+   (`descendantFolderIds`), `tests/api-folder-inclusive.test.ts`, `docs/api.md` (`folder_id`: all descendants).
 8. **`bin/pm.mjs` and `node --test` both load from `dist/**`.** Calling the CLI before
    `npm run build` (or `build:server`) fails with `error: ... dist/server/cli.js ...` and exit code 1.
    And because tests import from `../dist/**`, **editing `src/` without rebuilding means you are testing
    stale code**. Evidence: `bin/pm.mjs:9-17`, `tests/health.test.ts:6-7`.
 9. **`better-sqlite3` ships prebuilt binaries - no toolchain needed** (verified 2026-10-13, v13.0.3):
-   the package declares **no `install` script** and ships `prebuilds/` for 8 platforms (incl.
-   `linux-x64.node`, `linuxmusl-x64.node`). npm 11's allow-scripts policy still prints
+   the package declares **no `install` script** and ships `prebuilds/` for 8 platforms. npm 11's
+   allow-scripts policy still prints
    `npm warn allow-scripts ... (install: node-gyp rebuild)` and skips it - **harmless**: table I/O and
-   `fts5(x, tokenize='trigram')` work, so the deployment host (and a slim image) needs **no gcc**.
+   `fts5(x, tokenize='trigram')` work, so the deployment host needs **no gcc**.
    Evidence: `docs/dependencies.md` section 4.1, `docs/traps.md`.
 10. **Import `replace` cannot wipe tables in one shot**: `folders.parent_id` is a self-referencing foreign
     key declared `ON DELETE RESTRICT` (`migrations/001_init.sql:37`), so folders must be deleted

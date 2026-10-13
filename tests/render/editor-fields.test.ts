@@ -11,7 +11,7 @@
  */
 import { element, mountRegistry, releaseLoaderPort, route, waitFor } from './harness.ts';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readWebSource } from '../source-text.ts';
 import { after, afterEach, test } from 'node:test';
 import { act } from 'react';
 import { App as AntdApp, ConfigProvider } from 'antd';
@@ -134,7 +134,7 @@ test('AC-135 A1：编辑器八字段在**渲染出来的 DOM** 里齐全（删�
 });
 
 test('AC-135 A1：标签控件必须是 antd Select 多选（静态半边，与 tests/web-ui.test.ts 同一判据）', () => {
-  const source = readFileSync(new URL('../../web/src/components/PromptEditor.tsx', import.meta.url), 'utf8');
+  const source = readWebSource('components/PromptEditor.tsx');
   const block = source.match(/<Form.Item\b[\s\S]*?name="tags"[\s\S]*?<\/Form.Item>/)?.[0] ?? '';
   assert.ok(block !== '', 'PromptEditor.tsx 里必须有 name="tags" 的 Form.Item');
   assert.match(block, /mode="tags"/, '标签控件必须是 antd Select 的多选（mode="tags"）');

@@ -173,7 +173,7 @@ prompt **零请求**，含变量的路径恰好一条事件（`render`）。
   `npm run build:server &&` 前缀的原因。复现：`rm -rf dist && npm run typecheck:tests` —— 修前 38、修后 0。
 - **Markdown 渲染用的 `jsdom` 是模块级单例，常驻约 200 MB RSS**（`src/services/markdown.ts` 在模块加载时
   `new JSDOM('')`，完整起服务后 VmRSS ≈ 204 MB）。多个测试文件并发加载 jsdom 会造内存压力，
-  表现为**文件级 `test failed`**（不是断言失败）。见 `README.md` 已知限制。
+  表现为**文件级 `test failed`**（不是断言失败）。
 - **`node --test` 下 CLI 子进程必须 `detached: true`，否则测试会 flaky**：与测试运行器同进程组的子进程
   会在环境清理整组时被一起杀掉（`kill -PGID`、`bwrap --die-with-parent`），断言看到 `code=null`；
   加诊断后是 `signal=SIGSEGV`。这个失败形态下 `node:test` 只报文件级 `✖ <file> 'test failed'`、无细节。

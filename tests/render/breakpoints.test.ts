@@ -10,8 +10,7 @@
  */
 import './dom-env.ts';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import path from 'node:path';
+import { webSourceFiles } from '../source-text.ts';
 import { test } from 'node:test';
 import { MOBILE_MAX_WIDTH, NARROW_MAX_WIDTH, viewportBands } from '../../web/src/breakpoints.ts';
 
@@ -55,35 +54,15 @@ test('常驻：未测量（undefined）按窗口宽度兜底，且与"窄"分开
   }
 });
 
-/**
- * 只扫**活代码**：注释里为了说明历史缺陷而写出 `window.innerWidth` 不算违规
- * （判据是"还能不能自己算断点"，不是"字面量出现过"）。
- */
-function stripComments(text: string): string {
-  return text
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
-}
-
-function walk(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = path.join(dir, entry);
-    if (statSync(full).isDirectory()) out.push(...walk(full));
-    else if (full.endsWith('.ts') || full.endsWith('.tsx')) out.push(full);
-  }
-  return out;
-}
-
 test('常驻：全仓断点判断只有一个来源（breakpoints.ts）', () => {
-  const root = path.resolve('web/src');
+  // 走统一入口 `tests/source-text.ts`：`readWebSource` 拿到的文本**已经剥掉注释**
+  // （判据是"还能不能自己算断点"，注释里为了说明历史缺陷写出字面量不算违规）。
   const offenders: string[] = [];
-  for (const file of walk(root)) {
-    const relative = path.relative(root, file);
-    if (relative === 'breakpoints.ts') continue;
-    const text = stripComments(readFileSync(file, 'utf8'));
-    if (text.includes('innerWidth')) offenders.push(`${relative}: 自己读 window.innerWidth`);
-    if (text.includes('useBreakpoint')) offenders.push(`${relative}: 自己调 Grid.useBreakpoint`);
+  for (const file of webSourceFiles()) {
+    if (file.rel === 'web/src/breakpoints.ts') continue;
+    const label = file.rel.replace('web/src/', '');
+    if (file.text.includes('innerWidth')) offenders.push(`${label}: 自己读 window.innerWidth`);
+    if (file.text.includes('useBreakpoint')) offenders.push(`${label}: 自己调 Grid.useBreakpoint`);
   }
-  assert.deepEqual(offenders, [], `断点判断必须只来自 web/src/breakpoints.ts（含 AboutModal 的 isNarrowHint）`);
+  assert.deepEqual(offenders, [], '断点判断必须只来自 web/src/breakpoints.ts（含 AboutModal 的 isNarrowHint）');
 });

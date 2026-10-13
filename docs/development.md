@@ -20,7 +20,7 @@
 | `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/{list-query,folders-util,import-file,diff-lines,format,vars,view-mode,token-display,notices}.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
 | `migrations/` | `001_init.sql` … `010_migration-checksums.sql`（**共 10 个**；**已应用的不要改**，新增走**下一个编号**，以目录里最大号为准） |
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
-| `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`ui-shots.sh` + `ui-shot.mjs`（界面截图）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh` |
+| `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`bundle-budget.mjs`（体积账本，`--record`/`--check`）、`check-deps-ledger.mjs` / `check-doc-paths.mjs`（①c / ①d 两个检查器）、`tsx-loader.mjs`（渲染级测试的 `.tsx` loader）、`ui-shots.sh` + `ui-shot.mjs` + `ui-shots-docs.sh`（界面截图 / 关键图归档）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh` |
 | `deploy/` | 交付物（**本仓库不部署它们**）：systemd unit / env 模板 / 部署说明 / 反代样例 / 容器说明 |
 | `docs/` | **最终状态文档**：`README.md`（本目录说明）、`api.md`（接口参考）、`development.md`（本文件）、`traps.md`（为什么代码长这样）、`dependencies.md`、`versioning.md`、`search-zh.md`、`shots/`（关键页截图一套 8 张） |
 | 根目录 | `README.md`（用户文档）、`AGENTS.md`（AI 代理指南，英文）、`CHANGELOG.md`、`LICENSE`、`SECURITY.md`、`CONTRIBUTING.md`、构建配置。**需求 / 进度 / 验收文件不在这里**（本地 `tmp/dev-process/`） |
