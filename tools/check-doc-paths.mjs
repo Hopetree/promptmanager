@@ -4,7 +4,8 @@
  *
  * 为什么要有这个检查：`AGENTS.md` 是 AI 代理唯一会读的指令文件，`CHANGELOG.md` / `docs/**` 是交付文档，
  * `tests/*.test.ts` 的注释是"这条用例的证据在哪"的指路牌 —— 三者都出现过**指向已删除文件**的引用
- * （仓库瘦身把 `docs/dev-history/`、`tmp/dev-process/tools/ac-stage*.sh` 移出后，引用没跟着改）。
+ * （仓库瘦身把 `docs/dev-history/` 移出、验收脚本从 `tmp/dev-process/tools/` 搬进 `tools/acceptance/` 之后，
+ * 引用没跟着改）。
  * 靠人记不住，所以让它变成 CI 的一步：引用不存在的路径 ⇒ 这一步红。
  *
  * 扫描范围（与 AC-125 ⑫ 一致，不扩大）：

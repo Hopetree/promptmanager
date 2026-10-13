@@ -133,10 +133,10 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 | `src/client/pm-api.ts` | HTTP client used by the consumer-side CLI (`pm get` / `pm render` go through it). |
 | `web/` | Frontend: `index.html`, `src/main.tsx` (mount), `src/App.tsx`, `src/components/*.tsx` (`Workspace`, `SplitView`, `PromptEditor`, `VersionPanel`, `VariablePanel`, `VarsDialog`, ...), `src/api.ts`, `src/clipboard.ts`, `src/theme.ts`, `src/types.ts`, `src/styles/*.css`. |
 | `migrations/` | `001_init.sql` ... `010_migration-checksums.sql` (**10 files**, applied in order; see section 6). |
-| `tests/` | `node:test` cases (111 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
+| `tests/` | `node:test` cases (112 `*.test.ts` files) plus shared fixtures in `helpers.ts`, and the render-level set in `tests/render/`. |
 | `deploy/` | Deliverables (**this repo does not deploy them**): `promptmanager.service`, `promptmanager.env.example`, `README.md` (install / verify / roll back / troubleshoot), `reverse-proxy.example.conf`, `mcp-register.example.json`, `container.md`. |
 | `docs/` | **Final-state documentation only, for humans**: `api.md` (HTTP/CLI/MCP reference), `development.md` (build/test/structure), `traps.md` (why the code looks like this), `dependencies.md` (deps + licenses + audits), `versioning.md` (release rules), `search-zh.md` (search measurements), `README.md` (what this directory is), `shots/` (**one** set of key page shots, 8 PNGs). **No process state.** See section 5.1. |
-| Root files | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.nvmrc` / `.npmrc`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/*.yml`. **No requirements/progress/acceptance files** - those are local (section 13). |
+| Root files | `README.md`, `AGENTS.md`, `CHANGELOG.md`, `LICENSE`, `SECURITY.md`, `CONTRIBUTING.md`, `package.json` / `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `.nvmrc` / `.npmrc`, `.gitignore`, `Dockerfile` / `docker-compose.yml` / `.dockerignore`, `.github/workflows/*.yml`. **No requirements/progress files** - those are local (section 13). |
 | Runtime (never committed) | `tmp/` (**never committed**: process artifacts — self-check screenshots, archived shots, debug dumps, logs, scratch scripts), `var/` (logs and caches), `dist/` (build output), `node_modules/`, `_env/` (credentials, mode 700, read-only use). The default data dir `data/` appears **after the first run** (see section 6). |
 
 ## 5. Code conventions
@@ -182,9 +182,9 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 - **Tool conventions**: `bash tools/ui-shots.sh` defaults to `tmp/ui-shots/shots/` (self-check, not
   committed); only `--key` writes the single key set into `docs/shots/`, and it first archives the previous
   set. Rationale and measurements: [`traps.md` section 12](traps.md#12-文档与截图的落点).
-- **The repo carries no process state at all** (since 2026-09-30): the requirements contract, the progress
-  log, acceptance records and the one-off acceptance scripts live in the local `tmp/dev-process/` tree
-  (section 13). Do not commit them back.
+- **The repo carries no process state** (requirements, progress log, acceptance *records*): those live in
+  the local `tmp/dev-process/` tree (section 13). The per-stage acceptance *scripts* are delivery-state
+  since FR-164 and ship in `tools/acceptance/` (`bash tools/acceptance/run.sh --list`).
 
 ## 6. Data and migrations
 
@@ -220,7 +220,7 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 7. Tests
 
-- **Location and size**: `tests/**/*.test.ts` (111 files, **707** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
+- **Location and size**: `tests/**/*.test.ts` (112 files, **711** cases at the last update). The render-level files under `tests/render/` are counted separately. How to run them: section 3.
   The case count **only grows**; the pass criterion is `fail 0`. A larger number means new cases were added;
   a smaller number or `fail > 0` means a regression.
 - **Style**: Node's built-in `node:test` + `node:assert/strict` (**no third-party test framework**). Shared
@@ -385,8 +385,8 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
 
 ## 13. Local work files (deliberately **not** in this repo)
 
-This repository ships **delivery-state content only**. The project's process artefacts live outside it, on
-the machine where development happens, under `tmp/dev-process/` - mirroring this repo's layout. `tmp/` is
+This repository ships **delivery-state content only**. The project's process artefacts - the requirements
+contract, the progress log, the acceptance records - live outside it under `tmp/dev-process/`. `tmp/` is
 gitignored and **may be deleted at any time**; nothing you write under `tmp/` is ever committed
 (`git log --all -- tmp/` is empty), so a deletion there is not recoverable from this repository. Some of these
 files *were* tracked **before the 2026-09-30 slimming** (see `CHANGELOG.md`), so git history may hold an
@@ -399,7 +399,6 @@ files *were* tracked **before the 2026-09-30 slimming** (see `CHANGELOG.md`), so
 | `tmp/dev-process/VERIFY.md` | Acceptance conclusions and rework lists | To learn whether the last task passed |
 | `tmp/dev-process/QUESTIONS.md` | Template for stopping and asking (past Q&A in `tmp/dev-process/docs/dev-history/QUESTIONS-history.md`) | When the spec does not cover something that blocks delivery (section 12) |
 | `tmp/dev-process/docs/dev-history/` | Earlier full process records, design studies, archived shots | When mining historical context |
-| `tmp/dev-process/tools/ac-stage*.sh`, `*-probe.mjs` | Per-task acceptance scripts (real browser / real pixels) | When re-running an old acceptance check |
 
-**These files are never committed.** If you find yourself wanting to add one of them back into the repo,
-don't - put it here instead.
+**These files are never committed** - except the per-stage acceptance scripts, which since FR-164 ship in
+`tools/acceptance/` (section 5.1). If you want to add any of the rest back, don't - put it here instead.

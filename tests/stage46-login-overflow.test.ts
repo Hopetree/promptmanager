@@ -155,8 +155,9 @@ test('AC-110 ⑤ 返工（文档级，2026-09-30 调整）：官方仓库地址�
 
 test('AC-110 ⑥⑦（文档级）：不引用不存在的脚本；不引导用户改 Dockerfile / compose / CI', () => {
   const readme = read('README.md');
-  // 库外一次性验收脚本已随仓库瘦身移出仓库（AGENTS.md §13）。README 不得引用它们。
-  // 这里用**形状**匹配（而非某个具体文件名），所以本文件自身也不含那个已不存在的脚本名（AC-125 ⑬c）。
+  // 逐阶段验收脚本自 FR-164 起随仓库入库（tools/acceptance/），但它们**不是用户文档**：
+  // README 仍不得引用它们（那是开发/验收侧的东西）。
+  // 这里用**形状**匹配（而非某个具体文件名），所以本文件自身也不含具体脚本名（AC-125 ⑬c）。
   assert.equal(/ac-?stage/i.test(readme), false, '沿用既有口径：不得引用不存在的脚本');
   // ⑦ 本次是"文档指引"而非"换镜像源" ⇒ 不应让用户去改这些文件
   assert.equal(/改\s*Dockerfile/.test(readme), false, '不得引导用户改 Dockerfile');

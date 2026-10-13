@@ -13,7 +13,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { readRaw, readSource } from './source-text.ts';
+import { fileExists, readRaw, readSource } from './source-text.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CHECKER = path.join(ROOT, 'tools/check-doc-paths.mjs');
@@ -228,14 +228,22 @@ test('阶段63 ⑬h：质量门步数与检查器一致（文档说九步，脚�
   assert.match(dev, /①d/, 'docs/development.md 的步骤表必须包含 ①d');
 });
 
-test('阶段63 ⑬i：测试注释里不再有悬空引用（旧口径词与库外脚本名归零）', () => {
+test('阶段63 ⑬i：测试注释里不再有悬空引用（旧口径词归零；验收脚本引用必须指向真实文件）', () => {
   // 拼出来而不是写死：否则这条用例自己的断言文案就会把它要禁的词带进本文件。
   const bannedWord = ['本地', '验收记录'].join('');
-  const bannedScript = ['ac-', 'stage'].join('');
+  const scriptName = ['ac-', 'stage'].join('');
+  const scriptRef = new RegExp(`${scriptName}[\\w.-]*\\.(?:sh|mjs)`, 'gi');
   for (const name of TEST_FILES) {
     const text = readSource(path.join('tests', name));
     assert.equal(text.includes(bannedWord), false, `${name} 里不该再出现旧口径词（过程态是库外的）`);
-    assert.equal(text.toLowerCase().includes(bannedScript), false, `${name} 里不该再出现库外脚本名`);
+    // FR-164 起验收脚本随仓库入库（tools/acceptance/）：测试里可以引用，但**必须指向真实文件** ——
+    // 悬空引用仍要红（原来是一律禁止提到脚本名，脚本入库后那个口径就过期了）。
+    for (const match of text.matchAll(scriptRef)) {
+      assert.ok(
+        fileExists(path.posix.join('tools', 'acceptance', match[0])),
+        `${name} 引用了不存在的验收脚本 ${match[0]}`,
+      );
+    }
   }
 });
 

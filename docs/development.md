@@ -20,7 +20,8 @@
 | `web/` | 前端：`index.html`、`src/main.tsx`、`src/App.tsx`、`src/components/*.tsx`、`src/api.ts`、`src/{list-query,folders-util,import-file,diff-lines,format,vars,view-mode,token-display,notices}.ts`（纯逻辑，单测直接 import）、`src/theme.ts`、`src/styles/*.css` |
 | `migrations/` | `001_init.sql` … `010_migration-checksums.sql`（**共 10 个**；**已应用的不要改**，新增走**下一个编号**，以目录里最大号为准） |
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
-| `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`bundle-budget.mjs`（体积账本，`--record`/`--check`）、`check-deps-ledger.mjs` / `check-doc-paths.mjs`（①c / ①d 两个检查器）、`tsx-loader.mjs`（渲染级测试的 `.tsx` loader）、`ui-shots.sh` + `ui-shot.mjs` + `ui-shots-docs.sh`（界面截图 / 关键图归档）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh` |
+| `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`bundle-budget.mjs`（体积账本，`--record`/`--check`）、`check-deps-ledger.mjs` / `check-doc-paths.mjs`（①c / ①d 两个检查器）、`tsx-loader.mjs`（渲染级测试的 `.tsx` loader）、`ui-shots.sh` + `ui-shot.mjs` + `ui-shots-docs.sh`（界面截图 / 关键图归档）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-*-smoke.py`（MCP 冒烟）、`pm-dev-data-reset.sh`、`acceptance/`（**按阶段归档的验收脚本**：`run.sh --list` 看清单、`run.sh <阶段>` 跑该阶段全部，见下） |
+| `tools/acceptance/` | 交付态验收脚本（FR-164 起随仓库入库）：`ac-stageNN.sh`（真浏览器 / 真端口 / 真夹具，退出码即结论）+ `ac-stageNN-*-probe.mjs`；一键入口 `bash tools/acceptance/run.sh --list` / `run.sh <阶段>`。**它们只读仓库与临时实例，不碰部署面** |
 | `deploy/` | 交付物（**本仓库不部署它们**）：systemd unit / env 模板 / 部署说明 / 反代样例 / 容器说明 |
 | `docs/` | **最终状态文档**：`README.md`（本目录说明）、`api.md`（接口参考）、`development.md`（本文件）、`traps.md`（为什么代码长这样）、`dependencies.md`、`versioning.md`、`search-zh.md`、`shots/`（关键页截图一套 8 张） |
 | 根目录 | `README.md`（用户文档）、`AGENTS.md`（AI 代理指南，英文）、`CHANGELOG.md`、`LICENSE`、`SECURITY.md`、`CONTRIBUTING.md`、构建配置。**需求 / 进度 / 验收文件不在这里**（本地 `tmp/dev-process/`） |
@@ -109,8 +110,9 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
   只在明文 HTTP 下出现的 bug（剪贴板、`isSecureContext`）。
 - **收尾三件套全绿、原样输出已贴**：`npm test`、`bash tools/ci-check.sh`、以及一次针对临时实例的真端到端运行
   （改动是视觉的就要真浏览器）。
-- **过程记录一律不入库**：需求、进度、验收结论、逐阶段验收脚本都在本地 `tmp/dev-process/`
-  （镜像本仓库布局）。**不要把它们提交回仓库。**
+- **过程记录一律不入库**：需求、进度、验收结论都在本地 `tmp/dev-process/`（镜像本仓库布局），
+  **不要把它们提交回仓库**。例外：逐阶段验收**脚本**（FR-164 起）属交付态，随仓库入库到
+  `tools/acceptance/` —— 用 `bash tools/acceptance/run.sh --list` 看清单、`run.sh <阶段>` 重跑。
 
 ### 常用的一次性验证命令
 

@@ -191,6 +191,20 @@ test('AC-132 C13：/mcp 的 401 与 /api/* 同形；差异写在 docs/traps.md',
     assert.match(traps, /## 20\./, 'docs/traps.md 必须有第 20 节（鉴权分类与 /mcp 的 401）');
     assert.match(traps, /`\/mcp`/, '第 20 节必须写明 /mcp 自己那套 Bearer 鉴权');
     assert.match(traps, /401/, '第 20 节必须写明 401 口径');
+
+    // FR-164 / N41：`/mcp` 留在声明闸门之外是**明文决定**，且"将来加写能力工具必须重审"必须写死。
+    assert.match(traps, /### 20\.3/, '第 20.3 节必须写明 /mcp 不在声明闸门里这个决定');
+    assert.match(traps, /必须先把\s*`?\/mcp`?\s*纳入声明闸门/, '第 20.3 节必须写明加写能力工具前要重审闸门');
+    assert.match(traps, /mcp-readonly\.test\.ts/, '第 20.3 节必须指向既有的只读绊线');
+    const apiDoc = readSource('docs/api.md');
+    assert.match(apiDoc, /不在 FR-149 的\s*`?\/api\/\*`?\s*声明闸门里/, 'docs/api.md 第 5 节必须写明同一口径');
+    assert.match(apiDoc, /traps\.md#203/, 'docs/api.md 必须指回 traps 第 20.3 节');
+    const readonly = readSource('tests/mcp-readonly.test.ts');
+    assert.match(
+      readonly,
+      /\['prompt_get', 'prompt_render', 'prompt_search'\]/,
+      '只读绊线必须仍断言恰好三个只读工具（写能力工具一出现这条就红）',
+    );
   } finally {
     await fx.close();
   }

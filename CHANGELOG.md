@@ -729,8 +729,9 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，111 个测试文件 / **707 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
-- **验收自检**：逐阶段一次性验收脚本（AC-1 … AC-76，含真鼠标与真实像素断言）—— 仓库瘦身后已**移出仓库**，见 `tmp/dev-process/tools/`。
+- **测试**：`node:test`，112 个测试文件 / **711 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **验收自检**：逐阶段验收脚本（AC-1 … AC-135，含真鼠标与真实像素断言）随仓库交付，见 `tools/acceptance/`
+  —— `bash tools/acceptance/run.sh --list` 看清单、`run.sh <阶段>` 重跑该阶段全部（FR-164）。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
   含文档体积预算、依赖台账一致性、双端类型检查、全量测试与 500KB 体积预算）。
 - **依赖治理**：全部 pin 精确版本 + 登记 `docs/dependencies.md`（协议 + OSV 逐包查询）。

@@ -192,8 +192,9 @@ prompt **零请求**，含变量的路径恰好一条事件（`render`）。
   到 `tmp/shots-archive/`，**绝不留在 `docs/`**。
 - `bash tools/ui-shots.sh` 缺省输出到 `tmp/ui-shots/shots/`（自查，不入库）；只有
   `bash tools/ui-shots.sh --key` 才产出唯一一套关键截图到 `docs/shots/`，且会先把上一套归档。
-- **仓库里不放过程态**（2026-09-30 起）：需求合同、进度日志、验收记录、一次性验收脚本、设计打样归档
+- **仓库里不放过程态**（2026-09-30 起）：需求合同、进度日志、验收记录、设计打样归档
   都已移出仓库到**本地** `tmp/dev-process/`（镜像布局）。它们**不是**交付物，**不要**再提交回去。
+  例外：逐阶段验收**脚本**（FR-164 起）是**可重跑的证据**，随仓库入库到 `tools/acceptance/`。
 
 ## 13. 变量默认值只认 `default`
 
@@ -531,6 +532,21 @@ BRIEF，所以只记录、不修：
   **无状态**（`GET` / `DELETE /mcp` 明确 405，而不是静默 404 或假装能开会话）。
 - **判据**：`POST /mcp`（无凭据）与 `GET /api/prompts`（无凭据）的响应体 `deepEqual`；
   `GET /mcp` ⇒ 405。差异写在这里，而不是散落在代码注释里。
+
+### 20.3 `/mcp` 有意留在 FR-149 声明闸门之外（明文决定 / FR-164 / N41）
+
+- **决定（保留现状，本阶段不改闸门）**：`registerAuthGate` 在注册期只收集
+  `route.url.startsWith('/api/')` 的路由，而 `/mcp` 是**顶层路径**（FR-93）⇒ 它**不在**
+  "每个路由都必须被声明表显式覆盖"那套机械检查里。这是**明文的决定**，不是漏做：
+  把 `/mcp` 纳入闸门要动 `src/server/auth.ts` 的分类机制，而它已有一条**独立的只读绊线**兜着（下条）。
+- **为什么现在安全**：`src/mcp/server.ts` 的三个工具全部带 `annotations: { readOnlyHint: true }`，
+  且工具内部委派回 `/api/*` 做 scope 检查 —— 只读令牌拿不到任何写能力。
+  绊线在 `tests/mcp-readonly.test.ts`：工具清单必须**恰好**是
+  `prompt_search` / `prompt_get` / `prompt_render` 三个，且名字里不得含任何写动词。
+- **将来加写能力工具必须重审**：一旦 MCP 工具面出现任何写操作（create / update / delete / import / …），
+  本条决定**立即失效** —— 必须先把 `/mcp` 纳入声明闸门（或另建一套等价的机械检查），再谈实现。
+- **判据**：`tests/stage70-auth-classification.test.ts` 的 AC-132 C13 钉住本节存在、
+  `docs/api.md` 第 5 节写明同一口径、`tests/mcp-readonly.test.ts` 仍断言三个只读工具。
 
 ## 21. CLI 的两条通道：为什么不是"并成一条"（阶段 70 / FR-150）
 

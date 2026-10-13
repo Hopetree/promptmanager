@@ -97,8 +97,8 @@ else
 fi
 
 # ---------------------------------------------------------------- ①b 静态检查（lint）
-# oxlint（Rust 实现，全仓 170 个文件毫秒级）。范围 = 全仓（`npm run lint` = `oxlint .`）。
-# 一次性验收脚本已移出仓库（过程态不入库），所以这里不再需要排除任何目录。
+# oxlint（Rust 实现，全仓毫秒级）。范围 = 全仓（`npm run lint` = `oxlint .`）。
+# 验收脚本自 FR-164 起随仓库入库（`tools/acceptance/`），同样受 lint 覆盖 —— 不需要排除任何目录。
 line "①b 静态检查（oxlint）"
 npm run lint >"$LOG_DIR/lint.log" 2>&1
 record "①b npm run lint" $? "$(grep -oE 'Found [0-9]+ warnings? and [0-9]+ errors?' "$LOG_DIR/lint.log" | tail -1)"
