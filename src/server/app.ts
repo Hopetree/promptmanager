@@ -9,7 +9,7 @@ import { isHttpsOrigin, type AppConfig } from '../config.js';
 import { prepareDatabase, type Db, type QueryEngine } from '../db/index.js';
 import { ConflictError, InvalidBodyError, InvalidImportError, NotFoundError, SyncError } from '../errors.js';
 import { registerMcpHttpRoutes } from '../mcp/http.js';
-import { registerAuthGate, registerCookieSupport } from './auth.js';
+import { isApiPath, registerAuthGate, registerCookieSupport } from './auth.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerExportRoutes } from './routes/export.js';
 import { registerFolderRoutes } from './routes/folders.js';
@@ -140,11 +140,11 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
 
   app.addHook('onSend', async (request, reply, payload) => {
     /**
-     * FR-159 / AC-134 E19：`/api/*` 的响应禁止共享缓存。
+     * FR-159 / AC-134 E19：API 命名空间的响应禁止共享缓存（`/api/*` 与 `/api` 本身，大小写不敏感）。
      * 理由：API 响应里可能带提示词正文、令牌脱敏形状与用量统计；中间代理 / 浏览器 / 公司网关
-     * 缓存它们既泄露正文又会让"改了看不到"。只覆盖 `/api/*` —— 静态资源照旧可缓存。
+     * 缓存它们既泄露正文又会让"改了看不到"。只覆盖 API 命名空间 —— 静态资源照旧可缓存。
      */
-    if (request.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
+    if (isApiPath(request.url)) reply.header('cache-control', 'no-store');
     reply.header('x-content-type-options', 'nosniff');
     reply.header('x-frame-options', 'DENY');
     reply.header('referrer-policy', 'strict-origin-when-cross-origin');
@@ -195,9 +195,10 @@ export async function buildApp(config: AppConfig): Promise<FastifyInstance> {
     });
   }
 
-  // 非 /api 路径一律回落到前端入口；/api 未命中就是 404 JSON（未认证的情形已被闸门拦成 401）。
+  // 非 API 命名空间路径一律回落到前端入口；API 命名空间（`/api/*` 与 `/api`，大小写不敏感）
+  // 未命中就是 404 JSON（未认证的情形已被闸门拦成 401）—— 两处共用 `isApiPath`，判据只有一份。
   app.setNotFoundHandler((request, reply) => {
-    if (request.url.startsWith('/api/')) {
+    if (isApiPath(request.url)) {
       return reply.code(404).send({ error: 'not_found' });
     }
     if (hasWeb && request.method === 'GET') {

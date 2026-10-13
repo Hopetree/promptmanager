@@ -146,7 +146,8 @@ function bearerChannel(request: FastifyRequest): AuthChannel {
 }
 
 /**
- * 全局认证闸门：除放行清单外，所有 /api/* 未认证一律 401 {"error":"unauthorized"}。
+ * 全局认证闸门：除放行清单外，所有 API 命名空间路径（`/api/*` 与 `/api` 本身，大小写不敏感）
+ * 未认证一律 401 {"error":"unauthorized"}。
  * 两条通道并存（D-13）：`Authorization: Bearer <token>` 优先，其次 `pm_sid` cookie 会话。
  * onRequest 在路由解析之前执行，因此**未实现的 /api/* 端点**对未认证请求同样 401（AC-3）。
  */
@@ -170,7 +171,8 @@ export function authRouteCoverage(app: FastifyInstance): Array<ApiRoute & { cate
 }
 
 /**
- * 全局认证闸门：除放行清单外，所有 /api/* 未认证一律 401 {"error":"unauthorized"}。
+ * 全局认证闸门：除放行清单外，所有 API 命名空间路径（`/api/*` 与 `/api` 本身，大小写不敏感）
+ * 未认证一律 401 {"error":"unauthorized"}。
  * 两条通道并存（D-13）：`Authorization: Bearer <token>` 优先，其次 `pm_sid` cookie 会话。
  * onRequest 在路由解析之前执行，因此**未实现的 /api/* 端点**对未认证请求同样 401（AC-3）。
  *
@@ -178,11 +180,28 @@ export function authRouteCoverage(app: FastifyInstance): Array<ApiRoute & { cate
  * 在 `onReady` 时断言"每个路由都被某张声明表覆盖" —— 新加一个没声明类别的端点，
  * 服务**起不来**（而不是悄悄落进兜底）。这与路由注册同源，不需要两处人肉同步。
  */
+/**
+ * 是不是 `/api` 命名空间下的路径（`/api` 本身也算）。
+ *
+ * 为什么单独抽一个函数：红线是"**未知 /api 路径 401，不是 404**"（AGENTS.md §1.1）。
+ * 闸门（`onRequest`）与 404 兜底（`app.ts` 的 `setNotFoundHandler`）必须用**同一个判据**，
+ * 否则 `/api`（无尾斜杠）这种边界会从两边漏过去、回落到前端入口的 200 HTML
+ * —— 第三轮项目审视的收口项（`/api` 与 `/API` 都曾返回 200）。
+ *
+ * 大小写不敏感：Fastify 的路由匹配是大小写敏感的，`/API/prompts` 会落进兜底，
+ * 但它仍在 API 命名空间里，所以先归一化再判定。`/apiary` 这种"只是长得像"的路径
+ * 不是 `api` 段，不受影响（仍走前端入口）。
+ */
+export function isApiPath(url: string): boolean {
+  const path = (url.split('?')[0] ?? '').toLowerCase();
+  return path === '/api' || path.startsWith('/api/');
+}
+
 export function registerAuthGate(app: FastifyInstance): void {
   const routes: ApiRoute[] = [];
   COLLECTED_ROUTES.set(app, routes);
   app.addHook('onRoute', (route) => {
-    if (typeof route.url !== 'string' || !route.url.startsWith('/api/')) return;
+    if (typeof route.url !== 'string' || !isApiPath(route.url)) return;
     const methods = Array.isArray(route.method) ? route.method : [route.method];
     for (const method of methods) {
       // Fastify 会给 GET 自动补一个 HEAD ⇒ 只登记显式声明过的那个动词，避免噪声
@@ -203,7 +222,7 @@ export function registerAuthGate(app: FastifyInstance): void {
 
   app.addHook('onRequest', async (request, reply) => {
     const path = request.url.split('?')[0] ?? '';
-    if (!path.startsWith('/api/')) return;
+    if (!isApiPath(path)) return;
     const category = classifyApiRequest(request.method, path);
     if (category === 'public') return;
 

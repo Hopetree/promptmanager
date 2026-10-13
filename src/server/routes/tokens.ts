@@ -50,7 +50,8 @@ const setScopeSchema = {
  * - `DELETE /api/tokens/:id` 撤销 → 204（立即失效；重复撤销幂等，不存在 → 404）
  * - `DELETE /api/tokens/:id/permanent` **硬删除**（FR-96）→ 204；**只允许已撤销的行**（未撤销 → 409
  *   `token_not_revoked`，不存在 → 404）；**真删行、审计记录一并消失**（与"撤销留痕"语义不同）
- * 认证沿用闸门：cookie 会话或既有 Bearer token 都可以（单用户，不做 scope 分层）——**reveal 除外**（见下）。
+ * 认证沿用闸门，但**本文件全部端点仅 cookie 会话**（FR-103，见上）：Bearer token 调任何
+ * `/api/tokens*` 一律 403 `session_required`，**与 scope 无关**（read/write 都一样）。
  */
 export function registerTokenRoutes(app: FastifyInstance, config: AppConfig): void {
   /**

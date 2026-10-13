@@ -14,7 +14,12 @@
 | **会话 cookie** | 浏览器界面 | `POST /api/login` 成功后下发 `pm_sid`（`HttpOnly; SameSite=Lax; Path=/`）；库里只存 token 的 sha256 |
 | **API Token（Bearer）** | 脚本 / CLI / MCP | 请求头 `Authorization: Bearer pm_…`；明文只在创建时返回一次，库里只存 sha256 |
 
-**除 `/healthz` 与 `/api/login` 外，所有 `/api/*` 未认证一律 `401`。**
+**除 `/healthz` 与 `/api/login` 外，API 命名空间（`/api/*` 与 `/api` 本身，大小写不敏感）未认证一律 `401`。**
+
+> 判据只有一份：`src/server/auth.ts` 的 `isApiPath()`，闸门 / 404 兜底（`app.ts` 的 `setNotFoundHandler`）
+> 与 `no-store` 头三处共用。因此 `/api`、`/API`、`/API/prompts` 未认证是 `401`、已认证是 `404 {"error":"not_found"}`，
+> 都**不会**回落到前端入口的 `200 text/html`；而 `/apiary` 这种"只是长得像"的路径仍是前端入口（200）。
+> 参数解析同口径：`:id` 与查询串整数只认**十进制字面量**，`/api/prompts/1.0`、`/api/prompts/0x1` 一律按"不存在"（404）。
 
 ```bash
 # 登录（拿 cookie）
@@ -72,6 +77,10 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 ### 3.1 prompt 增删改查
 
 字段：`title` / `user_prompt` / `system_prompt` / `notes` / `folder_id` / `tags` / `favorite` / `remember_variables`。
+
+> **`POST` 没有必填字段**（AC-128 ②：创建与更新共用同一份 schema，刻意不写 `required`）：
+> `curl -d '{}'` 会 **201** 建出一条 `title` / `user_prompt` 都是空串的**草稿**条目 —— 这是既定语义，
+> 不是漏校验（编辑器允许先建条目再补内容）。**导入文件**不同：`title` 与 `user_prompt` 必须存在（FR-10b，见 §3.11）。
 
 `remember_variables`（布尔，默认 `true`）是**每个提示词各自的**「是否记住填过的变量值」开关：`true` 时浏览器会把填值弹窗里填过的值存进 `localStorage`（键 `pm-vars:<id>`）并在下次打开时预填；`false`（**不记住**）时弹窗不预填、点「复制结果」不写入、并把该提示词已存的那份记忆删掉。它只是提示词的属性，**随导出 / 导入 / 远程同步一起往返**；变量值本身**服务端不落库、不持久化**：渲染时它随 `POST /api/prompts/:id/render` 的请求体过一次（进程内用完即弃，不写库、不写日志），长期存放只有浏览器 `localStorage` 一份。`POST` 省略 = `true`；`PUT` 省略 = 保持原值。
 
