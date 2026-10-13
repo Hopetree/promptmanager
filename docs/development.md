@@ -22,6 +22,7 @@
 | `tests/` | `node:test` 用例（`*.test.ts`）+ 共享夹具 `helpers.ts` |
 | `tools/` | `ci-check.sh`（本地 = CI 的质量门禁）、`bundle-budget.mjs`（体积账本，`--record`/`--check`）、`check-deps-ledger.mjs` / `check-doc-paths.mjs`（①c / ①d 两个检查器）、`tsx-loader.mjs`（渲染级测试的 `.tsx` loader）、`ui-shots.sh` + `ui-shot.mjs` + `ui-shots-docs.sh`（界面截图 / 关键图归档）、`seed-prompts.mjs` / `seed-demo.mjs`（夹具）、`search-zh-poc.mjs`（检索 PoC）、`mcp-client-smoke.py` / `mcp-http-smoke.py`（MCP 冒烟，stdio 与 HTTP 各一）、`pm-dev-data-reset.sh`、`acceptance/`（**按阶段归档的验收脚本**：`run.sh --list` 看清单、`run.sh <阶段>` 跑该阶段全部，见下） |
 | `tools/acceptance/` | 交付态验收脚本（FR-164 起随仓库入库）：`ac-stageNN.sh`（真浏览器 / 真端口 / 真夹具，退出码即结论）+ `ac-stageNN-*-probe.mjs`；一键入口 `bash tools/acceptance/run.sh --list` / `run.sh <阶段>`。**它们只读仓库与临时实例，不碰部署面** |
+| `tools/acceptance/lib/chrome.mjs` | **浏览器路径的唯一解析点**：`PM_CHROME` / `CHROME_PATH` → playwright 缓存（按**版本号**取最新，不认版本目录名）→ 系统 chromium；找不到就带可操作提示抛错。探针与 `tools/ui-shot.mjs` 都从这里取，**不许再写死 `chromium_headless_shell-<版本>`**（第三轮审视 S2；绊线在 `tests/acceptance-inventory.test.ts`） |
 | `deploy/` | 交付物（**本仓库不部署它们**）：systemd unit / env 模板 / 部署说明 / 反代样例 / 容器说明 |
 | `docs/` | **最终状态文档**：`README.md`（本目录说明）、`api.md`（接口参考）、`development.md`（本文件）、`traps.md`（为什么代码长这样）、`dependencies.md`、`versioning.md`、`search-zh.md`、`shots/`（关键页截图一套 8 张） |
 | 根目录 | `README.md`（用户文档）、`AGENTS.md`（AI 代理指南，英文）、`CHANGELOG.md`、`LICENSE`、`SECURITY.md`、`CONTRIBUTING.md`、构建配置。**需求 / 进度 / 验收文件不在这里**（本地 `tmp/dev-process/`） |

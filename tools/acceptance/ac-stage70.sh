@@ -105,7 +105,7 @@ print(f"  列表命中 {listed['total']} 条（按钮文案应为「填值后复
 PY
 
 line "2. 真浏览器（PC 1440×900 + 移动 440×956）：变量路径"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 OUT_ABS="$ROOT/$OUT_DIR"
 DUMP_ABS="$ROOT/$DUMP_DIR"

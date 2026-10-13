@@ -234,7 +234,7 @@ TITLE_FIX=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encod
 echo "  夹具：id=$ID_FIX  title=$TITLE_FIX"
 
 line "5. 真浏览器：导入/导出弹窗与远程同步弹窗在 401 时被踢回登录页（PC + 移动各两轮）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 
 # 每个 401 场景都会**注销服务端会话**（这正是被测行为）⇒ 每个场景用一条全新会话，

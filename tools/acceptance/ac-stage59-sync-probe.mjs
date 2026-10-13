@@ -28,6 +28,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const [baseUrl, sid, stubUrl, viewport, plaintextToken] = process.argv.slice(2);
 if (baseUrl === undefined || sid === undefined || stubUrl === undefined || viewport === undefined) {
@@ -40,7 +41,7 @@ const DPR = isMobile ? 3 : 2;
 const SHOT_DIR = process.env.AC59_SHOT_DIR ?? 'tmp/shots/stage59-sync';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell';
+const CHROME = resolveChrome();
 
 const stubStats = async () => {
   const r = await fetch(`${stubUrl}/__stats`);

@@ -55,7 +55,7 @@ echo "--- grep -n '$PORT' PROGRESS.md README.md"
 grep -n "$PORT" PROGRESS.md README.md | head
 
 line "AC-21 预览：组件库真的在渲染（阶段 6 正式验收）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 if [ -n "$CHROME" ]; then
   echo "chrome: $CHROME"
   "$CHROME" --headless --no-sandbox --disable-gpu --hide-scrollbars --window-size=1280,800 \

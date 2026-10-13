@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const [baseUrl, sid, plainIdRaw, varsIdRaw, exportFile] = process.argv.slice(2);
 if (baseUrl === undefined || sid === undefined || plainIdRaw === undefined || varsIdRaw === undefined || exportFile === undefined) {
@@ -40,10 +41,7 @@ const FORBIDDEN = [
 const REPLACE_WARNING = '将清空现有全部 prompt / 文件夹 / 标签 / 版本历史';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = [
-  '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-  '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-].find((candidate) => existsSync(candidate));
+const CHROME = resolveChrome();
 
 class Cdp {
   constructor(socket) {

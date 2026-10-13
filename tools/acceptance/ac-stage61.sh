@@ -219,7 +219,7 @@ ID_B=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="
 echo "  夹具：A=$ID_A  B=$ID_B"
 
 line "5. 真浏览器（PC 1440×900 + 移动 440×956）：勾选框 / 标题 / 清空 / 取消勾选即时生效 / 编辑页同一字段"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 python3 - "$PLAN" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$CHROME" "$ID_A" "$ID_B" "$TITLE_A" "$TITLE_B" <<'PYPLAN' || die "生成计划失败"
 import json, sys

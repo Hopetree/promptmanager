@@ -200,7 +200,7 @@ print(f"  接口冒烟：include=folder_counts → {counts['folder_counts']}")
 PY
 
 line "4. 真浏览器冒烟（PC 1440×900 + 移动 440×956）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 OUT_ABS="$ROOT/$OUT_DIR"
 DUMP_ABS="$ROOT/$DUMP_DIR"

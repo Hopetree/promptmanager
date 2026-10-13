@@ -200,7 +200,7 @@ print(f'  夹具 id={pid}：v1 正文一 / v2 正文二 / v3 正文三；favorit
 PY
 
 line "4. 真浏览器：PC 1440×900（改正文点收藏不丢 / 保存后右栏是新正文 / 回滚后重取）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 OUT_ABS="$ROOT/$OUT_DIR"
 DUMP_ABS="$ROOT/$DUMP_DIR"

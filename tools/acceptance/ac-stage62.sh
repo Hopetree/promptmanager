@@ -353,7 +353,7 @@ TITLE_RB=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encodi
 echo "  夹具：panel=$ID_PANEL  title=$TITLE_PANEL  |  rollback=$ID_RB  title=$TITLE_RB"
 
 line "5. 真浏览器（PC 1440×900 + 移动 440×956）：版本面板点收藏不新增、正文编辑后新增一条"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 python3 - "$PLAN" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$CHROME" "$ID_PANEL" "$TITLE_PANEL" "$ID_RB" "$TITLE_RB" <<'PYPLAN' || die "生成计划失败"
 import json, sys

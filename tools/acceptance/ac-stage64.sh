@@ -570,7 +570,7 @@ print(f'  ✅ AC-126 ⑱：两个并发 PUT ⇒ 状态码 {sorted(codes)}（无 
 PY4
 
 line "5. 真浏览器（PC 1440×900 + 移动 440×956）：排序在「推送云端 → 清库 → 恢复」之后仍在"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 ID_A=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["a"])' "$FIX")
 ID_B=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encoding="utf-8"))["b"])' "$FIX")

@@ -9,6 +9,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const [mode, baseUrl, sid, ...rest] = process.argv.slice(2);
 if (mode !== 'single' || baseUrl === undefined || sid === undefined) {
@@ -18,10 +19,7 @@ if (mode !== 'single' || baseUrl === undefined || sid === undefined) {
 const shotsDir = rest[0] ?? 'tmp/shots/stage47';
 const TITLE = rest[1] ?? 'AC111 单版本';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = [
-  '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-  '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-].find((c) => existsSync(c));
+const CHROME = resolveChrome();
 
 class Cdp {
   constructor(socket) {

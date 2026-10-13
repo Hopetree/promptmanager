@@ -23,6 +23,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const MODES = ['revoked'];
 const [mode, baseUrl, sid, ...rest] = process.argv.slice(2);
@@ -39,10 +40,7 @@ const ACTIVE_ID = process.env['AC102_ACTIVE_ID'] ?? '0';
 const LEGACY_ID = process.env['AC102_LEGACY_ID'] ?? '0';
 const SERVER_LOG = process.env['AC102_SERVER_LOG'] ?? '';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = [
-  '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-  '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-].find((c) => existsSync(c));
+const CHROME = resolveChrome();
 
 const mask = (v) => (v.length <= 10 ? `***(${String(v.length)})` : `${v.slice(0, 6)}…${v.slice(-4)}`);
 

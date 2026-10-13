@@ -15,6 +15,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const MODES = ['tokens'];
 const [mode, baseUrl, sid, ...rest] = process.argv.slice(2);
@@ -26,10 +27,7 @@ const shotsDir = rest[0] ?? 'tmp/shots/stage35';
 const EXPECT = process.env['AC35_EXPECT_TOKEN'] ?? '';
 const LEGACY_ID = process.env['AC35_LEGACY_ID'] ?? '0';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = [
-  '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-  '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-].find((c) => existsSync(c));
+const CHROME = resolveChrome();
 
 /** 只输出脱敏串（前后各 4 字符），明文绝不进日志。 */
 const mask = (value) => (value.length <= 10 ? `${value.slice(0, 2)}…(${String(value.length)}字符)` : `${value.slice(0, 6)}…${value.slice(-4)}`);

@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './acceptance/lib/chrome.mjs';
 
 const planPath = process.argv[2];
 if (planPath === undefined) {
@@ -23,18 +24,7 @@ const plan = JSON.parse(readFileSync(planPath, 'utf8'));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function defaultChrome() {
-  const candidates = [
-    '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-    '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-  ];
-  return candidates.find((candidate) => {
-    try {
-      readFileSync(candidate);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  return resolveChrome();
 }
 
 /** 极简 CDP 客户端：一个 WebSocket + 自增 id 的请求/响应配对。 */

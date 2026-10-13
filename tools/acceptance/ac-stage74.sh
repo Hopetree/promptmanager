@@ -104,7 +104,7 @@ PY
 PID=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["id"])' "$AC_DIR/ids.json")
 
 line "2. 真浏览器计划：PC 1440×900 DPR2 + 移动 440×956 DPR3（详情正文区工具行 + 编辑器）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 OUT_ABS="$ROOT/$OUT_DIR"
 DUMP_ABS="$ROOT/$DUMP_DIR"

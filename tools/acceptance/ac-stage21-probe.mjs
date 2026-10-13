@@ -17,6 +17,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const [mode, baseUrl, sid, shotsDir = 'tmp/shots/stage21'] = process.argv.slice(2);
 if (mode !== 'notes' || baseUrl === undefined || sid === undefined) {
@@ -24,10 +25,7 @@ if (mode !== 'notes' || baseUrl === undefined || sid === undefined) {
   process.exit(2);
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = [
-  '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-  '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-].find((c) => existsSync(c));
+const CHROME = resolveChrome();
 
 class Cdp {
   constructor(socket) {

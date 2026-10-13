@@ -135,7 +135,7 @@ printf '%s\n' "$DENIED_HDR" | grep -qi 'cache-control: no-store' || die "未认�
 echo "  ✅ /api/*（含 401）带 no-store，/healthz 不带"
 
 line "5. 真浏览器计划：PC 1440×900 DPR2 + 移动 440×956 DPR3（导入弹窗的 merge 文案）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 OUT_ABS="$ROOT/$OUT_DIR"
 DUMP_ABS="$ROOT/$DUMP_DIR"

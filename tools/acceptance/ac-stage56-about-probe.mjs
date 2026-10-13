@@ -12,6 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const [baseUrl, sid, form, outDir] = process.argv.slice(2);
 const isMobile = form === 'mobile';
@@ -19,7 +20,7 @@ const W = isMobile ? 440 : 1440;
 const H = isMobile ? 956 : 900;
 mkdirSync(outDir, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell';
+const CHROME = resolveChrome();
 
 function resources() {
   try {

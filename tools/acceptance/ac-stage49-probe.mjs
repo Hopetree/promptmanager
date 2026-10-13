@@ -14,9 +14,10 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 const [baseUrl, sid, phase] = process.argv.slice(2);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell';
+const CHROME = resolveChrome();
 class Cdp {
   constructor(s){this.socket=s;this.nextId=1;this.pending=new Map();this.reqs=[];
     s.addEventListener('message',(e)=>{let m;try{m=JSON.parse(typeof e.data==='string'?e.data:'')}catch{return}

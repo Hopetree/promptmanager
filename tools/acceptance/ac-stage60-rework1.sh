@@ -144,7 +144,7 @@ FIX_TITLE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1], encod
 echo "  真浏览器要用的夹具：id=$ID title=$FIX_TITLE"
 
 line "4. 返工①：真浏览器 —— 变量面板（服务端渲染两段）必须两段都用「甲」"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 python3 - "$PLAN" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$CHROME" "$ID" "$FIX_TITLE" <<'PYPLAN' || die "生成计划失败"
 import json, sys

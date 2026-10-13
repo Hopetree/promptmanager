@@ -137,7 +137,7 @@ WANT='001_init.sql 002_tokens-and-usage.sql 003_prompt-sort-order.sql 004_token-
 echo "  ✅ migrations/ 仍是开工前那 7 个文件、逐字未变 ⇒ 零迁移"
 
 line "7. AC-122 ⑳㉑：真浏览器（PC 1440×900 + 移动 440×956）"
-CHROME=$(ls -d /root/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell 2>/dev/null | sort | tail -1)
+CHROME=$(node tools/acceptance/lib/chrome.mjs)
 [ -n "$CHROME" ] || die "找不到 chrome-headless-shell"
 python3 - "$PLAN" "$OUT_DIR" "$DUMP_DIR" "$BASE" "$SID" "$CHROME" "$TITLE" <<'PYPLAN' || die "生成计划失败"
 import json, sys

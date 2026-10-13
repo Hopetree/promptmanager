@@ -21,6 +21,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveChrome } from './lib/chrome.mjs';
 
 const MODES = ['mobile'];
 const [mode, baseUrl, sid, ...rest] = process.argv.slice(2);
@@ -30,10 +31,7 @@ if (!MODES.includes(mode ?? '') || baseUrl === undefined || sid === undefined) {
 }
 const shotsDir = rest[0] ?? 'tmp/shots/stage34';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CHROME = [
-  '/root/.cache/ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell',
-  '/root/.cache/ms-playwright/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell',
-].find((c) => existsSync(c));
+const CHROME = resolveChrome();
 
 const MOBILE = { width: 390, height: 844, deviceScaleFactor: 1, mobile: true };
 const DESKTOP = { width: 1600, height: 900, deviceScaleFactor: 1, mobile: false };
