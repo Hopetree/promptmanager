@@ -139,6 +139,63 @@ function insertApplied(db: Db, version: number, file: string, checksum: string):
 }
 
 /**
+ * FR-158 / AC-134 D14（N4）：把**并发迁移**的数据库产物翻译成"人话 + 可重试"。
+ *
+ * 为什么需要它：`runMigrations` 允许同一个 DATA_DIR 被多个进程打开（服务启动、CLI、
+ * 并发的部署脚本）。两个进程同时看到一个空库时，后到者会重放迁移 SQL —— 抛出来的是
+ * `table … already exists` / `duplicate column name` / `database is locked` 这类**数据库方言**，
+ * 运维看到的是"SQLite 说了什么"而不是"我该做什么"。
+ *
+ * 现在的写法（见 `applyMigration`）已经用 `BEGIN IMMEDIATE` + 锁内二次检查把窗口关掉了；
+ * 这个函数是兜底：万一还是撞上（例如超时、别的写入者占着库），给一条**可读且可重试**的消息，
+ * 且**不带裸 SQLite 文本**（原文放进 `cause`，只在排查时看得到）。
+ */
+function translateMigrationError(error: unknown, file: string, version: number): unknown {
+  if (!(error instanceof Error)) return error;
+  const message = error.message;
+  const busy = /SQLITE_BUSY|database is locked|database table is locked/i.test(message);
+  const conflict =
+    /SQLITE_CONSTRAINT/i.test(message) ||
+    /constraint failed/i.test(message) ||
+    /duplicate column name/i.test(message) ||
+    /already exists/i.test(message);
+  if (!busy && !conflict) return error;
+  const hint = busy
+    ? '数据库正被另一个进程写入（忙），可以直接重试。'
+    : '这次迁移的版本记录已被另一个进程写进去了，可以直接重试。';
+  return new Error(
+    `迁移 ${file}（版本 ${String(version)}）没有完成：${hint}` +
+      '同一个 DATA_DIR 上不要并行跑迁移或并行启动多个实例 —— 请等对方结束后重试；' +
+      '如果反复失败，检查是否有进程卡住或磁盘已满。',
+    { cause: error },
+  );
+}
+
+/**
+ * 应用一个迁移：**在写锁内**再确认一次"还没被应用"，然后执行 SQL 并登记版本。
+ *
+ * `BEGIN IMMEDIATE` 是这里的要点：`db.transaction()` 默认是 deferred，读锁先拿、写时才升级，
+ * 两个进程会双双读到"未应用"；IMMEDIATE 一上来就拿写锁，配合 `busy_timeout` 排队，
+ * 让"检查 + 应用 + 登记"变成原子的 ⇒ 并发进程只会有一个真正执行迁移，其余在原地看到版本已存在而跳过。
+ *
+ * @returns 本次是否真的应用了（false = 另一个进程抢先做了）
+ */
+function applyMigration(db: Db, version: number, file: string, sql: string, checksum: string): boolean {
+  const apply = db.transaction(() => {
+    const existing = db.prepare('SELECT 1 AS applied FROM schema_migrations WHERE version = ?').get(version);
+    if (existing !== undefined) return false;
+    db.exec(sql);
+    insertApplied(db, version, file, checksum);
+    return true;
+  });
+  try {
+    return apply.immediate();
+  } catch (error) {
+    throw translateMigrationError(error, file, version);
+  }
+}
+
+/**
  * 幂等迁移：按文件名数字前缀升序执行 migrations/*.sql，
  * 已应用的版本记录在 schema_migrations 里，重复执行为空操作（BRIEF §5、§6.2）。
  * 每个迁移在单个事务内完成（失败即整体回滚，不留半截 schema）。
@@ -176,11 +233,8 @@ export function runMigrations(
     const bytes = readFileSync(path.join(migrationsDir, file));
     const sql = bytes.toString('utf8');
     const checksum = checksumOf(bytes);
-    db.transaction(() => {
-      db.exec(sql);
-      insertApplied(db, version, file, checksum);
-    })();
-    applied.push(file);
+    // `done` 只是"省一次加锁"的预筛；权威判断在 applyMigration 的写锁内部（并发安全）
+    if (applyMigration(db, version, file, sql, checksum)) applied.push(file);
   }
 
   // ② 再校验一次：本次刚给存量库补上 checksum 列，历史迁移在这里补记 / 受校验。

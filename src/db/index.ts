@@ -51,6 +51,45 @@ function precreateWalFiles(dbPath: string): void {
   }
 }
 
+/** 同步小睡（better-sqlite3 是同步 API，这里只能同步等；`Atomics.wait` 在 Node 主线程可用）。 */
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * 把连接切到 WAL，**带重试**（FR-158 / AC-134 D14）。
+ *
+ * 为什么不能只写一句 `db.pragma('journal_mode = WAL')`：这个 PRAGMA 需要短暂的**独占锁**，
+ * 而 SQLite 明确不为它调用 busy handler —— 多个进程同时打开同一个**空库**时，后到者会立刻拿到
+ * `SQLITE_BUSY`（`database is locked`），即使已经设了 `busy_timeout` 也一样。
+ * 表现就是"并行启动两个实例/两个迁移，其中一个直接崩"，而库本身完全健康。
+ *
+ * 处理：短睡重试到成功或 5 秒超时；超时给一条**可读可重试**的消息（不带裸 SQLite 文本）。
+ */
+function enableWal(db: Db): void {
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    try {
+      const mode = db.pragma('journal_mode = WAL', { simple: true }) as string;
+      if (String(mode).toLowerCase() === 'wal') return;
+    } catch (error) {
+      if (Date.now() >= deadline) {
+        throw new Error(
+          '无法把数据库切到 WAL：库正被另一个进程独占。请确认没有卡住的实例（或等它结束）后重试 —— ' +
+            '同一个 DATA_DIR 上不要并行启动多个实例。',
+          { cause: error },
+        );
+      }
+    }
+    if (Date.now() >= deadline) {
+      throw new Error(
+        '无法把数据库切到 WAL：等了 5 秒仍没切换成功（库可能被其它进程占用），请稍后重试。',
+      );
+    }
+    sleepSync(20);
+  }
+}
+
 /**
  * 打开（必要时创建）SQLite 单文件库并设置硬性 PRAGMA：
  * - journal_mode=WAL、foreign_keys=ON（BRIEF §5 硬性要求）
@@ -65,10 +104,11 @@ export function openDatabase(config: Pick<AppConfig, 'dataDir'>): Db {
   precreateWalFiles(dbPath);
   const db = new Database(dbPath);
   secureDatabaseFiles(dbPath);
-  db.pragma('journal_mode = WAL');
+  // busy_timeout 先设：后面每条可能撞锁的语句都要靠它排队
+  db.pragma('busy_timeout = 5000');
+  enableWal(db);
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
-  db.pragma('busy_timeout = 5000');
   // 兜底：万一 SQLite 重建过这两个文件，这里再收紧一次
   secureDatabaseFiles(dbPath);
   return db;
