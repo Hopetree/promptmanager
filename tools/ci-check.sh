@@ -30,13 +30,15 @@
 #      代价：`npm test` 会多一次服务端 tsc（实测约 +1.5 秒），换来"前置条件被显式声明"。
 #
 # 用法：bash tools/ci-check.sh            # 全跑
-#       SKIP_TEST=1 bash tools/ci-check.sh # 跳过测试（仅本地调试用；CI 不用）
+#       SKIP_TEST=1 bash tools/ci-check.sh # 跳过 ④ 全量测试（仅本地调试用；CI 不用）
+#                                            # ⚠️ 跳过不算通过：这一步按失败记，汇总横幅换成"未全部执行"，退出码 1
 set -u
 
 cd "$(dirname "$0")/.." || exit 1
 
 MAX_CHUNK_BYTES=500000
 SKIP_TEST=${SKIP_TEST:-0}
+SKIPPED=0
 LOG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/pm-ci-XXXXXX")
 FAIL=0
 declare -a ROWS=()
@@ -137,7 +139,11 @@ record "③b typecheck:tests" $? "$(grep -cE 'error TS' "$LOG_DIR/typecheck-test
 # ---------------------------------------------------------------- ④ 全量测试
 line "④ 全量测试"
 if [ "$SKIP_TEST" = "1" ]; then
-  record "④ npm test" 0 "（SKIP_TEST=1 跳过；CI 不跳过）"
+  # FR-161（评审 N25）：跳过 ≠ 通过。过去这里记 rc=0，汇总横幅照样打印「全部通过」⇒
+  # `SKIP_TEST=1 bash tools/ci-check.sh` 会被当成绿灯。现在：这一项按**失败**记，
+  # 且汇总横幅换成明确的"未全部执行"，退出码 1（CI 从不设 SKIP_TEST，故 CI 行为不变）。
+  SKIPPED=1
+  record "④ npm test" 1 "（SKIP_TEST=1 跳过；CI 不跳过）—— **跳过不算通过**"
 else
   npm test >"$LOG_DIR/test.log" 2>&1
   TEST_RC=$?
@@ -156,13 +162,15 @@ fi
 
 # ---------------------------------------------------------------- ⑤ 体积预算
 line "⑤ 体积预算"
+# FR-161（评审 N26）：单文件上限此前只看 .js —— 覆盖 js 与 css（合计口径见 tools/bundle-budget.mjs，
+# 它一直是 js+css；总预算那一条由 tests/stage18-bundle.test.ts 的 AC-61 ⑤ 把关）。
 CHUNK_REPORT=$(node -e '
 const fs = require("fs");
 const path = require("path");
 const dir = "dist/web/assets";
 if (!fs.existsSync(dir)) { console.log(JSON.stringify({ error: "dist/web/assets 不存在" })); process.exit(0); }
 const rows = fs.readdirSync(dir)
-  .filter((f) => f.endsWith(".js"))
+  .filter((f) => f.endsWith(".js") || f.endsWith(".css"))
   .map((f) => ({ file: f, bytes: fs.statSync(path.join(dir, f)).size }))
   .sort((a, b) => b.bytes - a.bytes);
 const total = rows.reduce((sum, r) => sum + r.bytes, 0);
@@ -172,7 +180,7 @@ MAX_BYTES=$(printf '%s' "$CHUNK_REPORT" | python3 -c 'import json,sys; d=json.lo
 MAX_FILE=$(printf '%s' "$CHUNK_REPORT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["max"]["file"] if d.get("max") else "-")')
 TOTAL_KB=$(printf '%s' "$CHUNK_REPORT" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(round(d["total"]/1024))')
 if [ "$MAX_BYTES" -le "$MAX_CHUNK_BYTES" ]; then
-  record "⑤ 体积预算（最大 chunk ≤ 500KB）" 0 "最大 $MAX_FILE = $MAX_BYTES B（全部 js 合计 ${TOTAL_KB} KB）"
+  record "⑤ 体积预算（最大 chunk ≤ 500KB）" 0 "最大 $MAX_FILE = $MAX_BYTES B（全部 js+css 合计 ${TOTAL_KB} KB）"
 else
   record "⑤ 体积预算（最大 chunk ≤ 500KB）" 1 "最大 $MAX_FILE = $MAX_BYTES B **超预算**"
 fi
@@ -180,6 +188,11 @@ fi
 # ---------------------------------------------------------------- 汇总
 printf '\n== 汇总 ==\n'
 for row in "${ROWS[@]}"; do printf '  %s\n' "$row"; done
+if [ "$SKIPPED" = "1" ]; then
+  printf '\n  ⚠️  代码质量检查**未全部执行**：④ npm test 被 SKIP_TEST=1 跳过 —— 这不能当作"全部通过"。\n'
+  printf '     要拿绿灯请不带 SKIP_TEST 重跑。完整日志：%s\n' "$LOG_DIR"
+  exit 1
+fi
 if [ "$FAIL" -eq 0 ]; then
   printf '\n  ✅ 代码质量检查全部通过（%s 项）\n' "${#ROWS[@]}"
 else

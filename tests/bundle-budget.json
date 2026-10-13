@@ -1,7 +1,8 @@
 {
   "baseline_total_gzip": 399175,
+  "budget_total_gzip": 435000,
   "floor_ratio": 0.95,
-  "note": "dist/web 的 js+css 合计 gzip（zlib.gzipSync 默认级别）。baseline 是阶段 18 开工前的实测值；entries 是逐阶段**已对账**增量。新增一条请用 `node tools/bundle-budget.mjs --record <阶段> --note \"<依据>\"`，**不要手改本文件**：工具会用当前构建产物实测出 delta（体积下降就是负数，预算会跟着回收）。",
+  "note": "dist/web 的 js+css 合计 gzip（zlib.gzipSync 默认级别）。baseline 是阶段 18 开工前的实测值；entries 是逐阶段**已对账**的实测增量（delta = 本阶段实测总 gzip − 上一笔实测总 gzip）。budget_total_gzip 是**人工设定的预算上界**（阶段 73 / FR-161 起与实测分离，不由 --record 派生）；新增实测请用 `node tools/bundle-budget.mjs --record <阶段> --note \"<依据>\"`（它只追加实测列，不动预算；实测超预算会被拒绝，必须显式 `--raise-budget <新预算>`），**不要手改本文件**。",
   "entries": [
     {
       "id": "STAGE18",
