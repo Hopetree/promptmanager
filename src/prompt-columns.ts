@@ -61,6 +61,35 @@ export interface PromptColumnSpec {
 }
 
 /**
+ * FR-157 / AC-134 C10（N3）：**Prompt 文本列长度上限的唯一来源**。
+ *
+ * 列清单的 JSON Schema（HTTP 写路径的 ajv 校验）从这里取值，导入解析也用它
+ * （`src/services/import.ts` 的 `asString`）—— 以前导入完全不看长度，
+ * 同一份超长数据「HTTP 写 400、导入照收」，两个入口结论不同。
+ */
+export const PROMPT_TEXT_LIMITS = {
+  title: 500,
+  user_prompt: 200_000,
+  system_prompt: 200_000,
+  notes: 200_000,
+} as const;
+
+export type PromptTextField = keyof typeof PROMPT_TEXT_LIMITS;
+
+/**
+ * 标签名的最大长度（FR-157 / AC-134 C10）。
+ *
+ * 标签名是 prompt 可写字段 `tags` 的项，所以它的上限属于字段集，和文本列上限放在一起；
+ * 路由（`src/server/routes/tags.ts`）与导入解析都从这里取（经 `src/field-limits.ts` 转发）。
+ */
+export const TAG_NAME_MAX_LENGTH = 64;
+
+/** 取某个文本列的长度上限（导入解析等非 JSON Schema 路径用）。 */
+export function maxLengthOf(field: PromptTextField): number {
+  return PROMPT_TEXT_LIMITS[field];
+}
+
+/**
  * **列清单**：Prompt 实体在 `prompts` 表里的全部列，顺序与 `migrations/001_init.sql` 起的建表顺序一致。
  *
  * 加字段就在这里加一行 —— 类型、校验 schema、导出 / 导入映射都会跟着长出来（见文件头）。
@@ -81,7 +110,7 @@ export const PROMPT_COLUMNS = {
     writable: true,
     content: true,
     default: '',
-    schema: { type: 'string', maxLength: 500 },
+    schema: { type: 'string', maxLength: PROMPT_TEXT_LIMITS.title },
   },
   user_prompt: {
     sql: 'text',
@@ -91,7 +120,7 @@ export const PROMPT_COLUMNS = {
     writable: true,
     content: true,
     default: '',
-    schema: { type: 'string', maxLength: 200_000 },
+    schema: { type: 'string', maxLength: PROMPT_TEXT_LIMITS.user_prompt },
   },
   system_prompt: {
     sql: 'text',
@@ -101,7 +130,7 @@ export const PROMPT_COLUMNS = {
     writable: true,
     content: true,
     default: '',
-    schema: { type: 'string', maxLength: 200_000 },
+    schema: { type: 'string', maxLength: PROMPT_TEXT_LIMITS.system_prompt },
   },
   notes: {
     sql: 'text',
@@ -111,7 +140,7 @@ export const PROMPT_COLUMNS = {
     writable: true,
     content: true,
     default: '',
-    schema: { type: 'string', maxLength: 200_000 },
+    schema: { type: 'string', maxLength: PROMPT_TEXT_LIMITS.notes },
   },
   folder_id: {
     sql: 'integer-null',
@@ -382,7 +411,7 @@ export const PROMPT_WRITABLE_EXTRA_FIELDS = {
   tags: {
     type: 'array',
     maxItems: 50,
-    items: { type: 'string', minLength: 1, maxLength: 64 },
+    items: { type: 'string', minLength: 1, maxLength: TAG_NAME_MAX_LENGTH },
   },
 } as const;
 

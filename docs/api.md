@@ -375,6 +375,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 - 导入会校验 `app` / `schema_version`，并**拒绝缺 `title` 或 `user_prompt` 的 prompt 条目**；
   任何不合法 → `400 invalid_import` 且**不动任何数据**（校验全在事务之前），**单事务原子写入**。
 - `replace`：清空内容表后按文件重建并**保留文件里的 id**；`merge`：不清库，同名同父文件夹与同名标签复用，prompt 一律新建并分配新 id。
+  ⚠️ **`merge` 不按内容去重**：同一个文件导入两次会产生**两份** prompt 条目（这是本版本的既定语义，不是 bug；响应里的 `imported` 计数就是本次新增的条数，前端也会提示）。要做"真更新"得先定义匹配键与冲突处理，属行为变更。
 - **响应里的 `usage_history`**（FR-134）—— `replace` 会 `DELETE FROM prompts`，而 `usage_events.prompt_id` 是
   `ON DELETE CASCADE` ⇒ **取用历史被连带清空**（导出文件不含 usage，"从云端恢复"永远拿不回来）。
   清空是**有意的取舍**（恢复 = 重建数据），但**不许静默**，所以响应如实回报：
@@ -411,7 +412,7 @@ curl -s -b /tmp/pm-jar -X POST -H 'Content-Type: application/json' \
 **契约要点**
 
 - `repo` 形如 `owner/repo`；`path` **必须**含 `promptmanager/` 且以 `<实例名>.json` 收尾 —— 防止多个实例用同一路径**静默互相覆盖**。
-- `mode` 缺省 `merge`（只新增 / 更新，不清库）；`replace` 会**清空本地内容表**再按快照重建，故**必须先写本地快照**（`<DATA_DIR>/pre-restore-<ts>.json`，保留最近 3 份）且要求显式 `confirm: true`。非法 `mode` ⇒ `400 invalid_sync_mode`。
+- `mode` 缺省 `merge`（**只新增，不去重，不清库**；重复 pull 同一个快照会产生重复条目）；`replace` 会**清空本地内容表**再按快照重建，故**必须先写本地快照**（`<DATA_DIR>/pre-restore-<ts>.json`，保留最近 3 份）且要求显式 `confirm: true`。非法 `mode` ⇒ `400 invalid_sync_mode`。
 - 上传前界面会**二次确认**，明示条数与解析后的完整路径，并加粗提示**快照包含提示词正文全文**。
 - **删除不会传播到云端**；**不做自动 / 定时上传** —— 每一次出网都由用户点击触发。
 - 令牌加密落库（复用 `token-crypto`，AES-256-GCM）；`SYNC_GITHUB_API_BASE` 可指向自建 GitHub 兼容 API。

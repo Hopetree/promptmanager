@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { TAG_NAME_MAX_LENGTH } from '../../field-limits.js';
 import { createTag, deleteTag, listTags, renameTag } from '../../services/tags.js';
 import { parsePositiveId } from '../params.js';
 
@@ -6,7 +7,7 @@ const nameBodySchema = {
   type: 'object',
   additionalProperties: false,
   required: ['name'],
-  properties: { name: { type: 'string', minLength: 1, maxLength: 64 } },
+  properties: { name: { type: 'string', minLength: 1, maxLength: TAG_NAME_MAX_LENGTH } },
 } as const;
 
 /** FR-5 标签：列表（含计数）+ 增 / 改名（同名合并）/ 删。 */

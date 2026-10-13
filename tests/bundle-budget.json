@@ -146,6 +146,12 @@
       "stage": 71,
       "delta": 5,
       "note": "返工 ①：把 4 处离开编辑器回调（返回详情/新建/logo/登出）接进 useUnsavedGuard（+4 行属性），实测比上一笔记账多 5 B"
+    },
+    {
+      "id": "STAGE72",
+      "stage": 72,
+      "delta": 122,
+      "note": "阶段 72（FR-155~FR-159 / AC-134）：DB 权限 0600、PUBLIC_ORIGIN 只收 https、迁移并发写锁、约束分类、导入上限单一来源；界面只改了 merge 提示文案，实测比上一笔记账多 122 B"
     }
   ]
 }

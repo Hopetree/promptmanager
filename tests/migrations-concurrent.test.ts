@@ -15,9 +15,14 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import Database from 'better-sqlite3';
+import { MIGRATION_COUNT } from './migrations.ts';
 
 const DB_INDEX_URL = pathToFileURL(path.join(fileURLToPath(new URL('..', import.meta.url)), 'dist/db/index.js')).href;
 const REPO_MIGRATIONS = path.join(fileURLToPath(new URL('..', import.meta.url)), 'migrations');
+// 临时目录里我**自己**放两条迁移；版本号从条数推出来，不写死 `vN`（AC-131 B6/B7：加一个迁移不该改这个文件）。
+const FAKE_MIGRATION_COUNT = 2;
+const fakeVersion = new RegExp('ok: schema at v' + String(FAKE_MIGRATION_COUNT));
+const realVersion = new RegExp('ok: schema at v' + String(MIGRATION_COUNT));
 
 const WORKER = `
 import { existsSync, writeFileSync } from 'node:fs';
@@ -115,14 +120,18 @@ INSERT INTO slow_probe (payload) SELECT 'x' || n FROM seq;
       assert.equal(result.code, 0, `并发迁移必须成功（互斥或可重试），实际失败：${result.err || result.out}`);
       assert.doesNotMatch(result.out + result.err, RAW_SQLITE, `不许把裸 SQLite 文本抛给用户：${result.err}`);
     }
-    const okCount = results.filter((result) => /ok: schema at v2/.test(result.out)).length;
-    assert.equal(okCount, results.length, `每个进程都该报出最终版本 v2：${results.map((r) => r.out).join(' | ')}`);
+    const okCount = results.filter((result) => fakeVersion.test(result.out)).length;
+    assert.equal(
+      okCount,
+      results.length,
+      `每个进程都该报出最终版本 v${String(FAKE_MIGRATION_COUNT)}：${results.map((r) => r.out).join(' | ')}`,
+    );
     const db = new Database(path.join(dataDir, 'pm.db'), { readonly: true });
     try {
       const rows = db.prepare('SELECT COUNT(*) AS n FROM slow_probe').get() as { n: number };
       assert.equal(rows.n, 200000, '迁移只该被应用一次（数据不许翻倍）');
       const version = db.prepare('SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations').get() as { v: number };
-      assert.equal(version.v, 2);
+      assert.equal(version.v, FAKE_MIGRATION_COUNT);
     } finally {
       db.close();
     }
@@ -140,12 +149,12 @@ test('AC-134 D14：真实 migrations/ 目录并发迁移同样安全（端到端
     for (const result of results) {
       assert.equal(result.code, 0, `真实目录并发迁移失败：${result.err || result.out}`);
       assert.doesNotMatch(result.out + result.err, RAW_SQLITE, `不许把裸 SQLite 文本抛给用户：${result.err}`);
-      assert.match(result.out, /ok: schema at v10/, `应报到 v10：${result.out}`);
+      assert.match(result.out, realVersion, `应报到 v${String(MIGRATION_COUNT)}：${result.out}`);
     }
     const db = new Database(path.join(dataDir, 'pm.db'), { readonly: true });
     try {
       const rows = db.prepare('SELECT COUNT(*) AS n FROM schema_migrations').get() as { n: number };
-      assert.equal(rows.n, 10, '每个迁移只该有一条记录');
+      assert.equal(rows.n, MIGRATION_COUNT, '每个迁移只该有一条记录');
     } finally {
       db.close();
     }

@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { FOLDER_NAME_MAX_LENGTH } from '../../field-limits.js';
 import {
   createFolder,
   deleteFolder,
@@ -11,7 +12,7 @@ import {
 import { parsePositiveId } from '../params.js';
 
 const folderFields = {
-  name: { type: 'string', minLength: 1, maxLength: 200 },
+  name: { type: 'string', minLength: 1, maxLength: FOLDER_NAME_MAX_LENGTH },
   parent_id: { type: ['integer', 'null'], minimum: 1 },
   sort_order: { type: 'integer', minimum: 0, maximum: 1_000_000 },
 } as const;

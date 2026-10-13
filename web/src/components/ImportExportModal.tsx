@@ -240,7 +240,7 @@ export default function ImportExportModal({ open, onClose, onImported }: ImportE
                 type="info"
                 showIcon
                 message={`merge 模式：将新增 prompt ${String(analysis.counts.prompts)} 条、文件夹 ${String(analysis.counts.folders)} 个、标签 ${String(analysis.counts.tags)} 个`}
-                description="同名文件夹 / 标签会复用，现有数据不动。"
+                description="同名文件夹 / 标签会复用，现有数据不动。merge 不按内容去重：同一个文件导入两次会产生重复条目。"
               />
             )}
 

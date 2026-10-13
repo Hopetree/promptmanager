@@ -1,7 +1,9 @@
 import type { QueryEngine } from '../db/index.js';
 import { pruneVersions } from '../db/prompt-versions.js';
-import { InvalidImportError, isConstraintError } from '../errors.js';
+import { InvalidImportError, constraintKind, isConstraintError } from '../errors.js';
+import { FOLDER_NAME_MAX_LENGTH, TAG_NAME_MAX_LENGTH } from '../field-limits.js';
 import {
+  maxLengthOf,
   promptImportedColumns,
   promptImportedColumnsWithoutId,
   type PromptExportedColumns,
@@ -99,9 +101,19 @@ function asObject(value: unknown, path: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function asString(value: unknown, path: string, fallback?: string): string {
+/**
+ * 字符串字段的解析。
+ *
+ * FR-157 / AC-134 C10（N3）：`maxLength` 来自字段清单（`maxLengthOf()`）或
+ * `src/field-limits.ts`，**不再只由路由的 ajv schema 把关** —— 否则同一份超长数据
+ * 「HTTP 写 400、导入照收」。超长**不静默截断**：逐字段 400。
+ */
+function asString(value: unknown, path: string, fallback?: string, maxLength?: number): string {
   if (value === undefined && fallback !== undefined) return fallback;
   if (typeof value !== 'string') fail([{ path, message: '必须是字符串' }]);
+  if (maxLength !== undefined && value.length > maxLength) {
+    fail([{ path, message: `长度不能超过 ${String(maxLength)} 个字符（实际 ${String(value.length)}）` }]);
+  }
   return value;
 }
 
@@ -152,7 +164,7 @@ function parseExportFile(raw: unknown): NormalizedFile {
     const id = asId(folder.id, 'data.folders[].id');
     if (folderIds.has(id)) fail([{ path: 'data.folders[].id', message: `文件夹 id 重复：${String(id)}` }]);
     folderIds.add(id);
-    const name = asString(folder.name, 'data.folders[].name');
+    const name = asString(folder.name, 'data.folders[].name', undefined, FOLDER_NAME_MAX_LENGTH);
     if (name.trim() === '') fail([{ path: 'data.folders[].name', message: '文件夹名不能为空' }]);
     const sortOrder = folder.sort_order === undefined ? 0 : folder.sort_order;
     if (typeof sortOrder !== 'number' || !Number.isInteger(sortOrder)) {
@@ -174,7 +186,7 @@ function parseExportFile(raw: unknown): NormalizedFile {
     const id = asId(tag.id, 'data.tags[].id');
     if (tagIds.has(id)) fail([{ path: 'data.tags[].id', message: `标签 id 重复：${String(id)}` }]);
     tagIds.add(id);
-    const name = asString(tag.name, 'data.tags[].name');
+    const name = asString(tag.name, 'data.tags[].name', undefined, TAG_NAME_MAX_LENGTH);
     if (name.trim() === '') fail([{ path: 'data.tags[].name', message: '标签名不能为空' }]);
     if (tagNames.has(name)) fail([{ path: 'data.tags[].name', message: `标签名重复：${name}` }]);
     tagNames.add(name);
@@ -194,7 +206,9 @@ function parseExportFile(raw: unknown): NormalizedFile {
     }
 
     const rawTags = prompt.tags === undefined ? [] : asArray(prompt.tags, 'data.prompts[].tags');
-    const promptTags = [...new Set(rawTags.map((tag) => asString(tag, 'data.prompts[].tags[]')))].sort((a, b) =>
+    const promptTags = [
+      ...new Set(rawTags.map((tag) => asString(tag, 'data.prompts[].tags[]', undefined, TAG_NAME_MAX_LENGTH))),
+    ].sort((a, b) =>
       a.localeCompare(b),
     );
 
@@ -220,13 +234,33 @@ function parseExportFile(raw: unknown): NormalizedFile {
       const version = asObject(entry, 'data.prompts[].versions[]');
       return {
         version_no: asId(version.version_no, 'data.prompts[].versions[].version_no'),
-        title: asString(version.title, 'data.prompts[].versions[].title', ''),
-        user_prompt: asString(version.user_prompt, 'data.prompts[].versions[].user_prompt', ''),
-        system_prompt: asString(version.system_prompt, 'data.prompts[].versions[].system_prompt', ''),
-        notes: asString(version.notes, 'data.prompts[].versions[].notes', ''),
+        title: asString(version.title, 'data.prompts[].versions[].title', '', maxLengthOf('title')),
+        user_prompt: asString(version.user_prompt, 'data.prompts[].versions[].user_prompt', '', maxLengthOf('user_prompt')),
+        system_prompt: asString(
+          version.system_prompt,
+          'data.prompts[].versions[].system_prompt',
+          '',
+          maxLengthOf('system_prompt'),
+        ),
+        notes: asString(version.notes, 'data.prompts[].versions[].notes', '', maxLengthOf('notes')),
         created_at: asString(version.created_at, 'data.prompts[].versions[].created_at', now),
       };
     });
+    // FR-157 / AC-134 C13（N10）：重复的 version_no 必须在**解析期**就拒绝 ——
+    // 否则会一路走到 INSERT 才撞 `UNIQUE constraint failed: prompt_versions...`，
+    // 用户看到的是裸 SQLite 文本（解析期拒绝 ⇒ 一个字节都不落库）。
+    const seenVersionNos = new Set<number>();
+    for (const version of versions) {
+      if (seenVersionNos.has(version.version_no)) {
+        fail([
+          {
+            path: 'data.prompts[].versions[].version_no',
+            message: `版本号重复：${String(version.version_no)}（同一个 prompt 的版本号必须唯一）`,
+          },
+        ]);
+      }
+      seenVersionNos.add(version.version_no);
+    }
     versions.sort((a, b) => a.version_no - b.version_no);
     if (versions.length === 0) fail([{ path: 'data.prompts[].versions', message: '至少要有一个版本' }]);
 
@@ -242,10 +276,10 @@ function parseExportFile(raw: unknown): NormalizedFile {
 
     return {
       id,
-      title: asString(prompt.title, 'data.prompts[].title'),
-      user_prompt: asString(prompt.user_prompt, 'data.prompts[].user_prompt'),
-      system_prompt: asString(prompt.system_prompt, 'data.prompts[].system_prompt', ''),
-      notes: asString(prompt.notes, 'data.prompts[].notes', ''),
+      title: asString(prompt.title, 'data.prompts[].title', undefined, maxLengthOf('title')),
+      user_prompt: asString(prompt.user_prompt, 'data.prompts[].user_prompt', undefined, maxLengthOf('user_prompt')),
+      system_prompt: asString(prompt.system_prompt, 'data.prompts[].system_prompt', '', maxLengthOf('system_prompt')),
+      notes: asString(prompt.notes, 'data.prompts[].notes', '', maxLengthOf('notes')),
       folder_id: folderId,
       sort_order: sortOrder,
       tags: promptTags,
@@ -550,8 +584,16 @@ export async function importData(
   } catch (error) {
     if (error instanceof InvalidImportError) throw error;
     if (isConstraintError(error)) {
-      const message = error instanceof Error ? error.message : String(error);
-      fail([{ path: 'data', message: `数据约束冲突：${message}` }]);
+      // FR-157 / AC-134 C13（N10）：分类后给可读文案，**不许**把裸 SQLite 文本回给用户。
+      // 分类设施复用阶段 64 的 `constraintKind()`（与 `src/services/prompts.ts` 同一套）。
+      const kind = constraintKind(error);
+      if (kind === 'foreign_key') {
+        fail([{ path: 'data', message: '导入数据引用了不存在的记录（外键约束），请检查文件夹 / 标签引用后重试' }]);
+      }
+      if (kind === 'unique') {
+        fail([{ path: 'data', message: '导入数据与库里的现有记录冲突（唯一约束），请检查 id / 名称是否重复后重试' }]);
+      }
+      fail([{ path: 'data', message: '导入数据与库里的现有记录冲突（数据约束），请检查后重试' }]);
     }
     throw error;
   }
