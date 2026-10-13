@@ -59,5 +59,8 @@ test('AC-43：取消 / 关闭（Esc）只丢弃草稿，不产生服务端记录
     '关闭要清空草稿',
   );
   assert.equal(closeSource.includes('api.'), false, '关闭草稿不得发 API 请求');
-  assert.ok(/event\.key === 'Escape'/.test(workspace), 'Esc 必须能关闭编辑器');
+  // 阶段 71 返工②（AC-127 D13 行数棘轮）：键盘分支搬进了 use-workspace-hotkeys.ts ⇒ 扫描目标跟着搬，
+  // 断言（Esc 必须能关编辑器）一字不改。
+  const hotkeys = src('use-workspace-hotkeys.ts');
+  assert.ok(/event\.key === 'Escape'/.test(hotkeys), 'Esc 必须能关闭编辑器');
 });

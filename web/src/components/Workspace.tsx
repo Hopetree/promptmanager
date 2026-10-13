@@ -28,6 +28,7 @@ import UnsavedDialog from './UnsavedDialog';
 import { usePromptCopy } from '../use-copy';
 import { useLatestRequests } from '../use-latest-requests.ts';
 import { useUnsavedGuard } from '../use-unsaved-guard.ts';
+import { useWorkspaceHotkeys } from '../use-workspace-hotkeys.ts';
 
 interface WorkspaceProps {
   themeMode: ThemeMode;
@@ -554,60 +555,28 @@ export default function Workspace({ themeMode, onCycleTheme, onSignedOut }: Work
   const overlayOpen =
     copier.varsPrompt !== null || aboutOpen || importExportOpen || syncOpen || usageOpen || tokensOpen;
 
-  // 快捷键（FR-41c）：/ 聚焦搜索 · Ctrl/Cmd+K 聚焦 · Esc 关详情/关闭编辑器 · ↑↓ 选择 · Enter 复制
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement | null;
-      const typing =
-        target !== null &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable === true);
-
-      // FR-152 / AC-133 B8：输入控件里的按键一律交还控件（**含 Esc**）。这一句原先写在
-      // Escape 分支之后 ⇒ textarea 里按 Esc 会直接关掉编辑器、未保存内容没了。必须先判。
-      if (typing) return;
-
-      if (event.key === 'Escape') {
-        // FR-62 退出路径 ②：全屏时 Esc **只退全屏**——不关编辑器、不丢未保存内容、不触发"返回"
-        if (editorFullscreen) {
-          setEditorFullscreen(false);
-          return;
-        }
-        if (detail !== null) {
-          setDetailId(null);
-          return;
-        }
-        if (overlayOpen || discardOpen) return;
-        if (view === 'editor' || editorOpen) requestLeave(closeEditor);
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && (event.key === 'k' || event.key === 'K')) {
-        event.preventDefault();
-        setView('list');
-        window.setTimeout(focusSearch, 60);
-        return;
-      }
-      if (event.key === '/') {
-        event.preventDefault();
-        if (view !== 'list') setView('list');
-        window.setTimeout(focusSearch, 60);
-        return;
-      }
-      if (view !== 'list') return;
-      const list = data?.items ?? [];
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setActiveIndex((index) => Math.min(index + 1, Math.max(list.length - 1, 0)));
-      } else if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActiveIndex((index) => Math.max(index - 1, 0));
-      } else if (event.key === 'Enter') {
-        const targetPrompt = list[activeIndex];
-        if (targetPrompt !== undefined) void copier.copyPrompt(targetPrompt);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [activeIndex, closeEditor, copier, data, detail, discardOpen, editorFullscreen, editorOpen, focusSearch, overlayOpen, requestLeave, view]);
+  // 快捷键（FR-41c）与两条闸门/同源逻辑都在 use-workspace-hotkeys.ts（AC-127 D13 行数棘轮）
+  useWorkspaceHotkeys({
+    view,
+    viewMode,
+    items: data?.items ?? [],
+    selected,
+    activeIndex,
+    editorOpen,
+    editorFullscreen,
+    detailOpen: detail !== null,
+    overlayOpen,
+    discardOpen,
+    setView,
+    setActiveIndex,
+    setSelectedId,
+    setDetailId,
+    setEditorFullscreen,
+    focusSearch,
+    requestLeave,
+    closeEditor,
+    copyPrompt: (prompt) => void copier.copyPrompt(prompt),
+  });
 
   const folderName = (id: number | null): string => {
     if (id === null) return '未归类';

@@ -10,6 +10,9 @@ const src = (rel: string): string => readWebSource(rel);
 
 const editor = src('components/PromptEditor.tsx');
 const workspace = src('components/Workspace.tsx');
+// 阶段 71 返工②（AC-127 D13 行数棘轮）：键盘分支搬进了 use-workspace-hotkeys.ts。
+// 断言一字不改，只把扫描目标跟着搬家后的文件走。
+const hotkeys = src('use-workspace-hotkeys.ts');
 const detail = src('components/PromptDetail.tsx');
 const css = src('styles/app.css');
 
@@ -60,7 +63,7 @@ test('AC-63 ③：按钮与详情面 pm-detail-fullscreen 同款（ExpandOutline
 });
 
 test('AC-63 ④：Esc 只退全屏（不返回、不丢内容）；退出后左栏与宽度回原布局', () => {
-  const escBlock = workspace.slice(workspace.indexOf("event.key === 'Escape'"), workspace.indexOf("event.key === 'Escape'") + 700);
+  const escBlock = hotkeys.slice(hotkeys.indexOf("event.key === 'Escape'"), hotkeys.indexOf("event.key === 'Escape'") + 700);
   assert.ok(/editorFullscreen/.test(escBlock), 'Workspace 的 Esc 分支必须先处理"退出全屏"');
   assert.ok(
     escBlock.indexOf('editorFullscreen') < escBlock.indexOf('closeEditor'),
