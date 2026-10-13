@@ -56,6 +56,18 @@ function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+/** 判定一个错误是不是「锁竞争」——只有这种才值得重试。 */
+function isBusyError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /SQLITE_BUSY|database is locked|database table is locked/i.test(message);
+}
+
+/** 判定一个错误是不是「库坏了」（根本不是 SQLite 库 / 页损坏 / 被截断）。 */
+function isCorruptError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /SQLITE_CORRUPT|SQLITE_NOTADB|malformed|not a database/i.test(message);
+}
+
 /**
  * 把连接切到 WAL，**带重试**（FR-158 / AC-134 D14）。
  *
@@ -65,14 +77,32 @@ function sleepSync(ms: number): void {
  * 表现就是"并行启动两个实例/两个迁移，其中一个直接崩"，而库本身完全健康。
  *
  * 处理：短睡重试到成功或 5 秒超时；超时给一条**可读可重试**的消息（不带裸 SQLite 文本）。
+ *
+ * 阶段 73（FR-160 / AC-135 A4，N24）：**只有锁竞争才重试**。损坏的库（不是 SQLite 库 / 页损坏 /
+ * 被截断）重试 5 秒也修不好，原来会被误报成"库正被另一个进程独占"——运维照着那条提示永远修不好。
+ * 现在这类错误**立刻**抛出可诊断的报错：点名文件、说明损坏、把原始错误留在 `cause` 里。
  */
-function enableWal(db: Db): void {
+function enableWal(db: Db, dbPath: string): void {
   const deadline = Date.now() + 5_000;
   for (;;) {
     try {
       const mode = db.pragma('journal_mode = WAL', { simple: true }) as string;
       if (String(mode).toLowerCase() === 'wal') return;
     } catch (error) {
+      if (isCorruptError(error)) {
+        throw new Error(
+          `数据库文件不是有效的 SQLite 库或已损坏：${dbPath}。` +
+            '可以把它移走让服务重建（原数据会丢失），或用备份恢复（见 deploy/README.md 第 4 节）。',
+          { cause: error },
+        );
+      }
+      if (!isBusyError(error)) {
+        throw new Error(
+          `无法把数据库切到 WAL：${dbPath} 打开失败，且不是锁竞争（重试没有意义）。` +
+            '请检查数据目录的权限与磁盘空间；原始错误见 cause。',
+          { cause: error },
+        );
+      }
       if (Date.now() >= deadline) {
         throw new Error(
           '无法把数据库切到 WAL：库正被另一个进程独占。请确认没有卡住的实例（或等它结束）后重试 —— ' +
@@ -106,7 +136,7 @@ export function openDatabase(config: Pick<AppConfig, 'dataDir'>): Db {
   secureDatabaseFiles(dbPath);
   // busy_timeout 先设：后面每条可能撞锁的语句都要靠它排队
   db.pragma('busy_timeout = 5000');
-  enableWal(db);
+  enableWal(db, dbPath);
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
   // 兜底：万一 SQLite 重建过这两个文件，这里再收紧一次
