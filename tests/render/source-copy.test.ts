@@ -33,7 +33,7 @@ after(() => {
   releaseLoaderPort();
 });
 
-function makePrompt(): Prompt {
+function makePrompt(overrides: Partial<Prompt> = {}): Prompt {
   return {
     id: 1,
     title: '甲',
@@ -50,18 +50,19 @@ function makePrompt(): Prompt {
     version_no: 1,
     use_count: 0,
     last_used_at: null,
+    ...overrides,
   };
 }
 
-function install(): void {
+function install(prompt: Prompt = makePrompt()): void {
   route('GET', /^\/api\/me$/, () => ({ status: 200, body: { username: 'admin' } }));
   route('GET', /^\/api\/folders$/, () => ({ status: 200, body: { items: [] } }));
   route('GET', /^\/api\/tags$/, () => ({ status: 200, body: { items: [] } }));
   route('GET', /^\/api\/prompts$/, () => ({
     status: 200,
-    body: { total: 1, limit: 20, offset: 0, items: [makePrompt()] },
+    body: { total: 1, limit: 20, offset: 0, items: [prompt] },
   }));
-  route('GET', /^\/api\/prompts\/\d+$/, () => ({ status: 200, body: makePrompt() }));
+  route('GET', /^\/api\/prompts\/\d+$/, () => ({ status: 200, body: prompt }));
   route('GET', /^\/api\/prompts\/\d+\/versions$/, () => ({ status: 200, body: { items: [] } }));
   route('GET', /^\/api\/prompts\/\d+\/variables$/, () => ({
     status: 200,
@@ -250,4 +251,43 @@ test('AC-136 ⑥⑪：编辑器「复制源码」有可见文字，复制的是�
   await settle();
   assert.deepEqual(copied, [typed], `编辑器必须复制"当前编辑框内容"，实际 ${JSON.stringify(copied)}`);
   assert.equal(calls.length, before, '编辑器复制源码不得发请求');
+});
+
+test('AC-136 ⑤⑨：不含变量时两者内容相同，但位置与等级仍不同（「复制提示词」仍记一次取用）', async () => {
+  const plain = '没有变量的正文';
+  // 两个字段都不能含变量：hasVariables() 会同时看 user_prompt 与 system_prompt
+  install(makePrompt({ user_prompt: plain, system_prompt: '没有变量的系统提示' }));
+  const copied = stubClipboard();
+  await mountWorkspace();
+
+  const fields = document.querySelector('[data-testid="pm-detail-fields"]');
+  const actions = document.querySelector('[data-testid="pm-detail-actions"]');
+  const source = document.querySelector<HTMLElement>('[data-testid="pm-detail-copy-source"]');
+  const promptCopy = document.querySelector<HTMLElement>('[data-testid="pm-detail-copy"]');
+  assert.ok(source !== null && promptCopy !== null, '两个入口都必须存在');
+
+  // 位置与等级：与含变量时同款判据（⑤ 的"仍不同"这一半）
+  assert.equal(fields?.contains(source) === true, true, '「复制源码」必须在正文区工具行里');
+  assert.equal(actions?.contains(source) === true, false, '「复制源码」不许进底部主操作条');
+  assert.equal(source.className.includes('ant-btn-primary'), false, '「复制源码」不许是 primary');
+  assert.equal(promptCopy.className.includes('ant-btn-primary'), true, '「复制提示词」仍必须是 primary');
+
+  const before = calls.length;
+  await act(async () => {
+    source.click();
+  });
+  await settle();
+  assert.deepEqual(copied, [plain], `不含变量时「复制源码」= 正文原文，实际 ${JSON.stringify(copied)}`);
+  assert.equal(calls.length, before, `复制源码不得发任何请求，实际新增 ${JSON.stringify(calls.slice(before))}`);
+
+  // ⑤ 的另一半 + ⑨：「复制提示词」不含变量 ⇒ 直接复制正文、仍记一次取用（既有语义不动）
+  await act(async () => {
+    promptCopy.click();
+  });
+  await waitFor(
+    () => calls.some((call) => call.method === 'POST' && /\/api\/prompts\/\d+\/copy$/.test(call.path)),
+    '「复制提示词」必须记一次取用（/api/prompts/:id/copy）',
+    3000,
+  );
+  assert.deepEqual(copied, [plain, plain], `不含变量时两者内容相同，实际 ${JSON.stringify(copied)}`);
 });
