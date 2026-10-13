@@ -168,6 +168,21 @@ async function runAction(cdp, action) {
     if (clicked !== true) throw new Error(`点击失败，找不到元素：${action.selector}`);
     return;
   }
+  if (action.type === 'mouseclick') {
+    // 真鼠标事件（CDP 输入管线：mouseMoved → mousePressed → mouseReleased）。
+    // 为什么需要它：AGENTS.md 第 8 节要求交互类 AC 用真鼠标事件，`click` 的 `node.click()`
+    // 是合成事件（isTrusted=false）—— 它**不会**产生用户激活，于是依赖用户激活的能力
+    // （剪贴板 `document.execCommand('copy')` 兜底、指针事件、拖拽手柄）会得到假阴性。
+    const center = await cdp.evaluate(
+      `(() => { const el = document.querySelector(${JSON.stringify(action.selector)}); if (el === null) return null; const r = el.getBoundingClientRect(); return JSON.stringify({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }); })()`,
+    );
+    if (center === null) throw new Error(`点击失败，找不到元素：${action.selector}`);
+    const { x, y } = JSON.parse(center);
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button: 'none', buttons: 0 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
+    await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 });
+    return;
+  }
   if (action.type === 'type') {
     const found = await cdp.evaluate(`(() => { const node = ${inputSelectorScript(action.selector)}; if (node === null) return false; node.focus(); return true; })()`);
     if (found !== true) throw new Error(`输入失败，找不到输入框：${action.selector}`);
