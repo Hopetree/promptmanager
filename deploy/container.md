@@ -17,13 +17,14 @@
 ### 2.1 本地构建（从源码）
 
 ```bash
-docker build -t promptmanager:1.0.1 .
+docker build -t promptmanager:<版本> .   # <版本> = package.json 的 version（唯一来源，不要照抄文档里的数字）
 ```
 
 多阶段构建：builder 装全量依赖并跑 `npm run build`（`tsc` + `vite`）；runtime 只带**生产依赖**与 `dist/`。
 
-> ⚠️ **不要换成 alpine 基础镜像**：`better-sqlite3` 是**原生模块**，官方预编译二进制面向 glibc；
-> alpine 的 musl 需要现场编译（要装整条工具链，镜像更大更脆）。
+> ⚠️ **不要换成 alpine 基础镜像**：`better-sqlite3` 是**原生模块**，本仓库只在 glibc 的 `node:24` 上验证过
+> （tarball 里也有 `linuxmusl-x64.node` 预编译件，但本项目**没有**在 musl 上实测过，换基础镜像前请自行验证）。
+> 依赖安装的实测事实见 §9 第 2 条。
 
 ### 2.2 镜像发布（Docker Hub，GitHub Actions）
 
@@ -94,7 +95,7 @@ docker compose ps            # 等 healthcheck 变 healthy
 ### 3.2 用 docker run
 
 ```bash
-docker run -d --name promptmanager   --restart unless-stopped   -p 8767:8767   -e HOST=0.0.0.0 -e PORT=8767 -e DATA_DIR=/data -e TZ=Asia/Shanghai   -v /data/promptmanager:/data   --memory 512m --cpus 1.0   promptmanager:1.0.1
+docker run -d --name promptmanager   --restart unless-stopped   -p 8766:8766   -e HOST=0.0.0.0 -e PORT=8766 -e DATA_DIR=/data -e TZ=Asia/Shanghai   -v /data/promptmanager:/data   --memory 512m --cpus 1.0   promptmanager:<版本>
 ```
 
 ## 4. 首次设置管理员口令（**关键一步**）
@@ -107,7 +108,7 @@ docker compose exec promptmanager node bin/pm.mjs user set-password --username a
 # printf '%s\n' '<口令>' | docker compose exec -T promptmanager node bin/pm.mjs user set-password --username admin
 ```
 
-然后浏览器打开 `http://<宿主>:8767/` 登录。
+然后浏览器打开 `http://<宿主>:8766/` 登录。
 
 ## 5. 数据与备份
 
@@ -159,8 +160,8 @@ NPM / nginx 默认就会透传该头，但如果你在反代上加了"统一鉴�
 
 ```nginx
 # nginx 片段：两条都要
-location /mcp { proxy_pass http://127.0.0.1:8767; proxy_set_header Authorization $http_authorization; }
-location /    { proxy_pass http://127.0.0.1:8767; }
+location /mcp { proxy_pass http://127.0.0.1:8766; proxy_set_header Authorization $http_authorization; }
+location /    { proxy_pass http://127.0.0.1:8766; }
 ```
 
 反代形态下服务端建议设 `TRUST_PROXY=1` + `PUBLIC_ORIGIN=https://<你的域名>`（见 `deploy/README.md` §2.7）。
@@ -170,17 +171,17 @@ MCP 端点本身**无状态**（不建会话、不做 SSE 长连），所以不�
 
 - 镜像**不含** `tests/`、`tools/`、`docs/`（见 `.dockerignore`）—— 生产镜像只带运行所需；
 - 镜像里**没有** `curl`（健康检查用 node 内置 `fetch`）；
-- 端口默认 **8767**（与 systemd 部署一致）；改端口要同步改 compose 的 `PORT` 与反代配置；
+- 端口由 `PORT` 决定（应用默认值见 `src/config.ts`，文档不写死）；本文示例统一 **8766**（本机测试环境占用了默认档位）。改端口要同步改 compose 的 `PORT` 与反代配置；
 - **本服务不做 TLS**：公网形态请在前面放反向代理终结 HTTPS，并设 `TRUST_PROXY=1` + `PUBLIC_ORIGIN`。
 
 ## 9. 验证记录（实测，2026-09-20，Docker 26.0.2 / Compose v2.26.1）
 
 | 项 | 结果 |
 | --- | --- |
-| 构建 | `docker build -t promptmanager:1.0.0 .` **成功**（镜像 579MB） |
+| 构建 | `docker build -t promptmanager:<版本> .` **成功**（镜像 579MB） |
 | 运行 | 容器起来，`Health=healthy`、`Restarts=0`、**非 root**（容器内 uid=1000 `node`） |
 | 资源 | CPU 2.1% / 内存 **82.5 MiB**（限额 512 MiB 的 16%） |
-| 跨机可达 | 从另一台机器访问 `http://<宿主>:<映射端口>/healthz` → `{"status":"ok","version":"1.0.0"}`；未认证 `/api/prompts` → **401** |
+| 跨机可达 | 从另一台机器访问 `http://<宿主>:<映射端口>/healthz` → `{"status":"ok","version":"<版本>"}`；未认证 `/api/prompts` → **401** |
 | 功能 | 登录 ✓ / 新建 prompt ✓ / 列表 ✓ / 变量渲染（`你好 {{名字}}` → `你好 世界`）✓ |
 | 真实渲染 | headless chromium 打开首页 → 登录页**渲染出内容** ✅（不是白屏） |
 | 迁移 | 容器内 `node bin/pm.mjs migrate` → `ok: schema at vN`（N = `migrations/` 里的最大编号） ✅ |
@@ -191,9 +192,11 @@ MCP 端点本身**无状态**（不建会话、不做 SSE 长连），所以不�
 
 1. **不要写 `# syntax=docker/dockerfile:1`**：该指令要求拉外部 frontend 镜像；registry mirror 不可用的环境会**直接构建失败**。
    多阶段构建用内置 frontend 即可，删掉这一行。
-2. **`better-sqlite3` 需要编译**：它的 install 脚本走 `node-gyp rebuild`（**不是**纯预编译二进制分发）⇒
-   **slim / alpine 镜像没有 python3 / make / g++ 会构建失败**。本 Dockerfile 的应对是：
-   **builder 用完整 `node:24`（自带工具链）编译一次 → runtime 用 `node:24-slim` 拷贝 `node_modules`**，
-   最终镜像不含工具链（这也是刻意不用 alpine 的原因之一）。
+2. **`better-sqlite3` 的实际安装方式（2026-10-13 复核）**：包内**没有** `install` 脚本，
+   tarball 自带 `prebuilds/`（8 个平台，含 `linux-x64.node` 与 `linuxmusl-x64.node`）；
+   npm 11 的 allow-scripts 策略会打印 `npm warn allow-scripts … (install: node-gyp rebuild)` 并**跳过**它，
+   此后直接使用 prebuilds —— 本项目实测可用（`require('better-sqlite3')` 建表读写、`fts5(trigram)` 均通过）。
+   ⇒ **工具链不是必需的**。本 Dockerfile 仍用"builder 完整 `node:24` → runtime `node:24-slim` 拷 `node_modules`"，
+   属于保险（万一 prebuild 与目标平台不匹配还能现场编译），**不是**因为 slim 会构建失败。
 3. **属主映射**：容器内 `node` 是 **uid 1000**；宿主上 uid 1000 可能对应别的用户名。
    数据卷目录要 `chown 1000:1000`（或在 compose 里用 `user:` 指定），否则容器内**写不进数据目录**。

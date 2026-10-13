@@ -40,16 +40,20 @@
 docker pull hopetree/promptmanager:latest
 
 # ② 运行（数据落在宿主目录，容器重建不丢）
-docker run -d --name promptmanager   -p 8767:8767   -v "$PWD/data:/data"   hopetree/promptmanager:latest
+mkdir -p "$PWD/data" && sudo chown -R 1000:1000 "$PWD/data"   # 容器内 node 是 uid 1000，否则写不进数据目录
+docker run -d --name promptmanager --restart unless-stopped   -p 8766:8766   -v "$PWD/data:/data"   hopetree/promptmanager:latest
 
 # ③ 首次设置管理员口令（只从 stdin 进库，不进环境变量、不进镜像）
 printf '%s\n' '你的强口令' | docker exec -i promptmanager   node bin/pm.mjs user set-password --username admin
 
 # ④ 自检
-curl -s http://127.0.0.1:8767/healthz     # 形如 {"status":"ok","version":"<版本号>"}
+curl -s http://127.0.0.1:8766/healthz     # 形如 {"status":"ok","version":"<版本号>"}
 ```
 
-浏览器打开 `http://<主机>:8767/`，用 `admin` + 刚设的口令登录。
+浏览器打开 `http://<主机>:8766/`，用 `admin` + 刚设的口令登录。
+
+> 端口：示例统一用 `8766`；应用默认端口见 `src/config.ts`（`PORT` 可覆盖，文档不写死数字）。
+> 本机开发环境占用了默认端口档位，临时实例先 `ss -ltn` 确认空闲。
 
 ### 源码运行
 
@@ -58,7 +62,7 @@ npm ci                       # 按 package-lock.json 冷装
 npm run build                # 服务端 tsc + 前端 vite
 npm run migrate              # 初始化数据库（幂等；服务启动时也会自动迁移）
 printf '%s\n' '你的强口令' | node bin/pm.mjs user set-password --username admin
-npm start                    # 默认 0.0.0.0:8767
+npm start                    # 监听 0.0.0.0；端口见 src/config.ts（可 PORT=8766 npm start 覆盖）
 ```
 
 systemd 部署见 [`deploy/README.md`](deploy/README.md)。
@@ -100,7 +104,7 @@ systemd 部署见 [`deploy/README.md`](deploy/README.md)。
 | 客户端里填 | 值 |
 | --- | --- |
 | 传输方式 | **Streamable HTTP** |
-| URL | `http://<服务地址>:8767/mcp` |
+| URL | `http://<服务地址>:<端口>/mcp` |
 | 认证头 | `Authorization: Bearer <你的 API 令牌>` |
 
 三个只读工具 `prompt_search` / `prompt_get` / `prompt_render`，**没有任何写操作**；每次取用都记入使用记录。
@@ -170,7 +174,7 @@ PUBLIC_ORIGIN=https://prompt.example.com   # 会话 cookie 追加 Secure
 服务本身**不做 TLS**，公网访问请在前面放反代终结 HTTPS。样例见 [`deploy/reverse-proxy.example.conf`](deploy/reverse-proxy.example.conf)。
 
 **端口被占 / 复制按钮点了没反应？**
-换端口启动即可（源码 `PORT=8768 npm start`；Docker 改 `-p` 的宿主端口，容器内保持 `8767`）。
+换端口启动即可（源码 `PORT=8768 npm start`；Docker 改 `-p` 的宿主端口，容器内 `PORT` 与之一致）。
 复制按钮在内网 `http://`（非 HTTPS）下会被浏览器安全策略拦住，程序会自动退回兼容方式；仍被拦时界面会提示手动复制 —— 不是服务故障。
 
 **升级后数据会不兼容吗？**

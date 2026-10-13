@@ -122,9 +122,11 @@ installed_packages=207
 **结论**：选 `better-sqlite3`。决定性因素是 **API 稳定性 + 事务原语**，而非安装成本（两者都便宜）。
 `node:sqlite` 作为备选保留在案：若将来要在更老/更杂的 Node 上跑，切回内置驱动只需替换 `src/db/index.ts` 的连接层。
 
-**已知坑（实测）**：npm 11 的 allow-scripts 策略会**跳过** better-sqlite3 的 `install: node-gyp rebuild` 脚本并给出
-`npm warn allow-scripts` 警告——**不影响使用**：该包把各平台预编译 `.node` 放在 `prebuilds/` 里随 tarball 分发。
-AC-1 的 `rm -rf node_modules && npm ci` 已实测通过（见 PROGRESS）。**部署机无需 gcc/node-gyp。**
+**已知坑（2026-10-13 复核）**：`better-sqlite3@13.0.3` 的 package.json 里**没有 `install` 脚本**，tarball 自带
+`prebuilds/`（8 个平台，含 `linux-x64.node` 与 `linuxmusl-x64.node`）。npm 11 的 allow-scripts 策略仍会打印
+`npm warn allow-scripts … (install: node-gyp rebuild)`（针对 binding.gyp 的隐式构建）并**跳过**它——**不影响使用**：
+跳过之后直接使用 prebuilds。AC-1 的 `rm -rf node_modules && npm ci` 已实测通过（见 PROGRESS）。
+**部署机与 slim 镜像都无需 gcc/node-gyp。**
 
 ### 4.2 查询层：`kysely`（而非手写 SQL 字符串）
 

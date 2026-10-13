@@ -19,17 +19,24 @@
 
 | 项 | 值 | 说明 |
 | --- | --- | --- |
-| 主机 | 228（CentOS Stream 9） | **当前无 Docker**，本服务是**非容器**形态；⚠️ **即将新增容器化部署**（`Dockerfile` + `docker-compose.yml`，由 **部署方** 交付，见 §5） |
+| 主机 | 228（CentOS Stream 9） | 本机**未安装 Docker**，实际跑的是**非容器**形态（systemd unit）；容器文件**已在仓库里交付**（`Dockerfile` / `docker-compose.yml` / `deploy/container.md` / `.github/workflows/docker.yml`），见 §5 与 `deploy/container.md` |
 | Node | `/usr/bin/node`（v24.18.0） | 系统自带，不换版本、不装 nvm |
 | 代码目录 | `/opt/promptmanager` | unit 的 `WorkingDirectory` |
 | 环境文件 | `/etc/promptmanager/promptmanager.env` | unit 的 `EnvironmentFile`（**600**） |
 | 数据目录 | `/var/lib/promptmanager` | unit 的 `StateDirectory=promptmanager` 自动创建并 chown；`pm.db` + `media/` 落在这里 |
 | 服务账号 | `promptmanager`（系统账号，非 root） | 需在部署时创建 |
-| 监听 | `0.0.0.0:8767` | 内网可达；**有认证**（除 `/healthz` 与登录接口外全部 401） |
+| 监听 | `0.0.0.0:<PORT>` | 端口由环境文件的 `PORT` 决定（应用默认值见 `src/config.ts`，**文档不写死数字**）；本文示例统一用 **8766**。内网可达；**有认证**（除 `/healthz` 与登录接口外全部 401） |
 | 日志 | journald | `journalctl -u promptmanager -f` |
 
-> 若 部署方 决定换路径/换端口：三处必须同步改 —— unit（`WorkingDirectory`/`ExecStart`/`ReadWritePaths`）、
+> 若 部署方 决定换路径/换端口：三处必须同步改 —— unit（`WorkingDirectory`/`ExecStart`）、
 > `promptmanager.env`（`PORT`/`DATA_DIR`）、项目 `README.md` 与合集端口台账。
+>
+> **写权限来自 unit 的 `StateDirectory=promptmanager`**：systemd 会创建 `/var/lib/promptmanager` 并 chown 给服务账号，
+> 在 `ProtectSystem=strict` 下它是**唯一**可写目录。unit 里**没有** `ReadWritePaths` 指令，也不需要手工加 ——
+> 要换数据目录就同步改 `StateDirectory` 与 `DATA_DIR`（两者必须指向同一路径）。
+>
+> **端口约定**：示例统一用 `8766`（本机测试环境占用了应用默认端口档位，见项目 `AGENTS.md` §1.1）。
+> 临时实例先 `ss -ltn` 确认空闲再起；文档里不写死端口数字。
 
 ---
 
@@ -74,17 +81,17 @@ sudo systemctl enable --now promptmanager
 # 2.1 单元状态（应为 active (running)，无 restart 循环）
 systemctl status promptmanager --no-pager
 
-# 2.2 监听地址必须是 0.0.0.0:8767，不是 127.0.0.1
-ss -ltnp | grep ':8767'
+# 2.2 监听地址必须是 0.0.0.0（不是 127.0.0.1）；端口 = 环境文件里的 PORT（示例 8766）
+ss -ltnp | grep ':8766'
 
 # 2.3 健康检查（无需认证）
-curl -s http://127.0.0.1:8767/healthz          # {"status":"ok","version":"1.0.0"}
+curl -s http://127.0.0.1:8766/healthz          # {"status":"ok","version":"<package.json 里的版本>"}
 
 # 2.4 从内网另一台机器访问（把 192.168.0.228 换成实际地址）
-curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8767/healthz   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8766/healthz   # 200
 
 # 2.5 认证生效（负向验证）：未登录访问业务接口必须 401
-curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8767/api/prompts   # 401
+curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8766/api/prompts   # 401
 ```
 
 > 228 无 firewalld / iptables 规则，绑上 `0.0.0.0` 即内网可达；**不要**做端口转发 / NAT / 公网映射
@@ -111,7 +118,7 @@ sqlite3 /var/lib/promptmanager/pm.db 'select count(*) from sessions;'   # 可选
 
 ## 2.7 两种部署形态：内网直连 与 公网反代（D-18 / AC-28）
 
-服务本身**不做 TLS**（由反代终结），默认监听 `0.0.0.0:8767` 不变；两种形态用**三个环境变量**切换：
+服务本身**不做 TLS**（由反代终结），监听地址仍是 `0.0.0.0`（端口由 `PORT` 决定，默认值见 `src/config.ts`）；两种形态用**三个环境变量**切换：
 
 | 变量 | 内网直连（默认） | 公网反代 | 说明 |
 | --- | --- | --- | --- |
@@ -124,11 +131,11 @@ sqlite3 /var/lib/promptmanager/pm.db 'select count(*) from sessions;'   # 可选
 ```bash
 # /etc/promptmanager/promptmanager.env 里保持三个变量都留空/不设
 HOST=0.0.0.0
-PORT=8767
+PORT=8766
 DATA_DIR=/var/lib/promptmanager
 # TRUST_PROXY / PUBLIC_ORIGIN / CORS_ORIGINS 留空
 sudo systemctl restart promptmanager
-curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8767/healthz   # 200
+curl -s -o /dev/null -w '%{http_code}\n' http://192.168.0.228:8766/healthz   # 200
 ```
 
 ### 3.2 公网反代（HTTPS 终结在反代）
@@ -162,9 +169,9 @@ sudo -u promptmanager bash -c 'DATA_DIR=/var/lib/promptmanager node /opt/promptm
 
 # 2) 在 MCP 客户端里注册（示例见 deploy/mcp-register.example.json，token 用占位符）
 #    命令形如：/usr/bin/node /opt/promptmanager/bin/pm-mcp.mjs
-#    环境变量：PM_API_URL=http://127.0.0.1:8767（或 LAN 地址） PM_API_TOKEN=pm_…
+#    环境变量：PM_API_URL=http://127.0.0.1:8766（或 LAN 地址） PM_API_TOKEN=pm_…
 #    从别的机器经 ssh 拉起也是允许的（服务端只需可被 API 访问）：
-#      ssh <host> 'sudo env PM_API_URL=http://<host>:8767 PM_API_TOKEN=pm_… /usr/bin/node /opt/promptmanager/bin/pm-mcp.mjs'
+#      ssh <host> 'sudo env PM_API_URL=http://<host>:8766 PM_API_TOKEN=pm_… /usr/bin/node /opt/promptmanager/bin/pm-mcp.mjs'
 ```
 
 - 三个**只读**工具：`prompt_search` / `prompt_get` / `prompt_render`；**不得**注册任何写操作。
@@ -218,12 +225,13 @@ sudo systemctl start promptmanager
 ## 5. 只交付、不部署的边界（复核用）
 
 - dsh **没有**在本文件之外做任何系统改动：没有 `systemctl` 调用、没有创建账号/目录、没有改防火墙。
-- 本地验收时服务是**临时进程**或"AC 自起自停"（`DATA_DIR=$(mktemp -d) PORT=8767 npm start`），验收后即杀。
+- 本地验收时服务是**临时进程**或"AC 自起自停"（`DATA_DIR=$(mktemp -d) PORT=8766 npm start`），验收后即杀。
 - `deploy/` 三件套是**文件交付物**；AC-18 只核"文件齐备 + 语法/约定正确"，**不代表已部署**。
 - 若真要部署：**由用户点名、由 部署方 执行**（含反代/证书/防火墙/DNS）；应用本身不碰系统配置。
-- ⚠️ **即将新增容器化部署**：`Dockerfile` + `docker-compose.yml`（含数据卷 `DATA_DIR` 挂载、端口 8767 映射、健康检查）
-  **由 部署方 交付**；本仓库**当前不含**任何容器文件，本节的三步 systemd 流程仍是唯一已交付形态。
-  容器形态落地后，本节需补一节"容器安装/验证/回滚"，两套形态共用同一个 `pm.db`（不要同时起两份进程写同一数据目录）。
+- **容器文件已经在仓库里**（`git ls-files` 可验）：`Dockerfile`、`docker-compose.yml`、`deploy/container.md`、
+  `.github/workflows/docker.yml` —— 容器化部署的**文件**已交付，安装 / 验证 / 回滚的容器步骤见 `deploy/container.md`；
+  本节的三步 systemd 流程是**本机 228 实际在跑**的形态（该主机未安装 Docker）。
+- 两套形态共用同一个 `pm.db`（`DATA_DIR`）：**不要同时起两份进程写同一数据目录**（SQLite 单文件，会互相踩）。
 
 ---
 
@@ -274,7 +282,7 @@ SystemError [ERR_SYSTEM_ERROR]: A system error occurred: uv_interface_addresses 
 systemctl show -p RestrictAddressFamilies --value promptmanager
 # 期望输出：AF_INET AF_INET6 AF_NETLINK AF_UNIX
 sudo systemctl status promptmanager --no-pager | head -5     # 期望 active (running) 且 NRestarts 不再增长
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8767/healthz   # 期望 200
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8766/healthz   # 期望 200
 ```
 
 > 边界：本节只涉及**本项目自己的** unit / drop-in / 服务重启，不涉及防火墙、NAT、内核参数等系统配置

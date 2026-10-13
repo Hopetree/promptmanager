@@ -5,11 +5,13 @@
 # 运行：              见 deploy/container.md，或直接用 docker-compose.yml
 #
 # 设计要点：
-#   · **builder 用完整 node:24（自带 python3/make/g++）**：better-sqlite3 是原生模块，
-#     其 install 脚本走 `node-gyp rebuild`（从源码编译）；slim 镜像没有工具链会编译失败。
-#     在 builder 里编译一次，runtime 直接拷贝 —— runtime 因此不需要工具链。
+#   · better-sqlite3 是原生模块，但**包内自带 prebuilds/**（8 个平台，含 linux-x64.node 与
+#     linuxmusl-x64.node），且**没有 install 脚本**：npm 11 的 allow-scripts 策略会打印
+#     `npm warn allow-scripts … (install: node-gyp rebuild)` 并跳过它，随后直接用 prebuilds
+#     （2026-10-13 复核，本项目实测可用）。⇒ **工具链不是必需的**：builder 用完整 node:24 只是保险
+#     （万一 prebuild 与目标平台不匹配还能现场编译），不是 slim 会构建失败。
 #   · runtime 用 node:24-slim（镜像小），非 root 运行（镜像自带 node 用户，uid 1000）。
-#   · 刻意**不用 alpine**：musl 与 better-sqlite3 的预编译二进制/编译产物兼容性更差。
+#   · 刻意**不用 alpine**：本仓库只在 glibc 的 node:24 上验证过（musl 预编译件虽在 tarball 里，但未实测）。
 #   · 数据落在卷挂载点 /data（SQLite 单文件 + media/），容器重建不丢数据。
 #   · 健康检查用 node 内置 fetch（slim 镜像不含 curl）。
 
@@ -38,7 +40,7 @@ ENV NODE_ENV=production     HOST=0.0.0.0     PORT=8767     DATA_DIR=/data
 
 WORKDIR /app
 
-# 直接拷贝 builder 里**已安装/已编译**的依赖 —— 避免在无工具链的 runtime 里重新编译原生模块
+# 直接拷贝 builder 里已安装的依赖（含 better-sqlite3 的 prebuild `.node`）—— runtime 无工具链也不需要编译
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/bin ./bin

@@ -323,12 +323,12 @@ first). If all of them are taken, stop and ask (section 13); do not widen the ra
    `npm run build` (or `build:server`) fails with `error: ... dist/server/cli.js ...` and exit code 1.
    And because tests import from `../dist/**`, **editing `src/` without rebuilding means you are testing
    stale code**. Evidence: `bin/pm.mjs:9-17`, `tests/health.test.ts:6-7`.
-9. **`npm ci` skips better-sqlite3's install script** (npm 11 allow-scripts policy; it prints
-   `npm warn allow-scripts ... better-sqlite3@13.0.3 (install: node-gyp rebuild)`). **This is harmless**:
-   the package ships per-platform binaries in `prebuilds/`, so **the deployment host needs no gcc or
-   node-gyp**. Verified after a cold install: `require('better-sqlite3')` table create/read/write and
-   `fts5(x, tokenize='trigram')` both work. Evidence: `docs/dependencies.md:123-125`,
-   `docs/traps.md` (AC-1 section).
+9. **`better-sqlite3` ships prebuilt binaries - no toolchain needed** (verified 2026-10-13, v13.0.3):
+   the package declares **no `install` script** and ships `prebuilds/` for 8 platforms (incl.
+   `linux-x64.node`, `linuxmusl-x64.node`). npm 11's allow-scripts policy still prints
+   `npm warn allow-scripts ... (install: node-gyp rebuild)` and skips it - **harmless**: table I/O and
+   `fts5(x, tokenize='trigram')` work, so the deployment host (and a slim image) needs **no gcc**.
+   Evidence: `docs/dependencies.md` section 4.1, `docs/traps.md`.
 10. **Import `replace` cannot wipe tables in one shot**: `folders.parent_id` is a self-referencing foreign
     key declared `ON DELETE RESTRICT` (`migrations/001_init.sql:37`), so folders must be deleted
     leaf-first, repeatedly. Evidence: `docs/traps.md` (stage 5, "replace clearing order").
