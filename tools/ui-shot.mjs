@@ -215,11 +215,14 @@ async function runAction(cdp, action) {
   if (action.type === 'key') {
     // 真实按键（走 CDP 输入管线，落在**当前焦点元素**上）：Esc / Tab 这类"键盘语义"验收要用
     // （阶段 71 FR-152 的 typing 守卫就是"输入控件里按 Esc"的语义，JS 合成事件覆盖面不够）。
+    // 修饰键：CDP 位掩码 Alt=1 / Ctrl=2 / Meta(⌘)=4 / Shift=8。`modifiers` 缺省 0（原来的行为不变）；
+    // 组合键（Ctrl/Cmd+K 这类）必须带上，否则浏览器收到的只是裸 `k`。
     const keys = {
       key: action.key,
       code: action.code ?? action.key,
       windowsVirtualKeyCode: action.keyCode ?? 0,
       nativeVirtualKeyCode: action.keyCode ?? 0,
+      modifiers: action.modifiers ?? 0,
     };
     await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...keys });
     await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...keys });
