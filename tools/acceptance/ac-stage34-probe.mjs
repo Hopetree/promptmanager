@@ -18,7 +18,7 @@
  * 只 dump 事实、不做断言（断言在 tools/ac-stage34.sh）。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

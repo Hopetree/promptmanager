@@ -15,7 +15,7 @@
  * 环境变量：AC36_EXPECT_TOKEN（token A 的明文，用于比对）、AC36_REVOKED_ID（已撤销行 id）
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

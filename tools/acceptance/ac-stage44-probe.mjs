@@ -20,7 +20,7 @@
  * 环境变量：AC108_READ_ID（一把有效只读令牌 id，桌面档用来验"点状态列改权限仍可用"）
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

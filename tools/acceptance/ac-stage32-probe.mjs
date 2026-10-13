@@ -15,7 +15,7 @@
  * 这样同一个探针可以在"改前/改后"各跑一次，给出真实的 DOM 对照。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

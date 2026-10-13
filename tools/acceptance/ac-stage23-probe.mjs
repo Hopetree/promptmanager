@@ -16,7 +16,7 @@
  *     AC-73：同一网格行内 无标签/1 标签/3 标签 三张卡片的等高、末行贴底距离、标签区高度、列数、无横向溢出。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

@@ -5,7 +5,7 @@
  * 环境变量 AC113_READ_ID / AC113_WRITE_ID / AC113_REVOKED_ID 指定三类行的 id（便于精确取）。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

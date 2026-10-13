@@ -11,7 +11,7 @@
  * 夹具标题：AC116 无变量 / AC116 含变量（与 ac-stage51.sh 创建的一致）。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

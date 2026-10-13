@@ -114,6 +114,15 @@ bash tools/ci-check.sh    # ← 本地与 CI 跑的是**同一个脚本**
 - **过程记录一律不入库**：需求、进度、验收结论都在本地 `tmp/dev-process/`（镜像本仓库布局），
   **不要把它们提交回仓库**。例外：逐阶段验收**脚本**（FR-164 起）属交付态，随仓库入库到
   `tools/acceptance/` —— 用 `bash tools/acceptance/run.sh --list` 看清单、`run.sh <阶段>` 重跑。
+- **入库的验收脚本只锁「不变量」，不锁「阶段快照」**（第三轮审视 S1）：写死 `ok: schema at v6`、
+  `migrations 恰好 8 个`、`docker.yml 的 action pin @v4`、`测试用例数 = 7` 这类断言，会在下一个阶段
+  把脚本变红——脚本是交付态，恒红就是缺陷。需要数量就用**下界**（只增不减）或从目录**派生**
+  （如 `MIG_MAX=$(ls migrations/*.sql | … | tail -1)`）；绊线在 `tests/acceptance-inventory.test.ts`
+  （禁写死 schema 版本 + 全部脚本 `bash -n` / `node --check` 实跑）。
+- **一个 ui-shot 进程里，最后一张 shot 若仍留着未保存修改**（`beforeunload` 已挂上），**下一次
+  `Page.navigate` 会被拦住**、30 秒后报 `CDP 超时：Page.navigate`：把 dirty 的 shot 拆成独立计划/独立进程。
+  同理，**测快捷键前先把焦点移出输入框**（`typing` 守卫会把按键交还控件），详情 Drawer 这类动画
+  **要等落定再点**（AGENTS.md「动画中途量坐标」那条）。
 
 ### 常用的一次性验证命令
 

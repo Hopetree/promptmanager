@@ -10,7 +10,7 @@
  * 用法：node tools/ac-stage16-probe.mjs <baseUrl> <sid> <username> <parentFolder> <childFolder> <emptyFolder> <tagName> <fixtureTitle>
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

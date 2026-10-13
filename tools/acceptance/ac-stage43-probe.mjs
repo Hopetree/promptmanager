@@ -13,7 +13,7 @@
  * 环境变量：AC107_READ_ID（有效只读令牌 id）/ AC107_WRITE_ID（有效读写令牌 id）/ AC107_REVOKED_ID（已撤销令牌 id）
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

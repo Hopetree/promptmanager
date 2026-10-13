@@ -11,7 +11,7 @@
  * 变量夹具标题：AC114 含变量 / AC114 无变量（与 ac-stage49.sh 里创建的一致）。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

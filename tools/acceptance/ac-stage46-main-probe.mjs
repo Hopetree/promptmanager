@@ -9,7 +9,7 @@
  * 输出 main_390= / main_1600= / main_runtime_errors= 三行 JSON，供 shell jq 断言。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

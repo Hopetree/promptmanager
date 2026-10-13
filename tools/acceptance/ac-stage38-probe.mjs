@@ -15,7 +15,7 @@
  * 环境变量：AC101_EXPECT_TOKEN（有效行明文）、AC101_LONG_NAME（>20 字符的名称）、AC101_REVOKED_ID
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

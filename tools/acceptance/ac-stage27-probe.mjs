@@ -29,7 +29,7 @@
  *     AC-81 ① 详情右栏无「变量填值」区块；② 「预览 / 源码」「版本历史」仍在；③ 编辑器变量面板仍在；④ 复制含变量 prompt 仍弹 VarsDialog
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';

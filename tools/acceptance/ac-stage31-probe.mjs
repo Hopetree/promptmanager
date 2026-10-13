@@ -18,7 +18,7 @@
  * 找不到时按**表头列序**回退 —— 这样同一个探针可以在改动前后各跑一次，给出真实的"改前/改后"像素对照。
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { resolveChrome } from './lib/chrome.mjs';
