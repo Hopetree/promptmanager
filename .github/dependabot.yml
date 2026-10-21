@@ -1,6 +1,11 @@
 # 依赖自动升级（2026-09-30 项目体检 P1-2）。
 # 三个生态都开：npm（运行时 + 开发依赖）、docker（基础镜像 digest）、github-actions（action 版本）。
 # 只开 PR，不自动合并 —— 每个 PR 都要过 CI（ci.yml 的 6 项质量门）。
+#
+# ⚠️ 依赖升级必须同步台账：CI 的 `tools/check-deps-ledger.mjs`（ci-check ①c）要求
+# `package.json` 的每个直接依赖在 `docs/dependencies.md` 里有**版本逐字相等**的一行；
+# 并要按新版本**重跑 OSV 审计**（旧版本的漏洞结论对新版本无效）写回 §5。
+# 只改 package.json + lock 的机器人 PR 永远过不了这道门 ⇒ 落地时必须连台账一起改。
 version: 2
 updates:
   - package-ecosystem: npm
@@ -12,6 +17,10 @@ updates:
       # 开发依赖的小版本 / 补丁合并成一个 PR，避免刷屏
       dev-minor-patch:
         dependency-type: development
+        update-types: ['minor', 'patch']
+      # 生产依赖的小版本 / 补丁同样合并（2026-10-16 阶段 75 治本：此前生产依赖是逐包一个 PR）
+      prod-minor-patch:
+        dependency-type: production
         update-types: ['minor', 'patch']
 
   - package-ecosystem: docker
