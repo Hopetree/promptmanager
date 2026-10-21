@@ -25,12 +25,12 @@
 | 包 | 版本 | 协议 | 用途 / 选型理由 |
 | --- | --- | --- | --- |
 | `fastify` | 5.12.5 | MIT | HTTP 框架（BRIEF §5 推荐）。自带 pino 日志、schema/校验钩子、`inject()` 便于测试；不手写路由/请求解析 |
-| `@fastify/static` | 10.1.5 | MIT | 静态托管前端构建产物，实现**单进程单端口**（FR-12）；不自写静态文件服务 |
-| `@fastify/cookie` | 11.1.2 | MIT | 会话 cookie 的读写/签名/清除（FR-1 阶段 2）；不自写 cookie 解析与序列化（STANDARDS §4.2） |
+| `@fastify/static` | 10.1.6 | MIT | 静态托管前端构建产物，实现**单进程单端口**（FR-12）；不自写静态文件服务 |
+| `@fastify/cookie` | 11.1.3 | MIT | 会话 cookie 的读写/签名/清除（FR-1 阶段 2）；不自写 cookie 解析与序列化（STANDARDS §4.2） |
 | `@fastify/rate-limit` | 11.2.0 | MIT | `/api/login` 的 per-IP 请求级洪泛保护（防"拿 argon2 烧 CPU"）。**只计请求数**，失败阈值语义见 §4.7 |
 | `@fastify/cors` | 11.3.0 | MIT | FR-17 CORS 精确白名单（默认不注册 = 关闭）、预检处理；不自写 CORS 头与 OPTIONS 逻辑，见 §4.10 |
 | `@modelcontextprotocol/sdk` | 1.32.0 | MIT | **官方 MCP TypeScript SDK**（FR-18）：`McpServer` + `StdioServerTransport`；STANDARDS §4.2 禁止手写 JSON-RPC 框架，见 §4.11 |
-| `zod` | 4.6.5 | MIT | MCP 工具的入参 schema（SDK 的 `registerTool` 用 zod raw shape；zod 同时是 SDK 的 peerDependency，故必须直接声明） |
+| `zod` | 4.6.6 | MIT | MCP 工具的入参 schema（SDK 的 `registerTool` 用 zod raw shape；zod 同时是 SDK 的 peerDependency，故必须直接声明） |
 | `@node-rs/argon2` | 2.2.1 | MIT | 口令哈希 Argon2id（BRIEF §5「argon2 优先」，阶段 2）。选择理由见 §4.5 |
 | `better-sqlite3` | 13.0.3 | MIT | SQLite 驱动（BRIEF §5 二选一，理由见 §4.1）。同步 API、事务原语、FTS5 可用 |
 | `kysely` | 0.29.6 | MIT | 类型安全 SQL 查询构造器（STANDARDS §4.2 禁止手搓 ORM/SQL 拼装）。`SqliteDialect` 内建 better-sqlite3 支持，无额外包 |
@@ -38,7 +38,7 @@
 | `react-dom` | 19.3.0 | MIT | React 渲染器 |
 | `antd` | 6.6.4 | MIT | **指定组件库**（BRIEF D-11 / AC-20 / AC-21）。peer `react >=18`，React 19 原生支持，**不需要** `@ant-design/v5-patch-for-react-19` |
 | `@ant-design/icons` | 6.3.4 | MIT | 组件库配套图标（BRIEF §5；不手绘图标、不引图标字体 CDN） |
-| `marked` | 18.0.14 | MIT | Markdown 渲染（FR-9；BRIEF §5 指定 `marked` 或 `markdown-it`，取前者，见 §4.8） |
+| `marked` | 18.1.0 | MIT | Markdown 渲染（FR-9；BRIEF §5 指定 `marked` 或 `markdown-it`，取前者，见 §4.8） |
 | `@dnd-kit/core` | 6.3.1 | MIT | **拖拽排序引擎**（FR-70 / D-28）：DndContext / sensors / 碰撞检测。BRIEF 明确"禁止自己手写拖拽引擎"，它是 React 生态最主流的无 jQuery 拖拽库（peer `react >=16.8`，React 19 可用），见 §4.12 |
 | `@dnd-kit/sortable` | 10.0.0 | MIT | 列表/网格排序策略（`SortableContext` / `useSortable` / `arrayMove` / 键盘坐标），与 core 同作者、peer `@dnd-kit/core ^6.3.0` |
 | `@dnd-kit/utilities` | 3.2.2 | MIT | `CSS.Transform` 等小工具（core/sortable 的传递依赖，显式声明便于版本固定） |
@@ -53,14 +53,14 @@
 | 包 | 版本 | 协议 | 用途 / 选型理由 |
 | --- | --- | --- | --- |
 | `typescript` | 7.0.2 | Apache-2.0 | 类型检查与服务端编译（BRIEF §5：TS strict + Node ESM） |
-| `vite` | 8.3.2 | MIT | 前端构建（BRIEF §5）；不自写打包器 |
-| `@vitejs/plugin-react` | 6.1.1 | MIT | React JSX/Fast Refresh 支持 |
+| `vite` | 8.3.4 | MIT | 前端构建（BRIEF §5）；不自写打包器 |
+| `@vitejs/plugin-react` | 6.1.2 | MIT | React JSX/Fast Refresh 支持 |
 | `@types/node` | 24.13.5 | MIT | Node 类型；**对齐运行时大版本 24**（非 latest 26）以避免用到 Node 24 不存在的 API |
 | `@types/react` | 19.3.0 | MIT | React 类型 |
 | `@types/react-dom` | 19.3.0 | MIT | ReactDOM 类型 |
 | `@types/better-sqlite3` | 9.6.0 | MIT | better-sqlite3 类型（该包自身不发布类型） |
 | `@types/jsdom` | 30.0.0 | MIT | jsdom 类型（该包自身不发布类型） |
-| `oxlint` | 1.86.0 | MIT | **静态检查**（2026-09-30 体检 P2-15）：Rust 实现、毫秒级、零配置；`npm run lint` 已挂进 `tools/ci-check.sh` 的 ①b。范围 = 全仓（含 `tools/acceptance/` 的验收脚本），见该步骤注释 |
+| `oxlint` | 1.87.0 | MIT | **静态检查**（2026-09-30 体检 P2-15）：Rust 实现、毫秒级、零配置；`npm run lint` 已挂进 `tools/ci-check.sh` 的 ①b。范围 = 全仓（含 `tools/acceptance/` 的验收脚本），见该步骤注释 |
 
 **未引入的包（有意为之）**
 
@@ -157,7 +157,7 @@ STANDARDS §4.2 禁止手搓测试框架。`node:test` 是 Node 运行时自带�
 **结论**：选 `@node-rs/argon2`。决定性因素是**不依赖 install 脚本**（阶段 1 实测 npm 11 会跳过它们），
 其次是与 BRIEF「argon2 优先」一致、默认参数即规范推荐值。**不手写哈希、不自己拼盐/参数**（STANDARDS §4.2）。
 
-### 4.6 会话 cookie：`@fastify/cookie@11.1.2`
+### 4.6 会话 cookie：`@fastify/cookie@11.1.3`
 
 FR-1 要求 `HttpOnly; SameSite=Lax; Path=/` 的会话 cookie 与"登出即清 cookie"。
 用官方插件完成解析/序列化/清除（含 `Expires`/`Max-Age` 计算），**不自写 Cookie 头解析**（STANDARDS §4.2）。
@@ -209,7 +209,7 @@ AC-4 规定时序："连续 5 次错误口令后第 6 次 → 429"。
 - **不引的**：`react-beautiful-dnd`（已归档/不再维护）、`react-dnd`（HTML5 backend 触屏不可用）、`sortablejs`（非 React 语义，需手写 DOM 绑定）。
 - **代价**：新增 5 个包（含传递依赖 `@dnd-kit/accessibility`），构建体积 +约 45KB（落在 `vendor-misc` 块，最大 chunk 仍 467KB ≤500KB）。
 
-### 4.11 MCP：`@modelcontextprotocol/sdk@1.32.0`（+ `zod@4.6.5`）
+### 4.11 MCP：`@modelcontextprotocol/sdk@1.32.0`（+ `zod@4.6.6`）
 
 FR-18/D-15 要求 stdio MCP server；STANDARDS §4.2 与 BRIEF §5 **明令禁止手写 JSON-RPC 框架**，故使用**官方 TS SDK**。
 协议版本对齐（BRIEF §5 硬要求）实测：SDK 的 `LATEST_PROTOCOL_VERSION = '2025-11-25'`，与真实对端
@@ -320,6 +320,51 @@ vite                       8.3.2      osv_vulns=0
 §2.1 / §2.2 表格里找到同名同版本的行（0 缺失、0 不一致、0 多余）；协议均为 **MIT / Apache-2.0 / BSD / ISC** 之一（无 GPL/AGPL/无协议）。
 **上次查询时间**：阶段 1（11 个）、阶段 2（3 个）、阶段 7（2 个）、阶段 22（4 个 + 1 传递依赖）；本次（2026-09-20）为**全量重查**。
 ⚠️ 依赖版本此后若有升级，需重新查询（本文件的 OSV 结论只对表中列出的版本有效）。
+
+**④ 阶段 75 复核（2026-10-16，7 个直接依赖升级后按新版本重查 —— FR-166 / AC-137）**
+
+Dependabot 的 5 个 PR 落地后，`marked` 18.0.14→**18.1.0**（minor）、`zod` 4.6.5→4.6.6、
+`@fastify/cookie` 11.1.2→11.1.3、`@fastify/static` 10.1.5→10.1.6、`@vitejs/plugin-react` 6.1.1→6.1.2、
+`oxlint` 1.86.0→1.87.0、`vite` 8.3.2→8.3.4。**旧版本的漏洞结论对新版本无效** ⇒ 按新版本全量重查
+（32 个直接依赖，逐包 `POST https://api.osv.dev/v1/query`，package+version）：
+
+```
+@ant-design/icons            6.3.4      osv_vulns=0
+@dnd-kit/core                6.3.1      osv_vulns=0
+@dnd-kit/modifiers           9.0.0      osv_vulns=0
+@dnd-kit/sortable            10.0.0     osv_vulns=0
+@dnd-kit/utilities           3.2.2      osv_vulns=0
+@fastify/cookie              11.1.3     osv_vulns=0
+@fastify/cors                11.3.0     osv_vulns=0
+@fastify/rate-limit          11.2.0     osv_vulns=0
+@fastify/static              10.1.6     osv_vulns=0
+@modelcontextprotocol/sdk    1.32.0     osv_vulns=0
+@node-rs/argon2              2.2.1      osv_vulns=0
+@types/better-sqlite3        9.6.0      osv_vulns=0
+@types/jsdom                 30.0.0     osv_vulns=0
+@types/node                  24.13.5    osv_vulns=0
+@types/react                 19.3.0     osv_vulns=0
+@types/react-dom             19.3.0     osv_vulns=0
+@vitejs/plugin-react         6.1.2      osv_vulns=0
+antd                         6.6.4      osv_vulns=0
+better-sqlite3               13.0.3     osv_vulns=0
+diff                         9.0.0      osv_vulns=0
+dompurify                    3.4.16     osv_vulns=0
+fastify                      5.12.5     osv_vulns=0
+highlight.js                 11.12.0    osv_vulns=0
+jsdom                        30.1.2     osv_vulns=0
+kysely                       0.29.6     osv_vulns=0
+marked                       18.1.0     osv_vulns=0
+oxlint                       1.87.0     osv_vulns=0
+react                        19.3.0     osv_vulns=0
+react-dom                    19.3.0     osv_vulns=0
+typescript                   7.0.2      osv_vulns=0
+vite                         8.3.4      osv_vulns=0
+zod                          4.6.6      osv_vulns=0
+--- 直接依赖 32 个，OSV 命中漏洞合计 0
+```
+
+结论：**7 个升级后的版本均为 `osv_vulns=0`，无需回退任何包**（`api.osv.dev` 于 2026-10-16 查询）。
 
 阶段 2 新增（3 个）：
 

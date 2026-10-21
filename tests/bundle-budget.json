@@ -165,6 +165,12 @@
       "stage": 71,
       "delta": 251,
       "note": "第三轮审视 M1/M2 修复：Ctrl+K 与 / 过未保存闸门、分栏光标同源（键盘逻辑抽到 use-workspace-hotkeys.ts）"
+    },
+    {
+      "id": "STAGE75",
+      "stage": 75,
+      "delta": 37,
+      "note": "阶段 75（FR-166 / AC-137）：依赖同步落地 5 个 Dependabot PR（marked 18.1.0 minor / vite 8.3.4 / oxlint 1.87.0 等 7 个直接依赖），web 产物 gzip 总变化 +37 B（预算 435000 不动）"
     }
   ]
 }
