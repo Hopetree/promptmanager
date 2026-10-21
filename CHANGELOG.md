@@ -6,7 +6,14 @@
 
 ## [未发布]
 
-- （无）
+### 变更（Changed）
+
+- **依赖升级（阶段 75，落地 5 个 Dependabot PR）**：`marked` 18.0.14 → **18.1.0**（minor，Markdown 渲染器）、
+  `zod` 4.6.5 → 4.6.6、`@fastify/cookie` 11.1.2 → 11.1.3、`@fastify/static` 10.1.5 → 10.1.6、
+  `@vitejs/plugin-react` 6.1.1 → 6.1.2、`oxlint` 1.86.0 → 1.87.0、`vite` 8.3.2 → 8.3.4。
+  台账三处同步（`docs/dependencies.md` §2.1/§2.2 表格、§4.6/§4.11 正文内联、§5④ **按新版本重跑**的 OSV 表：32 个
+  直接依赖 `osv_vulns=0`）；`.github/dependabot.yml` 增加**生产依赖分组**，减少以后逐包 PR 的往返
+  （CI 的「台账逐字相等」门禁仍是最终闸门）。**零代码改动、零迁移**。
 
 ## [1.8.0] — 2026-10-13
 
