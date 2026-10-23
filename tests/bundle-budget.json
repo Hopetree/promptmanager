@@ -171,6 +171,12 @@
       "stage": 75,
       "delta": 37,
       "note": "阶段 75（FR-166 / AC-137）：依赖同步落地 5 个 Dependabot PR（marked 18.1.0 minor / vite 8.3.4 / oxlint 1.87.0 等 7 个直接依赖），web 产物 gzip 总变化 +37 B（预算 435000 不动）"
+    },
+    {
+      "id": "STAGE76",
+      "stage": 76,
+      "delta": 181,
+      "note": "阶段 76：Markdown 排版层与代码高亮主题化（样式表取代 highlight.js 自带主题 + 主题变量联动）"
     }
   ]
 }

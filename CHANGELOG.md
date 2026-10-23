@@ -6,6 +6,23 @@
 
 ## [未发布]
 
+### 新增（Added）
+
+- **Markdown 全文排版层与代码高亮主题化**（FR-167 / AC-138，阶段 76）：预览区从「highlight.js 自带
+  github / github-dark 两套外层主题 + 各元素零星样式」改为**一套自有的 `.pm-markdown` 排版层** ——
+  标题字阶/间距/细分割线、段落行高、列表缩进、引用块（左侧强调边 + 底色）、表格（细边框 + 表头底色 +
+  单元格内距）、行内代码（底色 + 圆角 + 内距）、代码块（独立「面」+ 边框 + 圆角 + 内距 + 溢出横滚）。
+  代码 token 色改由**应用主题变量**驱动（`--pm-code-*`），明暗主题在同一套规则下各自取色。
+  新增 `web/src/styles/markdown.css` 排版层、`--pm-warning` 与 6 个代码 token 变量、
+  `web/src/App.tsx` 的 `data-theme` 桥接。
+
+### 修复（Fixed）
+
+- **暗色主题下 Markdown 代码块是白底**（阶段 76）：预览区原先 `@import` highlight.js 的
+  `github` / `github-dark` 两套主题，选哪套由 **`prefers-color-scheme`（系统偏好）** 决定，
+  而应用主题与系统偏好本来就解耦 ⇒ 应用切暗色、系统仍是亮色时，代码块白底刺眼、与页面割裂。
+  现在改为自有排版层 + 应用主题变量取色，亮/暗 × 系统亮/暗**四种组合**下代码块都跟随应用主题。
+
 ### 变更（Changed）
 
 - **依赖升级（阶段 75，落地 5 个 Dependabot PR）**：`marked` 18.0.14 → **18.1.0**（minor，Markdown 渲染器）、
@@ -770,7 +787,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，114 个测试文件 / **724 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，115 个测试文件 / **736 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段验收脚本（AC-1 … AC-135，含真鼠标与真实像素断言）随仓库交付，见 `tools/acceptance/`
   —— `bash tools/acceptance/run.sh --list` 看清单、`run.sh <阶段>` 重跑该阶段全部（FR-164）。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，

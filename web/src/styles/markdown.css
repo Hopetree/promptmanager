@@ -1,28 +1,263 @@
-@import 'highlight.js/styles/github.css' screen and (prefers-color-scheme: light);
-@import 'highlight.js/styles/github-dark.css' screen and (prefers-color-scheme: dark);
-
 /*
- * Markdown 预览容器的少量排版修正（净化与代码高亮都在服务端完成，这里不重写渲染逻辑）：
- * 只处理"内容宽度/溢出"，颜色与字体全部来自 antd token 与 highlight.js 自带主题。
+ * Markdown 预览样式（FR-167 / AC-138）。
+ *
+ * 为什么不继续用 highlight.js 自带的 github / github-dark 主题：
+ * 它们靠 `@import … screen and (prefers-color-scheme: …)` 选明暗 —— 跟的是**系统**偏好，
+ * 而本应用有自己的主题开关（`pm-theme` + antd `algorithm`）。两套偏好不一致时实测错位：
+ * 「应用深 + 系统浅」⇒ 代码块拿到 #fff 纯白底，白底白页，看不出"代码块"。
+ *
+ * 现在只保留**一套** token 规则，颜色/字体/间距全部取 `--pm-*` 变量
+ * （= `theme.ts` 的 antd token 由 `ThemeBridge` 落到 `<html>` 上，切主题时重写）
+ * ⇒ 天然跟随**应用**主题，不再依赖系统偏好（AC-138 ⑨⑩）。
+ * 字体尺寸档位：容器基准 13px / 行高 1.75；代码用等宽字体 + 12.5px。
  */
+
 .pm-markdown {
   overflow-wrap: anywhere;
+  color: var(--pm-ink);
+  font-size: 13px;
+  line-height: 1.75;
 }
 
-.pm-markdown pre,
+/* ---- 标题：字号严格递减 + 上下留白（h1/h2 加一条细分隔线）---- */
+.pm-markdown h1 {
+  margin: 20px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--pm-hairline);
+  font-size: 20px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.pm-markdown h2 {
+  margin: 18px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--pm-hairline);
+  font-size: 17px;
+  line-height: 1.45;
+  font-weight: 600;
+}
+
+.pm-markdown h3 {
+  margin: 16px 0 6px;
+  font-size: 15px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+.pm-markdown h4 {
+  margin: 14px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pm-markdown h5 {
+  margin: 12px 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pm-markdown h6 {
+  margin: 12px 0 4px;
+  color: var(--pm-ink-subtle);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pm-markdown p {
+  margin: 0 0 10px;
+}
+
+/* ---- 列表：缩进 + 相邻项间距；嵌套列表收紧 ---- */
+.pm-markdown ul,
+.pm-markdown ol {
+  margin: 0 0 10px;
+  padding-left: 22px;
+}
+
+.pm-markdown ul {
+  list-style: disc;
+}
+
+.pm-markdown ol {
+  list-style: decimal;
+}
+
+.pm-markdown li {
+  margin: 0;
+}
+
+.pm-markdown li + li {
+  margin-top: 4px;
+}
+
+.pm-markdown li > ul,
+.pm-markdown li > ol {
+  margin: 4px 0 0;
+}
+
+/* ---- 引用块：主色左边框 + 应用浅底 + 内边距 ---- */
+.pm-markdown blockquote {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--pm-primary);
+  border-radius: 0 6px 6px 0;
+  background: var(--pm-surface-2);
+  color: var(--pm-ink-subtle);
+}
+
+.pm-markdown blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---- 表格：合并边框 + 每格 1px 边 + 内边距 + 表头浅底 ---- */
 .pm-markdown table {
+  width: max-content;
   max-width: 100%;
+  margin: 0 0 12px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.pm-markdown th,
+.pm-markdown td {
+  border: 1px solid var(--pm-hairline);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.pm-markdown th {
+  background: var(--pm-surface-2);
+  font-weight: 600;
+}
+
+/* ---- 行内代码：底色 + 小圆角 + 少量 padding（代码块里的 code 由下面重置） ---- */
+.pm-markdown code {
+  font-family: var(--pm-font-mono);
+  font-size: 0.92em;
+}
+
+.pm-markdown :not(pre) > code {
+  padding: 1px 5px;
+  border: 1px solid var(--pm-hairline);
+  border-radius: 4px;
+  background: var(--pm-surface-2);
+  color: var(--pm-ink);
+}
+
+/* ---- 代码块「有面」：应用 surface 当底（不是高亮主题自带的纯白/纯黑）+ 边框 + 圆角 + 内边距 ---- */
+.pm-markdown pre {
+  max-width: 100%;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--pm-hairline);
+  border-radius: 8px;
+  background: var(--pm-surface-3);
   overflow-x: auto;
+  line-height: 1.6;
+}
+
+.pm-markdown pre code {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pm-ink);
+  font-size: 12.5px;
+}
+
+/* ---- 链接 / 分隔线 / 图片 / 强调 ---- */
+.pm-markdown a {
+  color: var(--pm-primary);
+  text-decoration: none;
+}
+
+.pm-markdown a:hover {
+  text-decoration: underline;
+}
+
+.pm-markdown strong {
+  color: var(--pm-ink);
+  font-weight: 600;
+}
+
+.pm-markdown hr {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--pm-hairline);
 }
 
 .pm-markdown img {
   max-width: 100%;
+  border-radius: 6px;
 }
 
-.pm-markdown :first-child {
-  margin-top: 0;
+/* ---- highlight.js token 色：只此一套，全部取 --pm-code-*（theme.ts 给出亮/暗两套值）---- */
+.pm-markdown .hljs-keyword,
+.pm-markdown .hljs-selector-tag,
+.pm-markdown .hljs-literal,
+.pm-markdown .hljs-doctag,
+.pm-markdown .hljs-name,
+.pm-markdown .hljs-tag {
+  color: var(--pm-code-keyword);
 }
 
+.pm-markdown .hljs-string,
+.pm-markdown .hljs-attr-value,
+.pm-markdown .hljs-regexp,
+.pm-markdown .hljs-addition,
+.pm-markdown .hljs-template-tag {
+  color: var(--pm-code-string);
+}
+
+.pm-markdown .hljs-number,
+.pm-markdown .hljs-symbol,
+.pm-markdown .hljs-bullet,
+.pm-markdown .hljs-variable,
+.pm-markdown .hljs-template-variable,
+.pm-markdown .hljs-link,
+.pm-markdown .hljs-selector-attr,
+.pm-markdown .hljs-selector-pseudo {
+  color: var(--pm-code-number);
+}
+
+.pm-markdown .hljs-comment,
+.pm-markdown .hljs-quote,
+.pm-markdown .hljs-meta,
+.pm-markdown .hljs-deletion {
+  color: var(--pm-code-comment);
+  font-style: italic;
+}
+
+.pm-markdown .hljs-title,
+.pm-markdown .hljs-section,
+.pm-markdown .hljs-function,
+.pm-markdown .hljs-title.function_,
+.pm-markdown .hljs-title.class_ {
+  color: var(--pm-code-title);
+  font-weight: 600;
+}
+
+.pm-markdown .hljs-attr,
+.pm-markdown .hljs-attribute,
+.pm-markdown .hljs-property,
+.pm-markdown .hljs-type,
+.pm-markdown .hljs-class,
+.pm-markdown .hljs-built_in,
+.pm-markdown .hljs-params {
+  color: var(--pm-code-attr);
+}
+
+.pm-markdown .hljs-emphasis {
+  font-style: italic;
+}
+
+.pm-markdown .hljs-strong {
+  font-weight: 600;
+}
+
+/* ---- 宽度/溢出收口（原有关心项保留）---- */
 .pm-markdown :last-child {
   margin-bottom: 0;
 }

@@ -67,7 +67,22 @@ export function cssVars(prefersDark: boolean): Record<string, string> {
     '--pm-ink-faint': p.inkFaint,
     '--pm-success': p.success,
     '--pm-error': p.error,
+    '--pm-warning': p.warning,
     '--pm-font-mono': FONT_MONO,
+    /**
+     * FR-167 / AC-138 ⑩：Markdown 代码高亮的 token 色。
+     *
+     * 为什么单列一组：highlight.js 自带主题跟的是 `prefers-color-scheme`（系统），
+     * 会和应用主题错位；这里把"语法色"也做成 `--pm-*` 变量，由本函数按**应用**明暗给出
+     * 两套值 ⇒ `styles/markdown.css` 只写一套规则，切主题时 CSS 变量整体重写。
+     * 每个键的亮/暗值都来自 `palette()`（不是新色），因此不会与设计稿漂移。
+     */
+    '--pm-code-keyword': prefersDark ? p.primaryHover : p.primary,
+    '--pm-code-string': p.success,
+    '--pm-code-number': p.warning,
+    '--pm-code-comment': p.inkFaint,
+    '--pm-code-title': p.ink,
+    '--pm-code-attr': p.inkSubtle,
   };
 }
 

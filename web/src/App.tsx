@@ -103,6 +103,10 @@ function ThemeBridge({ prefersDark, mode }: { prefersDark: boolean; mode: ThemeM
     }
     root.dataset['pmTheme'] = prefersDark ? 'dark' : 'light';
     root.dataset['pmThemeMode'] = mode;
+    // FR-167 / AC-138 ⑧：给 CSS 一个**已解析**的主题标记。
+    // 不能写 mode（system 模式下 CSS 无法判断）；这里落的是 resolveDark 之后的实际值，
+    // `styles/markdown.css` 等按 `[data-theme='dark']` 覆盖的规则才有依据。
+    root.dataset['theme'] = prefersDark ? 'dark' : 'light';
     // system → 空串 = 移除内联 colorScheme，交回系统（AC-42 ①）
     root.style.colorScheme = colorSchemeFor(mode);
     document.body.style.margin = '0';
