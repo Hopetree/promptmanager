@@ -8,6 +8,36 @@
 
 - （无）
 
+## [1.9.0-beta.1] — 2026-11-24
+
+**预发布（beta）**：在 `1.8.1-beta.1`（未发版）之上新增「变量值多行输入」。**版本号判据**（`docs/versioning.md` §1）——
+变量值从单行输入改成多行文本域、并补上多行默认值语义，属「**新增界面能力**」（占位符语法 / API 契约 / 数据模型都不变）⇒ **MINOR**；
+`1.8.0` 已正式发布、`1.8.1` 线只是未发版的 PATCH ⇒ 抬到 `1.9.0` 线，故为 `1.9.0-beta.1`。
+**零迁移**（schema 仍 10）、**零新增依赖**、**不改 API 契约**（`values` 仍是 `Record<string, string>`）。
+
+### 新增（Added）
+
+- **变量值支持多行输入（代码片段）**（阶段 77）：两个填值控件的变量值输入从 antd 单行 `<Input />` 改为
+  `<Input.TextArea autoSize={{ minRows: 1, maxRows: 10 }} />` —— 填值弹窗 `web/src/components/VarsDialog.tsx`
+  （`data-testid="pm-var-input-<name>"`）与编辑器变量面板 `web/src/components/VariablePanel.tsx`（`data-testid="var-<name>"`）。
+  HTML `<input>` 天然承载不了换行（粘贴 `line1\nline2\nline3` 会被压成一行），改后换行、缩进、首尾空行都原样保留；
+  Enter 在文本域内只换行（提交仍走「渲染 / 复制结果」按钮），预览区保持受控高度（`max-height` + `overflow-y:auto`），
+  填值弹窗 body 在窄视口内可滚，移动端不撑破布局；空串仍按「未填」处理（回落默认值 / 保留占位符）。
+- **多行默认值**：`{{ code | default("a\nb") }}` 这类带引号的默认值，引号内支持 `\n`（反斜杠 + n）转义为真实换行；
+  引号内部原样保留（不 trim、保留缩进与空行）。未加引号的默认值沿用原有 `trim()` 口径，其余 `\` 保持字面。
+
+### 修复（Fixed）
+
+- **变量值的换行丢失**：根因是变量值控件使用单行 `<input>`（HTML 输入框无法承载换行），多行内容（代码片段）一粘就丢行。
+- **Windows / 剪贴板 CRLF 残留**：`src/variable-syntax.ts` 的 `renderVariableText` 在替换「值」前统一做
+  `value.replace(/\r\n?/g, '\n')`；服务端 `POST /api/prompts/:id/render`、前端实时预览、复制结果三通道共用这一个纯函数
+  ⇒ 渲染结果不再残留 `\r`。只归「值」：prompt 原文与 `defaults` 默认值表保持原样。
+
+### 变更（Changed）
+
+- **`default()` 引号内字面 `\n` 的语义**：从「两个字符原样输出」改为「真实换行」——为让一行内写的多行默认值可用，
+  这是有意的行为变更；`default(' z ')` 仍返回 `' z '`（旧实现本就保留引号内空白，本次未改变）。
+
 ## [1.8.1-beta.1] — 2026-10-23
 
 **预发布（beta）**：`1.8.0` 之后的改动。**版本号判据**（`docs/versioning.md` §1）——
@@ -795,7 +825,7 @@ tag `v1.4.0`（阶段 53–56）。
 ### 工程（Engineering）
 
 - TypeScript strict + ESM（Node 24）；kysely + better-sqlite3；React 19 + antd 6 + Vite。
-- **测试**：`node:test`，115 个测试文件 / **736 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
+- **测试**：`node:test`，118 个测试文件 / **763 个用例**（含接口、迁移、前端源码级断言；数字以 `ls tests/*.test.ts | wc -l` 与 `grep -h '^test(' tests/*.test.ts | wc -l` 现场实测为准）。
 - **验收自检**：逐阶段验收脚本（AC-1 … AC-135，含真鼠标与真实像素断言）随仓库交付，见 `tools/acceptance/`
   —— `bash tools/acceptance/run.sh --list` 看清单、`run.sh <阶段>` 重跑该阶段全部（FR-164）。
 - **代码质量检查**：`.github/workflows/ci.yml` + `tools/ci-check.sh`（**本地与 CI 同一套**；步骤清单与顺序**以脚本文件头为准**，
