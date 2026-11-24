@@ -177,6 +177,12 @@
       "stage": 76,
       "delta": 181,
       "note": "阶段 76：Markdown 排版层与代码高亮主题化（样式表取代 highlight.js 自带主题 + 主题变量联动）"
+    },
+    {
+      "id": "STAGE77",
+      "stage": 77,
+      "delta": 60,
+      "note": "阶段 77：变量值多行输入（Input.TextArea + 值 CRLF 归一化 + 多行默认值）"
     }
   ]
 }
