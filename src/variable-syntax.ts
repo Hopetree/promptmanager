@@ -21,14 +21,23 @@
 /** 占位符：第 1 组是可选反斜杠（转义标记），第 2 组是变量名，第 3 组是 `default(...)` 的原始内容。 */
 export const PLACEHOLDER = /(\\?)\{\{\s*([\p{L}\p{N}_-]{1,64})\s*(?:\\?\|\s*default\s*\(([\s\S]*?)\)\s*)?\}\}/gu;
 
-/** `default(...)` 的原始内容 → 字面默认值；`undefined` 表示这个占位符没写默认值。 */
+/**
+ * `default(...)` 的原始内容 → 字面默认值；`undefined` 表示这个占位符没写默认值。
+ *
+ * 多行默认值（阶段 77）：两端成对引号时，引号内部**原样**返回（不 trim、保留真实换行与缩进），
+ * 并把内部的字面 `\n`（反斜杠 + 字母 n 两个字符）转成真实换行 —— 提示词本身是一行 JSON/表格时，
+ * 用户没法敲真实换行，只能写转义形式。其余反斜杠保持字面（模板不是转义语言，只认 `\n` 这一种）。
+ * 未加引号时维持原口径：只 `trim()`，字面内容不做任何转义处理。
+ */
 export function parseDefaultText(raw: string | undefined): string | undefined {
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
   if (trimmed.length >= 2) {
     const first = trimmed[0];
     if ((first === "'" || first === '"') && first === trimmed[trimmed.length - 1]) {
-      return trimmed.slice(1, -1); // 两端成对引号 ⇒ 剥掉这一对
+      // 两端成对引号 ⇒ 剥掉这一对；引号内部原样保留，只把字面 `\n` 换成真实换行
+      const inner = trimmed.slice(1, -1);
+      return inner.replace(/\\n/g, '\n');
     }
   }
   return trimmed;
@@ -37,7 +46,7 @@ export function parseDefaultText(raw: string | undefined): string | undefined {
 export interface VariableScan {
   /** 变量名（按首次出现顺序、去重、跳过转义的） */
   variables: string[];
-  /** 只有**写了默认值**的变量才在这里；值是字面文本（引号已剥、两端空白已去） */
+  /** 只有**写了默认值**的变量才在这里；值是字面文本（未加引号时两端空白已去；成对引号时引号已剥、内部原样） */
   defaults: Record<string, string>;
 }
 
@@ -74,6 +83,10 @@ export interface VariableRenderResult {
  * 有默认值 ⇒ 用默认值，没有默认值 ⇒ **原样保留**（含内部空白）并列入 `missing`。
  * 给定空字符串算"已提供"（渲染成空，**不回落默认值**）；转义写法去掉反斜杠、其余原样。
  *
+ * 值的换行归一化（阶段 77）：替换进去的字符串值先 `replace(/\r\n?/g, '\n')` —— 剪贴板 / Windows
+ * 客户端会带 CRLF 或裸 CR，统一成 `\n` 后复制出去的正文才不会被目标输入框塞进多余的回车。
+ * **只归「值」**：prompt 原文与 defaults 表里的默认值都保持原样（它们不是"用户输入"）。
+ *
  * `defaultsScope`：一条提示词有**两段**（用户段 + 系统段）时，默认值表必须是**全篇**的 ——
  * 也就是 `scanVariableTexts(user_prompt, system_prompt).defaults`，与
  * `GET /api/prompts/:id/variables` 报出去的那张表**同一张**。不传时退化为只看本段。
@@ -94,7 +107,7 @@ export function renderVariableText(
     if (escape === '\\') return whole.slice(1); // 转义 → 去掉反斜杠，其余原样输出
 
     const value = Object.prototype.hasOwnProperty.call(values, name) ? values[name] : undefined;
-    if (typeof value === 'string') return value;
+    if (typeof value === 'string') return value.replace(/\r\n?/g, '\n'); // 只归「值」的换行，见函数注释
 
     const fallback = defaults[name];
     if (fallback !== undefined) return fallback;
