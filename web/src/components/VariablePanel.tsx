@@ -115,7 +115,10 @@ export default function VariablePanel({ promptId }: VariablePanelProps) {
             label={defaults[name] !== undefined ? `${name}（可留空）` : name}
             style={{ marginBottom: 8 }}
           >
-            <Input
+            {/* 变量值可能是一整段多行文本：单行 Input 显示不出换行也录不进去。
+                Enter 在这里只换行（不挂 onPressEnter），提交仍只走「渲染」按钮。 */}
+            <Input.TextArea
+              autoSize={{ minRows: 1, maxRows: 10 }}
               placeholder={defaults[name] !== undefined ? `留空则用默认值：${defaults[name]}` : `{{${name}}} 的值`}
               data-testid={`var-${name}`}
             />

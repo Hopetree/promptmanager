@@ -130,7 +130,10 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
       width={760}
       /* FR-127 / AC-123 ⑫：不记住时标题**不含**「（自动记忆）」。 */
       title={varsDialogTitle(remember)}
-      styles={{ body: { paddingTop: 8, minHeight: 360 } }}
+      /* 变量多 + 多行输入时 body 会超过移动端视口：给 body 自身加滚动。
+         用 calc(100vh - Npx) 而不是裸 100vh 高度 —— 本仓库没有全局 box-sizing: border-box，
+         裸 100vh 配上 body 的内边距会恒定溢出（见 AGENTS.md §1.1 / docs/traps.md）。 */
+      styles={{ body: { paddingTop: 8, minHeight: 360, maxHeight: 'calc(100vh - 240px)', overflowY: 'auto' } }}
       footer={
         <Flex justify="space-between" align="center" gap={8}>
           <Typography.Text
@@ -200,7 +203,10 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
                     label={defaults[name] !== undefined ? `${name}（可留空）` : name}
                     style={{ flex: '1 1 240px', minWidth: 200, marginBottom: 8 }}
                   >
-                    <Input
+                    {/* 变量值可能是一整段多行文本：单行 Input 显示不出换行也录不进去。
+                        Enter 在这里只换行（不挂 onPressEnter），提交仍只走「渲染 / 复制结果」按钮。 */}
+                    <Input.TextArea
+                      autoSize={{ minRows: 1, maxRows: 10 }}
                       placeholder={defaults[name] !== undefined ? `留空则用默认值：${defaults[name]}` : `{{${name}}} 的值`}
                       data-testid={`pm-var-input-${name}`}
                     />
@@ -228,7 +234,7 @@ export default function VarsDialog({ prompt, busy, onCancel, onConfirm, onRememb
                 className="pm-mono"
                 style={{
                   maxHeight: 280,
-                  overflow: 'auto',
+                  overflowY: 'auto',
                   whiteSpace: 'pre-wrap',
                   wordBreak: 'break-word',
                   padding: 12,
